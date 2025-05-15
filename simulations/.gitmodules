@@ -1,0 +1,3 @@
+[submodule "libraries/jaxneurorl"]
+	path = libraries/jaxneurorl
+	url = https://github.com/wcarvalho/jaxneurorl
