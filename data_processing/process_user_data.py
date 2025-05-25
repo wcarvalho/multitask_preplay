@@ -741,7 +741,9 @@ def get_jaxmaze_human_data(
 
 
 def get_craftax_human_data(
-  input_data_path: str,
+  input_data_path: str = os.path.join(
+    data_configs.CRAFTAX_USER_DIR, data_configs.CRAFTAX_HUMAN_DATA_PATTERN
+  ),
   output_data_path: str = data_configs.CRAFTAX_DATA_DIR,
   overwrite_episode_data=False,
   overwrite_episode_df=False,

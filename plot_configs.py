@@ -21,8 +21,8 @@ default_colors = {
 default_colors["new_path"] = default_colors["nice purple"]
 default_colors["reuse"] = default_colors["bluish green"]
 
-TRAIN_COLOR = "red"
-EVAL_COLOR = default_colors["sky blue"]
+TRAIN_COLOR = default_colors["sky blue"]
+EVAL_COLOR = "red"
 EVAL2_COLOR = "yellow"
 
 model_colors = {
@@ -45,7 +45,7 @@ model_names = {
   "human_terminate": "Human (finished)",
   "human_success": "Human (Succeeded)",
   "qlearning": "Universal Value Function",
-  "usfa": "Counterfactual Landmark SFs",
+  "usfa": "Landmark-based Universal SFs",
   "dyna": "Dyna",
   "dynaq_shared": "Multitask preplay",
   "preplay": "Multitask Preplay",

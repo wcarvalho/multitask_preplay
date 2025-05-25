@@ -384,53 +384,52 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None):
   task_runner = extras.get("task_runner", None)
 
   char2idx, groups, task_objects = mazes.get_group_set()
-  _, _, _, label2name = housemaze_experiments.exp2(algorithm.config, analysis_eval=True)
+  _, test_params, _, label2name = housemaze_experiments.exp4(algorithm.config, analysis_eval=True)
 
   maze_names = list(label2name.values())
 
-  train_tasks = groups[:1, 0]
-  test_tasks = groups[:1, 1]
-  tasks = jnp.concatenate((train_tasks, test_tasks))
-  rng = jax.random.PRNGKey(42)
-
   all_episodes = []
   all_configs = []
-  for maze_name in tqdm(
-    maze_names, desc=f"{algorithm.model_name}: Generating maze episodes"
-  ):
-    env_params = mazes.get_maze_reset_params(
-      groups=groups,
-      char2key=char2idx,
-      maze_str=getattr(mazes, maze_name),
-      randomize_agent=False,
-      make_env_params=True,
-    )
-    for task in tasks:
-      task_vector = task_runner.task_vector(task)
-      task_env_params = env_params.replace(task_probs=task_vector.astype(jnp.float32))
-      episodes = algorithm.eval_fn(rng, task_env_params)
-      episodes = episodes._replace(positions=get_agent_position(episodes.timesteps))
-      nepisodes = episodes.actions.shape[0]
 
-      # Split episodes
-      is_eval = task in test_tasks
-      for i in range(nepisodes):
-        # minimize space requirements
-        episode = jax.tree_util.tree_map(lambda x: x[i], episodes)
-        in_episode = get_in_episode(episode.timesteps)
-        episode = jax.tree_util.tree_map(lambda x: x[in_episode], episode)
-        all_episodes.append(episode)
-        all_configs.append(
-          dict(
-            env_params=task_env_params,
-            maze_name=maze_name,
-            task=int(task),
-            eval=is_eval,
-            algo=algorithm.model_name,
-            seed=extras["seed"],
-            episode_idx=i,
-          )
+  def collect_data(env_params, task, is_eval):
+    task_vector = task_runner.task_vector(task)
+    task_env_params = env_params.replace(task_probs=task_vector.astype(jnp.float32))
+    episodes = algorithm.eval_fn(rng, task_env_params)
+    episodes = episodes._replace(positions=get_agent_position(episodes.timesteps))
+    nepisodes = episodes.actions.shape[0]
+    maze_name = label2name[int(env_params.reset_params.label[0])]
+   
+    # Split episodes
+    for i in range(nepisodes):
+      # minimize space requirements
+      episode = jax.tree_util.tree_map(lambda x: x[i], episodes)
+      in_episode = get_in_episode(episode.timesteps)
+      episode = jax.tree_util.tree_map(lambda x: x[in_episode], episode)
+      all_episodes.append(episode)
+      all_configs.append(
+        dict(
+          env_params=task_env_params,
+          maze_name=maze_name,
+          task=int(task),
+          eval=is_eval,
+          algo=algorithm.model_name,
+          seed=extras["seed"],
+          episode_idx=i,
         )
+      )
+
+  nparams = test_params.reset_params.train_objects.shape[0]
+  index = lambda x: jax.tree_map(lambda x: x[idx][None], x)
+  for idx in tqdm(range(nparams), desc=f"{algorithm.model_name}: Generating maze episodes"):
+    env_params = test_params.replace(
+      reset_params=index(test_params.reset_params))
+    train_object = env_params.reset_params.train_objects[0,0]
+    test_object = env_params.reset_params.test_objects[0,0]
+
+    collect_data(env_params, train_object, is_eval=False)
+    collect_data(env_params, test_object, is_eval=True)
+
+
   return all_episodes, all_configs
 
 
@@ -440,11 +439,12 @@ def make_model_episode_row_data(episode, metadata):
   if algo == "dynaq_shared":
     algo = "preplay"
 
+  env_rotation = jnp.asarray(metadata['env_params'].reset_params.rotation).squeeze()  # [2,1] --> 2
   return dict(
     # shared across {human, model}, {craftax, jaxmaze}
     domain="jaxmaze",
     algo=algo,
-    block_name=None,  # don't have data per block for JaxMaze
+    block_name=str(env_rotation), 
     condition=int(metadata.get("condition", 0)),
     eval=metadata["eval"],
     start_pos=str(get_agent_position(episode.timesteps)[0]),

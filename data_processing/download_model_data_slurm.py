@@ -2,7 +2,10 @@
 This script was used to download the model data from the Harvard Kempner SLURM cluster.
 
 Call from root directory with:
-python data_processing/download_model_data_slurm.py
+python data_processing/download_model_data_slurm.py --env jaxmaze
+python data_processing/download_model_data_slurm.py --env craftax
+python data_processing/download_model_data_slurm.py --env both
+python data_processing/download_model_data_slurm.py  # defaults to both
 """
 
 import os
@@ -99,7 +102,7 @@ def download_model_files(base_server_dir, base_local_dir, model_dirs, model_name
       original_local_dir,
     )
 
-    final_local_dir = os.path.join(base_local_dir, model_names[model])
+    final_local_dir = os.path.join(base_local_dir, model_names.get(model, model))
     if os.path.exists(final_local_dir):
       if os.path.islink(final_local_dir):
         # If it's a symlink, use os.unlink to remove it
@@ -113,7 +116,19 @@ def download_model_files(base_server_dir, base_local_dir, model_dirs, model_name
 
 
 if __name__ == "__main__":
-  IS_FINAL = True
+  # Parse command line arguments
+  import argparse
+
+  parser = argparse.ArgumentParser(description="Download model data from SLURM cluster")
+  parser.add_argument(
+    "--env",
+    choices=["jaxmaze", "craftax", "both"],
+    default="both",
+    help="Which environment to download (jaxmaze, craftax, or both)",
+  )
+
+  args = parser.parse_args()
+
   model_names = {
     "qlearning": "qlearning",
     "sf": "usfa",
@@ -121,38 +136,43 @@ if __name__ == "__main__":
     "preplay": "preplay",
   }
 
-  ############################################################
-  # Housemaze
-  ############################################################
-  print("Downloading Housemaze model data...")
-  server_dir = (
-    "/n/holylfs06/LABS/kempner_fellow_wcarvalho/jax_rl_results/housemaze_trainer"
-  )
-  download_model_files(
-    base_server_dir=server_dir,
-    base_local_dir=data_configs.JAXMAZE_DATA_DIR,
-    model_dirs={
-      "qlearning": "ql-final/save_data/ql-final-run-6/exp=exp2",
-      "sf": "usfa-final/save_data/usfa-final-4/exp=exp2",
-      "dyna": "dyna-final/save_data/dyna-final-run-6/alg=dyna,exp=exp2",
-      "preplay": "preplay-old-final/save_data/preplay-old-final-run-8/alg=dynaq_shared,exp=exp2",
-    },
-    model_names=model_names,
-  )
+  # Download JaxMaze data if requested
+  if args.env in ["jaxmaze", "both"]:
+    ############################################################
+    # Housemaze
+    ############################################################
+    print("Downloading Housemaze model data...")
+    server_dir = (
+      "/n/holylfs06/LABS/kempner_fellow_wcarvalho/jax_rl_results/housemaze_trainer"
+    )
+    download_model_files(
+      base_server_dir=server_dir,
+      base_local_dir=data_configs.JAXMAZE_DATA_DIR,
+      model_dirs={
+        #"qlearning": "ql-final/save_data/ql-final-rotations-2/exp=exp4",
+        #"sf": "usfa-final/save_data/usfa-final-rotations-2/alg=usfa,exp=exp4",
+        #"dyna": "dyna-final/save_data/dyna-final-rotations-2/alg=dyna,exp=exp4",
+        # # STOPPED "preplay": "preplay-old-final/save_data/preplay-old-final-rotations-4/alg=dynaq_shared,exp=exp4",
+        #"preplay-new": "preplay-final/save_data/preplay-final-rotations-5/alg=preplay,simu=15,exp=exp4",
+      },
+      model_names=model_names,
+    )
 
-  ############################################################
-  # Craftax
-  ############################################################
-  print("Downloading Craftax model data...")
-  server_dir = "/n/holylfs06/LABS/kempner_fellow_wcarvalho/jax_rl_results/craftax_multigoal_trainer"
-  download_model_files(
-    base_server_dir=server_dir,
-    base_local_dir=data_configs.CRAFTAX_DATA_DIR,
-    model_dirs={
-      "qlearning": "ql-final/save_data/ql-final-1/alg=qlearning",
-      "sf": "usfa-final/save_data/usfa-final-5/alg=usfa",
-      "dyna": "dyna-final/save_data/dyna-final-2/alg=dyna",
-      "preplay": "preplay-final/save_data/preplay-final-1/alg=preplay",
-    },
-    model_names=model_names,
-  )
+  # Download Craftax data if requested
+  if args.env in ["craftax", "both"]:
+    ############################################################
+    # Craftax
+    ############################################################
+    print("Downloading Craftax model data...")
+    server_dir = "/n/holylfs06/LABS/kempner_fellow_wcarvalho/jax_rl_results/craftax_multigoal_trainer"
+    download_model_files(
+      base_server_dir=server_dir,
+      base_local_dir=data_configs.CRAFTAX_DATA_DIR,
+      model_dirs={
+        "qlearning": "ql-final/save_data/ql-final-1/alg=qlearning",
+        "sf": "usfa-final/save_data/usfa-final-5/alg=usfa",
+        "dyna": "dyna-final/save_data/dyna-final-2/alg=dyna",
+        "preplay": "preplay-final/save_data/preplay-final-1/alg=preplay",
+      },
+      model_names=model_names,
+    )

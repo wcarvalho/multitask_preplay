@@ -5,6 +5,7 @@ Call from root directory with:
 python data_processing/process_model_data.py --env jaxmaze --df
 python data_processing/process_model_data.py --env craftax --df
 
+
 """
 
 import os
@@ -13,22 +14,13 @@ import sys
 
 sys.path.append("simulations")
 
-from functools import partial
-import json
 from glob import glob
-from collections import defaultdict
-from typing import NamedTuple, List, Optional, Dict, Callable
-from datetime import datetime
-from concurrent.futures import ProcessPoolExecutor
+from typing import List, Optional, Dict, Callable
 
 # Third-party imports
-import time
-from absl import logging
 from flax import serialization, struct
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
-from joblib import Parallel, delayed
 import numpy as np
 import polars as pl
 import functools
@@ -559,6 +551,35 @@ def load_preplay_jaxmaze_algorithm(
     model_name="dynaq_shared",
   )
 
+def load_preplay_new_jaxmaze_algorithm(
+  config: dict,
+  agent_params: dict,
+  env: Callable,
+  example_env_params: struct.PyTreeNode,
+  path: str,
+  num_episodes: int = 1,
+  max_steps: int = 150,
+):
+  from simulations import multitask_preplay_craftax_v2 as multitask_preplay
+
+  return load_algorithm(
+    config=config,
+    agent_params=agent_params,
+    env=env,
+    example_env_params=example_env_params,
+    make_agent=functools.partial(
+      multitask_preplay.make_agent,
+      ObsEncoderCls=get_jaxmaze_obs_encoder(config),
+    ),
+    num_episodes=num_episodes,
+    max_steps=max_steps,
+    make_optimizer=multitask_preplay.make_optimizer,
+    make_actor=make_epsilon_greedy_actor,
+    path=path,
+    model_name="preplat",
+  )
+
+
 
 def load_jaxmaze_search_algorithm(
   config: dict,
@@ -816,7 +837,6 @@ def generate_model_data(
       all_episode_metadata = serialization.from_bytes(
         [example_config] * len(attempt1), serialized_data
       )
-      # TODO: might need an example to deserialize
 
     all_episodes_df = generate_all_episodes_df(
       all_episode_data,
@@ -958,9 +978,9 @@ def generate_all_episodes_data(
     rng = jax.random.PRNGKey(seed)
     extras["seed"] = seed
     episodes, episode_configs = generate_algorithm_episodes(algorithm, rng, extras)
-
     all_episodes.extend(episodes)
     all_episode_configs.extend(episode_configs)
+  import ipdb; ipdb.set_trace()
   return all_episodes, all_episode_configs
 
 
@@ -1104,12 +1124,23 @@ def get_jaxmaze_model_data(
     load_jaxmaze_environment(load_sf_task_runner=True)
   )
 
+  models = models or [
+    'qlearning',
+    'dyna',
+    'usfa',
+    #'preplay',
+    'preplay_new',
+    'bfs',
+    'dfs',
+  ]
+
   # Call the common human data function
   model_to_input_glob = model_to_input_glob or dict(
     qlearning=f"{input_data_path}/qlearning/seed=*/",
     dyna=f"{input_data_path}/dyna/seed=*/",
     usfa=f"{input_data_path}/usfa/seed=*/",
     preplay=f"{input_data_path}/preplay/seed=*/",
+    preplay_new=f"{input_data_path}/preplay-new/seed=*/",
     bfs="",  # ignored
     dfs="",  # ignored
   )
@@ -1119,6 +1150,7 @@ def get_jaxmaze_model_data(
     dyna=(env, example_timestep, example_env_params),
     usfa=(sf_env, sf_example_timestep, sf_example_env_params),
     preplay=(env, example_timestep, example_env_params),
+    preplay_new=(env, example_timestep, example_env_params),
     bfs=(env, example_timestep, example_env_params),
     dfs=(env, example_timestep, example_env_params),
   )
@@ -1128,6 +1160,7 @@ def get_jaxmaze_model_data(
     dyna=dict(task_runner=task_runner),
     usfa=dict(task_runner=sf_task_runner),
     preplay=dict(task_runner=task_runner, model_filename="dynaq_shared"),
+    preplay_new=dict(task_runner=task_runner, model_filename="preplay"),
     bfs=dict(task_runner=task_runner, search_algorithm=True),
     dfs=dict(task_runner=task_runner, search_algorithm=True),
   )
@@ -1137,6 +1170,7 @@ def get_jaxmaze_model_data(
     usfa=load_usfa_jaxmaze_algorithm,
     dyna=load_dyna_jaxmaze_algorithm,
     preplay=load_preplay_jaxmaze_algorithm,
+    preplay_new=load_preplay_new_jaxmaze_algorithm,
     bfs=functools.partial(
       load_jaxmaze_search_algorithm,
       algorithm="bfs",

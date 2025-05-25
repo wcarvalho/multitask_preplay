@@ -28,7 +28,8 @@ from statsmodels.stats.power import TTestPower
 import pandas as pd
 import statsmodels.formula.api as smf
 from multiprocessing import Pool
-from absl import logging
+from scipy import stats
+
 from nicewebrl.dataframe import DataFrame
 import data_configs
 from plot_configs import (
@@ -688,6 +689,337 @@ def compute_condition_difference_df(
   return diff_df
 
 
+# def get_success_rate_path_reuse_data(
+#  df: DataFrame,
+#  overlap_threshold: float,
+#  model_df: DataFrame = None,
+#  reuse_column: str = "reuse",
+#  stats_file: str = None,
+# ) -> Tuple[DataFrame, DataFrame]:
+#  # for both df and model_df, add a boolean "reuse" column if over "overlap" column is greater than overlap_threshold
+#  df = df.with_columns((pl.col("overlap") > overlap_threshold).alias(reuse_column))
+#  model_df = model_df.with_columns((pl.col("overlap") > overlap_threshold).alias(reuse_column))
+
+#  # Calculate human statistics with consistent ordering
+#  # drop all rows where reuse is -1
+#  df = df.filter(pl.col(reuse_column) != -1)
+#  model_df = model_df.filter(pl.col(reuse_column) != -1)
+
+#  # Calculate human success statistics
+#  human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
+
+#  # Calculate human reuse statistics
+#  human_reuse_stats = compute_binary_measure_statistics(df, "user_id", reuse_column)
+
+#  # Add stats to file
+#  if stats_file:
+#    add_to_file(
+#      stats_file,
+#      algo="human data",
+#      label="success",
+#      text=human_success_stats["paper_result"],
+#    )
+
+#    add_to_file(
+#      stats_file,
+#      algo="human data",
+#      label="reuse",
+#      text=human_reuse_stats["paper_result"],
+#    )
+
+#  # Prepare data for plotting - choose metric based on normality
+#  all_data = {
+#    "human": {
+#      # Choose values based on normality test
+#      "success": 100
+#      * (
+#        human_success_stats["mean"]
+#        if human_success_stats["normality"]["is_normal"]
+#        else human_success_stats["median"]
+#      ),
+#      "reuse": 100
+#      * (
+#        human_reuse_stats["mean"]
+#        if human_reuse_stats["normality"]["is_normal"]
+#        else human_reuse_stats["median"]
+#      ),
+#      # Choose error metrics based on normality test
+#      "success_error": 100
+#      * (
+#        human_success_stats["se"]
+#        if human_success_stats["normality"]["is_normal"]
+#        else np.array(human_success_stats["median_ci"])
+#      ),
+#      "reuse_error": 100
+#      * (
+#        human_reuse_stats["se"]
+#        if human_reuse_stats["normality"]["is_normal"]
+#        else np.array(human_reuse_stats["median_ci"])
+#      ),
+#      # Store normality info for reference
+#      "success_is_normal": human_success_stats["normality"]["is_normal"],
+#      "reuse_is_normal": human_reuse_stats["normality"]["is_normal"],
+#    }
+#  }
+
+#  # Add model data if provided
+#  if model_df is not None:
+#    # Calculate model statistics
+#    algos = model_df["algo"].unique().to_list()
+#    for algo in model_order:
+#      if algo not in algos:
+#        continue
+
+#      # Filter for this algorithm
+#      algo_df = model_df.filter(algo=algo)
+
+#      # Skip if no data for this algorithm
+#      if len(algo_df) == 0:
+#        continue
+
+#      # Compute success statistics
+#      success_stats = compute_binary_measure_statistics(algo_df, "seed", "success")
+
+#      # Compute reuse statistics
+#      reuse_stats = compute_binary_measure_statistics(algo_df, "seed", reuse_column)
+
+#      # Add to stats file
+#      if stats_file:
+#        add_to_file(
+#          stats_file,
+#          algo=algo,
+#          label="success",
+#          text=success_stats["paper_result"],
+#        )
+
+#        add_to_file(
+#          stats_file,
+#          algo=algo,
+#          label="reuse",
+#          text=reuse_stats["paper_result"],
+#        )
+
+#      # Add to all_data dictionary for plotting
+#      all_data[algo] = {
+#        # Choose values based on normality test
+#        "success": 100
+#        * (
+#          success_stats["mean"]
+#          if success_stats["normality"]["is_normal"]
+#          else success_stats["median"]
+#        ),
+#        "reuse": 100
+#        * (
+#          reuse_stats["mean"]
+#          if reuse_stats["normality"]["is_normal"]
+#          else reuse_stats["median"]
+#        ),
+#        # Choose error metrics based on normality test
+#        "success_error": 100
+#        * (
+#          success_stats["se"]
+#          if success_stats["normality"]["is_normal"]
+#          else np.array(success_stats["median_ci"])
+#        ),
+#        "reuse_error": 100
+#        * (
+#          reuse_stats["se"]
+#          if reuse_stats["normality"]["is_normal"]
+#          else np.array(reuse_stats["median_ci"])
+#        ),
+#        # Store normality info for reference
+#        "success_is_normal": success_stats["normality"]["is_normal"],
+#        "reuse_is_normal": reuse_stats["normality"]["is_normal"],
+#      }
+
+#  return all_data
+
+
+def get_human_success_rate_path_reuse_data(
+  df: DataFrame,
+  overlap_threshold: float,
+  reuse_column: str = "reuse",
+  stats_file: str = None,
+) -> dict:
+  # Add boolean "reuse" column based on overlap threshold
+  df = df.with_columns((pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column))
+
+  # Filter rows where reuse is -1
+  df = df.filter(pl.col(reuse_column) != -1)
+
+  # Calculate human success statistics
+  human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
+
+  # Calculate human reuse statistics
+  human_reuse_stats = compute_binary_measure_statistics(df, "user_id", reuse_column)
+
+  # Add stats to file
+  if stats_file:
+    add_to_file(
+      stats_file,
+      algo="human data",
+      label="success",
+      text=human_success_stats["paper_result"],
+    )
+
+    add_to_file(
+      stats_file,
+      algo="human data",
+      label="reuse",
+      text=human_reuse_stats["paper_result"],
+    )
+
+  # Prepare human data for plotting
+  return {
+    "human": {
+      # Choose values based on normality test
+      "success": 100
+      * (
+        human_success_stats["mean"]
+        if human_success_stats["normality"]["is_normal"]
+        else human_success_stats["median"]
+      ),
+      "reuse": 100
+      * (
+        human_reuse_stats["mean"]
+        if human_reuse_stats["normality"]["is_normal"]
+        else human_reuse_stats["median"]
+      ),
+      # Choose error metrics based on normality test
+      "success_error": 100
+      * (
+        human_success_stats["se"]
+        if human_success_stats["normality"]["is_normal"]
+        else np.array(human_success_stats["median_ci"])
+      ),
+      "reuse_error": 100
+      * (
+        human_reuse_stats["se"]
+        if human_reuse_stats["normality"]["is_normal"]
+        else np.array(human_reuse_stats["median_ci"])
+      ),
+      # Store normality info for reference
+      "success_is_normal": human_success_stats["normality"]["is_normal"],
+      "reuse_is_normal": human_reuse_stats["normality"]["is_normal"],
+    }
+  }
+
+
+def get_model_success_rate_path_reuse_data(
+  model_df: DataFrame,
+  overlap_threshold: float,
+  reuse_column: str = "reuse",
+  stats_file: str = None,
+) -> dict:
+  if model_df is None:
+    return {}
+
+  # Add boolean "reuse" column based on overlap threshold
+  model_df = model_df.with_columns(
+    (pl.col("overlap") > overlap_threshold).alias(reuse_column)
+  )
+
+  # Filter rows where reuse is -1
+  model_df = model_df.filter(pl.col(reuse_column) != -1)
+
+  model_data = {}
+
+  # Calculate model statistics
+  algos = model_df["algo"].unique().to_list()
+  for algo in model_order:
+    if algo not in algos:
+      continue
+
+    # Filter for this algorithm
+    algo_df = model_df.filter(algo=algo)
+
+    # Skip if no data for this algorithm
+    if len(algo_df) == 0:
+      continue
+
+    # Compute success statistics
+    success_stats = compute_binary_measure_statistics(algo_df, "seed", "success")
+
+    # Compute reuse statistics
+    reuse_stats = compute_binary_measure_statistics(algo_df, "seed", reuse_column)
+
+    # Add to stats file
+    if stats_file:
+      add_to_file(
+        stats_file,
+        algo=algo,
+        label="success",
+        text=success_stats["paper_result"],
+      )
+
+      add_to_file(
+        stats_file,
+        algo=algo,
+        label="reuse",
+        text=reuse_stats["paper_result"],
+      )
+
+    # Add to model_data dictionary for plotting
+    model_data[algo] = {
+      # Choose values based on normality test
+      "success": 100
+      * (
+        success_stats["mean"]
+        if success_stats["normality"]["is_normal"]
+        else success_stats["median"]
+      ),
+      "reuse": 100
+      * (
+        reuse_stats["mean"]
+        if reuse_stats["normality"]["is_normal"]
+        else reuse_stats["median"]
+      ),
+      # Choose error metrics based on normality test
+      "success_error": 100
+      * (
+        success_stats["se"]
+        if success_stats["normality"]["is_normal"]
+        else np.array(success_stats["median_ci"])
+      ),
+      "reuse_error": 100
+      * (
+        reuse_stats["se"]
+        if reuse_stats["normality"]["is_normal"]
+        else np.array(reuse_stats["median_ci"])
+      ),
+      # Store normality info for reference
+      "success_is_normal": success_stats["normality"]["is_normal"],
+      "reuse_is_normal": reuse_stats["normality"]["is_normal"],
+    }
+
+  return model_data
+
+def get_center(data, key):
+  # Format error bars based on normality
+  if data[f"{key}_is_normal"]:
+    # For normal data, use symmetric standard error
+    return data[f"{key}_mean"]
+  else:
+    return data[f"{key}_median"]
+
+def get_err(data, key):
+  # Format error bars based on normality
+  if data[f"{key}_is_normal"]:
+    # For normal data, use symmetric standard error
+    err = data[f"{key}_error"]
+  else:
+    # For non-normal data, use asymmetric confidence intervals
+    reuse_ci = data[f"{key}_error"]
+    # Check if the CI is properly formatted as [lower, upper]
+    if isinstance(reuse_ci, np.ndarray) and reuse_ci.size == 2:
+      lower_reuse_ci = data[key] - reuse_ci[0]
+      upper_reuse_ci = reuse_ci[1] - data[key]
+      err = np.array([[lower_reuse_ci, upper_reuse_ci]]).T
+    else:
+      # Fallback to symmetric error if CI format is unexpected
+      err = reuse_ci
+  return err
+
 def plot_success_rate_path_reuse_metrics(
   df: DataFrame,
   model_df: DataFrame = None,
@@ -729,207 +1061,26 @@ def plot_success_rate_path_reuse_metrics(
     fig, ax = plt.subplots(figsize=figsize)
   else:
     fig = ax.figure
-  # for both df and model_df, add a boolean "reuse" column if over "overlap" column is greater than overlap_threshold
-  df = df.with_columns(pl.col("overlap") > overlap_threshold)
-  model_df = model_df.with_columns(pl.col("overlap") > overlap_threshold)
 
-  # Calculate human statistics with consistent ordering
-  # drop all rows where reuse is -1
-  df = df.filter(pl.col(reuse_column) != -1)
-  model_df = model_df.filter(pl.col(reuse_column) != -1)
+  human_data = get_human_success_rate_path_reuse_data(
+    df=df,
+    overlap_threshold=overlap_threshold,
+    reuse_column=reuse_column,
+    stats_file=stats_file,
+  )
 
-  # Calculate human success statistics
-  human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
+  model_data = get_model_success_rate_path_reuse_data(
+    model_df=model_df,
+    overlap_threshold=overlap_threshold,
+    reuse_column=reuse_column,
+    stats_file=stats_file,
+  )
 
-  # Calculate human reuse statistics
-  human_reuse_stats = compute_binary_measure_statistics(df, "user_id", reuse_column)
-
-  # Add stats to file
-  if stats_file:
-    add_to_file(
-      stats_file,
-      algo="human data",
-      label="success",
-      text=human_success_stats["paper_result"],
-    )
-
-    add_to_file(
-      stats_file,
-      algo="human data",
-      label="reuse",
-      text=human_reuse_stats["paper_result"],
-    )
-
-  # Prepare data for plotting - choose metric based on normality
-  all_data = {
-    "human": {
-      # Choose values based on normality test
-      "success": 100
-      * (
-        human_success_stats["mean"]
-        if human_success_stats["normality"]["is_normal"]
-        else human_success_stats["median"]
-      ),
-      "reuse": 100
-      * (
-        human_reuse_stats["mean"]
-        if human_reuse_stats["normality"]["is_normal"]
-        else human_reuse_stats["median"]
-      ),
-      # Choose error metrics based on normality test
-      "success_error": 100
-      * (
-        human_success_stats["se"]
-        if human_success_stats["normality"]["is_normal"]
-        else np.array(human_success_stats["median_ci"])
-      ),
-      "reuse_error": 100
-      * (
-        human_reuse_stats["se"]
-        if human_reuse_stats["normality"]["is_normal"]
-        else np.array(human_reuse_stats["median_ci"])
-      ),
-      # Store normality info for reference
-      "success_is_normal": human_success_stats["normality"]["is_normal"],
-      "reuse_is_normal": human_reuse_stats["normality"]["is_normal"],
-    }
-  }
-
-  # Add model data if provided
-  if model_df is not None:
-    # Calculate model statistics
-    algos = model_df["algo"].unique().to_list()
-    for algo in model_order:
-      if algo not in algos:
-        continue
-
-      # Filter for this algorithm
-      algo_df = model_df.filter(algo=algo)
-
-      # Skip if no data for this algorithm
-      if len(algo_df) == 0:
-        continue
-
-      # Compute success statistics
-      success_stats = compute_binary_measure_statistics(algo_df, "seed", "success")
-
-      # Compute reuse statistics
-      reuse_stats = compute_binary_measure_statistics(algo_df, "seed", reuse_column)
-
-      # Add to stats file
-      if stats_file:
-        add_to_file(
-          stats_file,
-          algo=algo,
-          label="success",
-          text=success_stats["paper_result"],
-        )
-
-        add_to_file(
-          stats_file,
-          algo=algo,
-          label="reuse",
-          text=reuse_stats["paper_result"],
-        )
-
-      # Add to all_data dictionary for plotting
-      all_data[algo] = {
-        # Choose values based on normality test
-        "success": 100
-        * (
-          success_stats["mean"]
-          if success_stats["normality"]["is_normal"]
-          else success_stats["median"]
-        ),
-        "reuse": 100
-        * (
-          reuse_stats["mean"]
-          if reuse_stats["normality"]["is_normal"]
-          else reuse_stats["median"]
-        ),
-        # Choose error metrics based on normality test
-        "success_error": 100
-        * (
-          success_stats["se"]
-          if success_stats["normality"]["is_normal"]
-          else np.array(success_stats["median_ci"])
-        ),
-        "reuse_error": 100
-        * (
-          reuse_stats["se"]
-          if reuse_stats["normality"]["is_normal"]
-          else np.array(reuse_stats["median_ci"])
-        ),
-        # Store normality info for reference
-        "success_is_normal": success_stats["normality"]["is_normal"],
-        "reuse_is_normal": reuse_stats["normality"]["is_normal"],
-      }
+  all_data = {**human_data, **model_data}
 
   # Plot data points with error bars
   ordered_keys = [k for k in model_order if k in all_data]
   marker_size = point_size  # Default size of the main scatter points
-
-  # Add individual human data points if requested
-  if include_raw_data:
-    # Get individual user data
-    user_data = (
-      df.group_by("user_id")
-      .agg(
-        success_mean=pl.col("success").mean(), reuse_mean=pl.col(reuse_column).mean()
-      )
-      .sort("user_id")
-    )
-
-    human_successes = user_data["success_mean"].to_numpy()
-    human_reuse = user_data["reuse_mean"].to_numpy()
-
-    # Create a sorted list of (reuse, success) pairs for deterministic results
-    reuse_success_pairs = sorted(list(zip(100 * human_reuse, 100 * human_successes)))
-    unique_pairs, counts = np.unique(reuse_success_pairs, axis=0, return_counts=True)
-
-    # Sort unique pairs for consistent plotting order
-    sorted_indices = np.lexsort((unique_pairs[:, 1], unique_pairs[:, 0]))
-    unique_pairs = unique_pairs[sorted_indices]
-    counts = counts[sorted_indices]
-
-    # Create a dictionary to store counts for each position
-    position_counts = {tuple(pair): count for pair, count in zip(unique_pairs, counts)}
-
-    # Plot each unique point with size based on count
-    for (x, y), count in position_counts.items():
-      # Scale point size based on count
-      point_size = 20 * (1 + 0.5 * np.log(count))
-
-      # Plot the point
-      ax.scatter(
-        x,
-        y,
-        color="black",
-        alpha=0.2,
-        zorder=1,
-        s=point_size,
-      )
-
-      # Add annotation with count if more than 1 participant
-      if count > 0:
-        ax.annotate(
-          f"{count}",
-          xy=(x + 2, y - 5),  # Offset slightly from the point
-          fontsize=10,
-          color="black",
-          alpha=0.7,
-          zorder=2,
-        )
-
-    # Add a single entry to the legend
-    ax.scatter(
-      [],
-      [],
-      color="black",
-      alpha=0.2,
-      s=20,
-      label="Individual participants",
-    )
 
   # Plot each model/human data point with error bars
   for key in ordered_keys:
@@ -1010,9 +1161,7 @@ def plot_success_rate_path_reuse_metrics(
   # Add legend
   if model_df is not None:
     ax.legend(
-      # bbox_to_anchor=(0.5, -0.15),  # Place legend below plot
       loc=legend_loc,
-      # ncol=len(ordered_keys) // 2,  # Arrange in two rows
       ncol=legend_ncol,
       columnspacing=1,
       handletextpad=0.5,
@@ -1143,6 +1292,7 @@ def compute_binary_measure_statistics(
   measure: str,
   mu: float = 0.5,
   alpha: float = 0.05,
+  confidence=0.95,
 ):
   """Calculate statistics for binary proportion data with appropriate normality testing.
 
@@ -1160,30 +1310,58 @@ def compute_binary_measure_statistics(
   group_means = df.group_by(group_col).agg(
     rate=pl.col(measure).mean(), n_trials=pl.col(measure).count()
   )
+
   rates = group_means["rate"].to_numpy()
   n_groups = len(rates)
-  n_trials = group_means["n_trials"].to_numpy()
 
   # Test normality using Shapiro-Wilk test
   _, normality_p = stats.shapiro(rates)
   is_normal = normality_p > alpha
 
-  # Calculate mean and standard error
-  p_obs = np.mean(rates)
-  se = np.std(rates, ddof=1) / np.sqrt(n_groups)
-  sd = np.std(rates, ddof=1)  # Standard deviation
+  # Calculate median of the group means
+  p_median = group_means["rate"].median()
 
-  # Calculate median
-  p_median = np.median(rates)
+  # Standard deviation of the group means
+  sd = group_means["rate"].std()
 
-  # Bootstrap 95% confidence intervals for the median
-  n_bootstrap = 10000
-  bootstrap_medians = []
-  for _ in range(n_bootstrap):
-    bootstrap_sample = np.random.choice(rates, size=n_groups, replace=True)
-    bootstrap_medians.append(np.median(bootstrap_sample))
 
-  ci_low, ci_high = np.percentile(bootstrap_medians, [2.5, 97.5])
+  # Mean of group means (weighted by n_trials)
+  total_trials = group_means["n_trials"].sum()
+
+  p_obs = (group_means["rate"] * group_means["n_trials"]).sum() / total_trials
+  se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
+
+  alpha = 0.05
+  if is_normal:
+      # For normal data: use parametric approach with mean
+      se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
+      ci_low = p_obs - stats.norm.ppf(1-alpha/2) * se
+      ci_high = p_obs + stats.norm.ppf(1-alpha/2) * se
+  else:
+      # For non-normal data: use bootstrap for median CI
+      bootstrap_samples = 10000
+      bootstrap_means = []
+      n_trials = group_means["n_trials"].to_numpy()
+      for _ in range(bootstrap_samples):
+          # Sample indices with replacement
+          idx = np.random.choice(n_groups, size=n_groups, replace=True)
+          # Calculate weighted mean using the sampled rates and their corresponding n_trials
+          sampled_rates = rates[idx]
+          sampled_trials = n_trials[idx]
+          weighted_mean = np.sum(sampled_rates * sampled_trials) / np.sum(sampled_trials)
+          bootstrap_means.append(weighted_mean)
+
+      # Percentile method for confidence intervals
+      ci_low = np.percentile(bootstrap_means, alpha/2 * 100)
+      ci_high = np.percentile(bootstrap_means, (1-alpha/2) * 100)
+      if ci_high < p_median:
+        ci_high = p_median
+      if ci_low > p_median:
+        ci_low = p_median
+
+  ci_low = max(0.0, ci_low)  # Lower bound can't be below 0%
+  ci_high = min(1.0, ci_high)  # Upper bound can't exceed 100%
+
 
   if is_normal:
     # One-sided t-test

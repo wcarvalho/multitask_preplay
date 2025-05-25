@@ -1,7 +1,7 @@
 import jax
 from functools import partial
 
-from craftax_fullmap_constants import *
+from .craftax_fullmap_constants import *
 from craftax.craftax.craftax_state import EnvState
 from craftax.craftax.util.game_logic_utils import is_boss_vulnerable
 

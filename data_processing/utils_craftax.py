@@ -369,9 +369,6 @@ def finish_preparing_human_dataframe(df: pl.DataFrame) -> pl.DataFrame:
   df = df.with_columns(
     (pl.col("reuse").eq(1) & pl.col("efficient_2").eq(True)).alias("efficient_reuse_2")
   )
-  import ipdb
-
-  ipdb.set_trace()
   return df
 
 

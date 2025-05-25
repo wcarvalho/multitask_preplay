@@ -9,10 +9,9 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import data_configs
-from typing import List, Tuple
+from typing import Tuple
 
 import jax
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
@@ -22,10 +21,12 @@ from analysis import analysis_utils
 from nicewebrl import DataFrame
 from simulations import craftax_utils
 from simulations import craftax_experiment_configs
-import craftax_experiment_structure as experiment
+from experiments.craftax import craftax_experiment_structure as experiment
 from IPython.display import HTML, display
-from functools import partial
-from data_configs import default_colors, model_colors, model_names
+
+import plot_configs
+from plot_configs import model_colors
+
 
 OPTIMAL_TEST_PATHS = {}
 for config in craftax_experiment_configs.PATHS_CONFIGS:
@@ -228,6 +229,7 @@ def plot_success_rate_path_reuse_metrics(
   figsize=(8, 8),
   legend_loc: str = "lower right",
   legend_ncol: int = 1,
+  overlap_threshold: float = 0.15,
 ) -> Tuple[plt.Figure, plt.Axes]:
   """Plot success rate vs path reuse as a 2D scatter plot with error bars.
 
@@ -254,12 +256,11 @@ def plot_success_rate_path_reuse_metrics(
 
   # Prepare data for plotting
   all_data = {}
-
   # Process human data for tell_reuse=1 and tell_reuse=0
   tell_reuse_values = [1, 0]
   tell_reuse_labels = [
-    "Human (know eval goal = True)",
-    "Human (know eval goal = False)",
+    "Human (known eval goal)",
+    "Human (unknown eval goal)",
   ]
   tell_reuse_markers = ["o", "x"]  # Plus for True, X for False
 
@@ -268,113 +269,22 @@ def plot_success_rate_path_reuse_metrics(
   ):
     # Filter data for this tell_reuse value
     filtered_df = df.filter(tell_reuse=tell_value, eval=True)
-
-    # Calculate statistics with consistent ordering
-    user_data = (
-      filtered_df.group_by("user_id")
-      .agg(
-        success_mean=pl.col("success").mean(), reuse_mean=pl.col(reuse_column).mean()
-      )
-      .sort("user_id")  # Sort by user_id for consistent ordering
-    )
-
-    human_successes = user_data["success_mean"].to_numpy()
-    human_success_mean = np.mean(human_successes)
-
-    human_success_se = np.sqrt(
-      (human_success_mean * (1 - human_success_mean)) / len(human_successes)
-    )
-
-    stats_file.write("================================\n")
-    stats_file.write(f"Tell Reuse: {tell_value}\n")
-    stats_file.write("================================\n")
-    results = analysis_utils.power_analysis_path_reuse(
-      filtered_df,
-      measure=reuse_column,
-      mu=0.5,
-      alpha=0.05,
-      plot=False,
+    human_data = analysis_utils.get_human_success_rate_path_reuse_data(
+      df=filtered_df,
+      overlap_threshold=overlap_threshold,
+      reuse_column=reuse_column,
       stats_file=stats_file,
     )
-    summary = "Success:\n"
-    summary += f"(Mean={human_success_mean:.2f}, SE={human_success_se:.2f}, SD={np.sqrt(human_success_mean * (1 - human_success_mean)):.2f})\n"
-    stats_file.write(summary)
-
-    # human_reuse = user_data["reuse_mean"].to_numpy()
-    human_reuse_mean = results["mean"]
-    human_reuse_se = results["se"]
-
-    analysis_utils.add_to_file(
-      stats_file,
-      algo="human data",
-      label="success",
-      text=f"success: {100 * human_success_mean:.2f}, SE={100 * human_success_se:.2f}",
-    )
-    # experiment_analysis.add_to_file(
-    #  stats_file,
-    #  algo='human data',
-    #  label='reuse',
-    #  text=f"reuse: {100*human_reuse_mean:.2f}, SE={100*human_reuse_se:.2f}")
-    # add_to_file(stats_file, f"reuse={tell_value}: Human reuse: {100*human_reuse_mean:.2f}, SE={100*human_reuse_se:.2f}")
-
-    # Add to data dictionary
-    all_data[label] = {
-      "success": 100 * human_success_mean,
-      "reuse": 100 * human_reuse_mean,
-      "success_se": 100 * human_success_se,
-      "reuse_se": 100 * human_reuse_se,
-      "marker": marker,  # Store the marker type
-    }
-
-  # Add model data if provided
+    all_data[label] = human_data['human']
+  
   if model_df is not None:
-    # Calculate model statistics
-    model_stats = (
-      model_df.filter(eval=True)
-      .group_by("algo")
-      .agg(
-        success_mean=(pl.col("success").cast(pl.Float64).mean() * 100),
-        success_se=(
-          pl.col("success").cast(pl.Float64).mean()
-          * (1 - pl.col("success").cast(pl.Float64).mean())
-          / pl.count()
-        ).sqrt()
-        * 100,
-        reuse_mean=(pl.col("reuse").cast(pl.Float64).mean() * 100),
-        reuse_se=(
-          pl.col("reuse").cast(pl.Float64).mean()
-          * (1 - pl.col("reuse").cast(pl.Float64).mean())
-          / pl.count()
-        ).sqrt()
-        * 100,
-      )
+    model_data = analysis_utils.get_model_success_rate_path_reuse_data(
+      model_df=model_df.filter(eval=True),
+      overlap_threshold=overlap_threshold,
+      reuse_column=reuse_column,
+      stats_file=stats_file,
     )
-
-    # Add model data
-    algos = model_stats["algo"].unique().to_list()
-    for algo in analysis_utils.model_order:
-      if algo not in algos:
-        continue
-      row = model_stats.filter(algo=algo)
-      all_data[algo] = {
-        "success": row["success_mean"].to_numpy()[0],
-        "reuse": row["reuse_mean"].to_numpy()[0],
-        "success_se": min(row["success_se"].to_numpy()[0], 5),
-        "reuse_se": min(row["reuse_se"].to_numpy()[0], 5),
-        "marker": "o",  # Use circle marker for models
-      }
-      analysis_utils.add_to_file(
-        stats_file,
-        algo=algo,
-        label="success",
-        text=f"success: {all_data[algo]['success']:.2f}, SE={all_data[algo]['success_se']:.2f}",
-      )
-      analysis_utils.add_to_file(
-        stats_file,
-        algo=algo,
-        label="reuse",
-        text=f"reuse: {all_data[algo]['reuse']:.2f}, SE={all_data[algo]['reuse_se']:.2f}",
-      )
+    all_data.update(model_data)
 
   # Define colors for human data points
   human_colors = {
@@ -386,35 +296,35 @@ def plot_success_rate_path_reuse_metrics(
   marker_size = 50  # Default size for all scatter points
 
   # First plot human data points
-  for key in tell_reuse_labels:
-    if key in all_data:
-      data = all_data[key]
-      color = human_colors.get(key, "#333333")
-      marker = data["marker"]
+  for idx, key in enumerate(tell_reuse_labels):
+    data = all_data[key]
+    color = human_colors.get(key, "#333333")
+    marker = tell_reuse_markers[idx]
+    xerr = analysis_utils.get_err(data, "reuse")  
+    yerr = analysis_utils.get_err(data, "success")
+    ax.errorbar(
+      data["reuse"],
+      data["success"],
+      xerr=xerr,
+      yerr=yerr,
+      fmt="none",
+      color=color,
+      capsize=5,
+      capthick=2,
+      elinewidth=2,
+      zorder=2,
+    )
 
-      ax.errorbar(
-        data["reuse"],
-        data["success"],
-        xerr=data["reuse_se"],
-        yerr=data["success_se"],
-        fmt="none",
-        color=color,
-        capsize=5,
-        capthick=2,
-        elinewidth=2,
-        zorder=2,
-      )
-
-      ax.scatter(
-        data["reuse"],
-        data["success"],
-        color=color,
-        s=marker_size,
-        marker=marker,
-        label=key,
-        zorder=3,
-        linewidths=2,  # Make markers thicker for better visibility
-      )
+    ax.scatter(
+      data["reuse"],
+      data["success"],
+      color=color,
+      s=marker_size,
+      marker=marker,
+      label=key,
+      zorder=3,
+      linewidths=2,  # Make markers thicker for better visibility
+    )
 
   # Then plot model data points
   if model_df is not None:
@@ -425,12 +335,14 @@ def plot_success_rate_path_reuse_metrics(
 
       data = all_data[key]
       color = model_colors[key]
-      print(f"Plotting {key} with color {color}")
+      xerr = analysis_utils.get_err(data, "reuse")  
+      yerr = analysis_utils.get_err(data, "success")
+
       ax.errorbar(
         data["reuse"],
         data["success"],
-        xerr=data["reuse_se"],
-        yerr=data["success_se"],
+        xerr=xerr,
+        yerr=yerr,
         fmt="none",
         color=color,
         capsize=5,
@@ -444,7 +356,7 @@ def plot_success_rate_path_reuse_metrics(
         data["success"],
         color=color,
         s=marker_size,
-        marker=data["marker"],
+        #marker=data["marker"],
         label=analysis_utils.model_names[key],
         zorder=3,
       )
@@ -508,7 +420,8 @@ def path_reuse_manipulation_analysis(
   display_figs: bool = True,
   verbosity: int = 1,
   reuse_column: str = "reuse",
-  n_simulations: int = 1000,
+  legend_loc="upper left",
+  overlap_threshold: float = 0.15,
 ):
   ############################################################
   # Create stats file
@@ -531,23 +444,9 @@ def path_reuse_manipulation_analysis(
   ############################################################
   # Get 1st 100
   ############################################################
-  # Get unique user IDs
-  # first_100_users = []
-  # for tell_reuse in [1, 0]:
-  #  unique_user_ids = sub_df.filter(tell_reuse=tell_reuse)["user_id"].unique()
-  #  unique_user_ids = unique_user_ids[:min(100, len(unique_user_ids))]
-  #  print(f"Adding {len(unique_user_ids)} users for tell_reuse={tell_reuse}")
-  #  first_100_users.extend(unique_user_ids)
 
   # Filter dataframe to only include rows with those user IDs
   sub_df = filter_users_by_success_and_tell_reuse(sub_df)
-
-  # sub_df = sub_df.filter_by_group(
-  #  input_episode_filter=partial(experiment_analysis.filter_train_by_min_success, min_successes=16*4),
-  #  input_settings=dict(eval=False),
-  #  output_settings=dict(),
-  #  group_key="user_id",
-  # ).filter(eval=True)
 
   # first plot when tell_reuse is 1
   fig, ax = plot_success_rate_path_reuse_metrics(
@@ -557,7 +456,8 @@ def path_reuse_manipulation_analysis(
     title=title,
     reuse_column=reuse_column,
     figsize=(6, 4),
-    legend_loc="upper left",
+    legend_loc=legend_loc,
+    overlap_threshold=overlap_threshold,
   )
   if reuse_column == "efficient_reuse":
     ax.set_xlabel(
@@ -604,6 +504,7 @@ def plot_non_reuse_frequency_by_world_seed(
   display_figs: bool = True,
   figsize=(10, 6),
   title="Frequency of Non-Reuse (reuse=0) by World Seed",
+  overlap_threshold: float = 0.2,
 ):
   """
   Creates a grouped bar plot showing the frequency of non-reuse (reuse == 0)
@@ -621,6 +522,9 @@ def plot_non_reuse_frequency_by_world_seed(
       title (str, optional): Plot title. Defaults to "Frequency of Non-Reuse (reuse=0) by World Seed".
   """
   user_df = filter_users_by_success_and_tell_reuse(user_df)
+  user_df = user_df.with_columns((pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias("reuse"))
+  model_df = model_df.with_columns((pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias("reuse"))
+
   # --- Process User Data ---
   settings = dict(eval=True)
   user_counts = (

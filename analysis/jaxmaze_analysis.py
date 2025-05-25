@@ -28,7 +28,7 @@ def add_to_file(stats_file, text):
   with open(data_configs.PAPER_STATS_FILE, "a") as f:
     try:
       f.write(f"{os.path.basename(stats_file.name)}\n")
-    except:
+    except Exception:
       pass
     f.write(f"{text}\n")
     f.write("\n")

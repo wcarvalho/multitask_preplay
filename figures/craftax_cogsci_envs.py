@@ -18,12 +18,13 @@ from craftax.craftax.renderer import (
 import craftax_utils
 from craftax.craftax.constants import BlockType, BLOCK_PIXEL_SIZE_HUMAN
 from simulations.craftax_experiment_configs import BlockConfig
-import data_configs as plot_configs
+import plot_configs
+import data_configs
 import craftax_experiment_configs
 
 
 def save_figure(fig, filename):
-  directory = f"{plot_configs.DIRECTORY}/craftax_env_figures"
+  directory = f"{data_configs.DIRECTORY}/craftax_env_figures"
   os.makedirs(directory, exist_ok=True)
   # plt.savefig(os.path.join(directory, f"{filename}.png"), bbox_inches='tight', dpi=300)
   plt.savefig(os.path.join(directory, f"{filename}.pdf"), bbox_inches="tight", dpi=300)
@@ -94,7 +95,7 @@ def visualize_simplified_block_config(
   _obs, state_for_path = jax_env.reset(
     key, env_params.replace(start_positions=(config.start_eval_positions[0],))
   )
-
+  print(train_color, eval_color)
   fig_path, ax_path = craftax_utils.train_test_paths(
     jax_env=jax_env,
     params=env_params,
@@ -114,6 +115,8 @@ def visualize_simplified_block_config(
     eval_color=eval_color,
     show_path_length=False,
     arrow_scale=10,
+    line_thickness=10.0,
+    start_marker_size=30,
   )
   ax_path.axis("off")
   plt.tight_layout()  # Adjust layout
