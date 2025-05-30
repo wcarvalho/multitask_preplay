@@ -2,7 +2,7 @@
 This script processes the user data and saves it to a parquet file.
 
 Call from root directory with:
-python data_processing/process_user_data.py --env jaxmaze --df
+python data_processing/process_user_data.py --env jaxmaze --df --episodes
 python data_processing/process_user_data.py --env craftax --df
 
 """
@@ -161,9 +161,15 @@ def generate_file_episodes_data(file, example_timestep, env_name: str, debug=Fal
     and os.path.exists(episode_metadata_filename)
     and not debug
   ):
-    episode_data = load_episode_data(episode_data_filename, example_timestep)
-    episode_metadata = json.load(open(episode_metadata_filename))
-    return episode_data, episode_metadata
+    try:
+      episode_data = load_episode_data(episode_data_filename, example_timestep)
+      episode_metadata = json.load(open(episode_metadata_filename))
+      return episode_data, episode_metadata
+    except Exception as e:
+      logging.warning(
+        f"Failed to load episode data from {episode_data_filename}. remaking"
+      )
+      pass
 
   #####################
   # filter out practice not-manipulation data

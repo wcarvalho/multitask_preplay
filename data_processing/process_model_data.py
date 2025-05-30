@@ -75,7 +75,7 @@ def total_reward(e: EpisodeData):
   return e.timesteps.reward[in_episode].sum()
 
 
-def make_epsilon_greedy_actor(config, agent, rng, epsilon: float = 0.15):
+def make_epsilon_greedy_actor(config, agent, rng, epsilon: float = 0.2):
   epsilons = jnp.full(config["NUM_ENVS"], epsilon)
   explorer = qlearning.FixedEpsilonGreedy(epsilons)
 
@@ -161,7 +161,8 @@ def collect_search_episodes(
   env, env_params, algorithm: str, rng, budget=None, n: int = 100
 ):
   budget = budget or 1e8
-  default_init_timestep = env.reset(rng, env_params)
+  rng, rng_subkey = jax.random.split(rng)
+  default_init_timestep = env.reset(rng_subkey, env_params)
   task = default_init_timestep.state.task_object
 
   @jax.jit
@@ -194,7 +195,8 @@ def collect_search_episodes(
 
   @jax.jit
   def collect_episode(actions, rng):
-    init_timestep = env.reset(rng, env_params)
+    rng, rng_subkey = jax.random.split(rng)
+    init_timestep = env.reset(rng_subkey, env_params)
     initial_carry = (rng, init_timestep)
     (rng, _), timesteps = jax.lax.scan(step_fn, initial_carry, actions)
     init_timestep = jax.tree_util.tree_map(jnp.asarray, init_timestep)
@@ -264,7 +266,7 @@ def load_algorithm(
   make_agent: vbb.MakeAgentFn,
   make_optimizer: vbb.MakeOptimizerFn,
   make_actor: vbb.MakeActorFn,
-  num_episodes: int = 1,
+  num_episodes: int = 10,
   max_steps: int = 600,
   path: Optional[str] = None,
   model_filename: Optional[str] = None,
@@ -430,8 +432,8 @@ def load_qlearning_jaxmaze_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import qlearning_housemaze
 
@@ -459,8 +461,8 @@ def load_usfa_jaxmaze_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import usfa_housemaze as usfa
 
@@ -482,7 +484,6 @@ def load_usfa_jaxmaze_algorithm(
     make_agent=functools.partial(
       usfa.make_agent,
       train_tasks=train_tasks,
-      ObsEncoderCls=get_jaxmaze_obs_encoder(config),
       all_tasks=all_tasks,
     ),
     num_episodes=num_episodes,
@@ -500,8 +501,8 @@ def load_dyna_jaxmaze_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import multitask_preplay_craftax_v2 as dyna
 
@@ -529,8 +530,8 @@ def load_preplay_jaxmaze_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import multitask_preplay_housemaze as offtask_dyna
 
@@ -551,14 +552,15 @@ def load_preplay_jaxmaze_algorithm(
     model_name="dynaq_shared",
   )
 
+
 def load_preplay_new_jaxmaze_algorithm(
   config: dict,
   agent_params: dict,
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import multitask_preplay_craftax_v2 as multitask_preplay
 
@@ -567,18 +569,14 @@ def load_preplay_new_jaxmaze_algorithm(
     agent_params=agent_params,
     env=env,
     example_env_params=example_env_params,
-    make_agent=functools.partial(
-      multitask_preplay.make_agent,
-      ObsEncoderCls=get_jaxmaze_obs_encoder(config),
-    ),
+    make_agent=multitask_preplay.make_jaxmaze_multigoal_agent,
     num_episodes=num_episodes,
     max_steps=max_steps,
     make_optimizer=multitask_preplay.make_optimizer,
     make_actor=make_epsilon_greedy_actor,
     path=path,
-    model_name="preplat",
+    model_name="preplay",
   )
-
 
 
 def load_jaxmaze_search_algorithm(
@@ -589,7 +587,7 @@ def load_jaxmaze_search_algorithm(
   path: str,
   algorithm: str = None,
   num_episodes: int = 100,
-  max_steps: int = 150,
+  max_steps: int = 300,
 ):
   del config, agent_params
   assert algorithm in ["bfs", "dfs"]
@@ -618,8 +616,8 @@ def load_qlearning_craftax_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import qlearning_craftax
 
@@ -644,8 +642,8 @@ def load_usfa_craftax_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import usfa_craftax
   from simulations.craftax_web_env import active_task_vectors
@@ -678,8 +676,8 @@ def load_dyna_craftax_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import dyna_craftax as dyna
 
@@ -704,8 +702,8 @@ def load_preplay_craftax_algorithm(
   env: Callable,
   example_env_params: struct.PyTreeNode,
   path: str,
-  num_episodes: int = 1,
-  max_steps: int = 150,
+  num_episodes: int = 10,
+  max_steps: int = 300,
 ):
   from simulations import multitask_preplay_craftax_v2 as preplay
 
@@ -801,6 +799,7 @@ def generate_model_data(
   overwrite_episode_df = (
     overwrite_episode_df or overwrite_episode_data
   )  # must redo df if data is overwritten
+
   if (
     not (overwrite_episode_data or overwrite_episode_df)
     and data_file_exists
@@ -945,10 +944,10 @@ def generate_all_episodes_data(
       example_env_params=example_env_params,
       path=None,
     )
-    extras["seed"] = 42
-    rng = jax.random.PRNGKey(42)
+    extras["seed"] = 1
+    rng = jax.random.PRNGKey(1)
     all_episode_data, all_episode_metadata = generate_algorithm_episodes(
-      algorithm, rng, extras
+      algorithm, rng, extras, debug=debug
     )
     for episode_metadata in all_episode_metadata:
       # for search algorithms, each episode corresponds to a unique seed
@@ -959,7 +958,10 @@ def generate_all_episodes_data(
   all_episode_configs = []
   for path in paths:
     path = path.rstrip("/")
-    params = load_algorithm_ckpt_params(f"{path}/{model_filename}.safetensors")
+    filename = f"{path}/{model_filename}.safetensors"
+    if not os.path.exists(filename):
+      continue
+    params = load_algorithm_ckpt_params(filename)
     with open(f"{path}/{model_filename}.config", "rb") as f:
       config = pickle.load(f)
     # remove trailing / from path
@@ -980,7 +982,6 @@ def generate_all_episodes_data(
     episodes, episode_configs = generate_algorithm_episodes(algorithm, rng, extras)
     all_episodes.extend(episodes)
     all_episode_configs.extend(episode_configs)
-  import ipdb; ipdb.set_trace()
   return all_episodes, all_episode_configs
 
 
@@ -1051,7 +1052,7 @@ def generate_all_model_data(
   model_to_extras = model_to_extras or {}
   for model_name in models:
     env, example_timestep, example_env_params = model_to_env_objects[model_name]
-
+    print(f"Generating model data for {model_name}")
     model_df = generate_model_data(
       input_glob_pattern=model_to_input_glob[model_name],
       output_data_path=output_data_path,
@@ -1125,13 +1126,13 @@ def get_jaxmaze_model_data(
   )
 
   models = models or [
-    'qlearning',
-    'dyna',
-    'usfa',
+    "qlearning",
+    "dyna",
+    "usfa",
     #'preplay',
-    'preplay_new',
-    'bfs',
-    'dfs',
+    "preplay_new",
+    "bfs",
+    "dfs",
   ]
 
   # Call the common human data function
@@ -1175,13 +1176,13 @@ def get_jaxmaze_model_data(
       load_jaxmaze_search_algorithm,
       algorithm="bfs",
       max_steps=1 if debug else 100,
-      num_episodes=1 if debug else 100,
+      num_episodes=1 if debug else 50,
     ),
     dfs=functools.partial(
       load_jaxmaze_search_algorithm,
       algorithm="dfs",
       max_steps=1 if debug else 100,
-      num_episodes=1 if debug else 100,
+      num_episodes=1 if debug else 50,
     ),
   )
 
@@ -1311,7 +1312,7 @@ if __name__ == "__main__":
     print("\nJaxMaze Success Rates:")
     success_rates = (
       jaxmaze_df.group_by(["algo", "eval"])
-      .agg(pl.col("success").mean())
+      .agg([pl.col("success").mean(), pl.col("reuse").mean()])
       .sort(["eval", "algo"])
     )
     print(success_rates)
@@ -1328,10 +1329,7 @@ if __name__ == "__main__":
     print("\nCraftax Success Rates:")
     success_rates = (
       craftax_df.group_by(["algo", "eval"])
-      .agg(pl.col("success").mean())
+      .agg([pl.col("success").mean(), pl.col("reuse").mean()])
       .sort(["eval", "algo"])
     )
     print(success_rates)
-  import ipdb
-
-  ipdb.set_trace()

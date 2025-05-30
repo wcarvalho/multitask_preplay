@@ -1,5 +1,7 @@
 import sys
 import os
+import pickle
+import inspect
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from typing import List, Tuple
@@ -38,7 +40,26 @@ def num_users(df):
   return len(df["user_id"].unique())
 
 
-def filter_users_by_success(df, **kwargs):
+def filter_users_by_success(df, analysis_name=None, **kwargs):
+  # Get the calling function name if not provided
+  if analysis_name is None:
+    analysis_name = inspect.currentframe().f_back.f_code.co_name
+  
+  # Create cache file path
+  cache_path = os.path.join(data_configs.CACHE_DIR, f"{analysis_name}_user_ids.pkl")
+  
+  # Try to load cached user IDs
+  if os.path.exists(cache_path):
+    with open(cache_path, "rb") as f:
+      print(f"Loading cached user IDs from {cache_path}")
+      unique_user_ids = pickle.load(f)
+    
+    # Filter dataframe to only include rows with those user IDs
+    df_filtered = df.filter(pl.col("user_id").is_in(unique_user_ids))
+    print("Num users after cache filter: ", num_users(df_filtered))
+    return df_filtered, unique_user_ids
+
+  # Compute user IDs if cache doesn't exist or failed to load
   print("Num initial users: ", num_users(df))
 
   df = df.filter(min_train_success=True, eval=True)
@@ -48,28 +69,16 @@ def filter_users_by_success(df, **kwargs):
   unique_user_ids = unique_user_ids[: min(100, len(unique_user_ids))]
   print(f"Adding {len(unique_user_ids)} users")
 
+  # Save to cache
+  os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+  with open(cache_path, "wb") as f:
+    pickle.dump(unique_user_ids, f)
+  print(f"Saved user IDs to cache: {cache_path}")
+
   df = df.filter(pl.col("user_id").is_in(unique_user_ids))
   print("Num initial users after first 100 filter: ", num_users(df))
-  return df
+  return df, unique_user_ids
 
-
-def filter_users_by_success_and_tell_reuse(df):
-  print("Num initial users: ", num_users(df))
-
-  df = df.filter(min_train_success=True, eval=True)
-  print("Num initial users after success filter: ", num_users(df))
-
-  first_100_users = []
-  for tell_reuse in [1, 0]:
-    unique_user_ids = df.filter(tell_reuse=tell_reuse)["user_id"].unique()
-    unique_user_ids = unique_user_ids[: min(100, len(unique_user_ids))]
-    print(f"Adding {len(unique_user_ids)} users for tell_reuse={tell_reuse}")
-    first_100_users.extend(unique_user_ids)
-
-  # Filter dataframe to only include rows with those user IDs
-  df = df.filter(pl.col("user_id").is_in(first_100_users))
-  print("Num initial users after first 100 filter: ", num_users(df))
-  return df
 
 
 ######################################
@@ -255,7 +264,7 @@ def path_reuse_results(
   os.makedirs(save_dir, exist_ok=True)
 
   # Open stats file
-  stats_file = open(os.path.join(save_dir, "two_paths_stats.txt"), "w")
+  stats_file = open(os.path.join(save_dir, "1.two_paths_stats.txt"), "w")
   stats_file.write("Two Paths Statistical Analysis\n\n")
 
   ##################
@@ -266,12 +275,13 @@ def path_reuse_results(
   ##################
   # get all episodes for users who achieved at least 16 successes during training
   ##################
-  sub_df = filter_users_by_success(
+  sub_df, _ = filter_users_by_success(
     user_df.filter(
       manipulation=3,
       tell_reuse=tell_reuse,
       eval_shares_start_pos=True,
-    )
+    ),
+    analysis_name="path_reuse_results"
   )
 
   ##################
@@ -312,11 +322,10 @@ def path_reuse_results(
   #  #'max_rt': None,
   #  #'total_rt': None,
   # }
-  sub_df = sub_df.filter(pl.col("reuse") != -1)
   for idx, measure in enumerate(
     [
-      "max_log_rt",
       "first_log_rt",
+      "max_log_rt",
       #'first_rt', 'max_rt', 'total_rt'
     ]
   ):
@@ -326,7 +335,8 @@ def path_reuse_results(
     for use_box_plot in [False]:
       fig, ax = plt.subplots(figsize=(4, 4))
       analysis_utils.plot_bar_rt_comparison(
-        sub_df.filter(success=1),
+        #sub_df.filter(success=1),
+        sub_df,
         measure,
         n_simulations=n_simulations if do_analysis[idx] else 1,
         stats_file=stats_file if do_analysis[idx] else None,
@@ -334,6 +344,7 @@ def path_reuse_results(
         rereun_analysis=rereun_analysis,
         ylim=None if use_box_plot else (7, 8),
         use_box_plot=use_box_plot,
+        overlap_threshold=overlap_threshold,
         ylabel="Log RT",
       )
 
@@ -407,11 +418,11 @@ def juncture_results(
   filter_columns = filter_columns or []
 
   # Open stats file
-  stats_filename = os.path.join(save_dir, "juncture_stats.txt")
+  stats_filename = os.path.join(save_dir, "4.juncture_stats.txt")
   stats_file = open(stats_filename, "w")
   stats_file.write("Juncture Manipulation Statistical Analysis\n\n")
 
-  user_df = filter_users_by_success_and_tell_reuse(user_df.filter(manipulation=4))
+  user_df, _ = filter_users_by_success(user_df.filter(manipulation=4), analysis_name="juncture_results")
   first_100_users = []
   for tell_reuse in [1, 0]:
     unique_user_ids = user_df.filter(tell_reuse=tell_reuse)["user_id"].unique()
@@ -485,7 +496,7 @@ def juncture_results(
 
     # Get statistics for this condition
     results = analysis_utils.power_analysis_rt_differences(
-      difference_df, measure, stats_file=stats_file
+      difference_df, measure, stats_file=stats_file, setting=str((setting, tell_reuse))
     )
 
     # Store data for plotting
@@ -597,13 +608,14 @@ def shortcut_results(
   os.makedirs(save_dir, exist_ok=True)
 
   # Open stats file
-  stats_file = open(os.path.join(save_dir, "3.shortcut_stats.txt"), "w")
+  stats_file = open(os.path.join(save_dir, "2.shortcut_stats.txt"), "w")
   stats_file.write("Shortcut Manipulation Statistical Analysis\n")
 
   mdf = model_df.filter(maze="big_m1_maze3_shortcut", eval=True)
 
-  sub_df = filter_users_by_success(
-    user_df.filter(manipulation=1, tell_reuse=tell_reuse, eval_shares_start_pos=True)
+  sub_df, _ = filter_users_by_success(
+    user_df.filter(manipulation=1, tell_reuse=tell_reuse, eval_shares_start_pos=True),
+    analysis_name="shortcut_results"
   )
 
   ##################
@@ -644,6 +656,7 @@ def start_results(
   save_figs: bool = True,
   verbosity: int = 0,
   ylim: Tuple[float, float] = None,
+  median: bool = False,
 ):
   """_summary_
 
@@ -662,15 +675,16 @@ def start_results(
   os.makedirs(save_dir, exist_ok=True)
   # Default to ['avg_rt'] if no filter columns specified
 
-  stats_file = open(os.path.join(save_dir, "start_stats.txt"), "w")
+  stats_file = open(os.path.join(save_dir, "3.start_stats.txt"), "w")
   stats_file.write("Intermediary Start Manipulation Statistical Analysis\n")
   stats_file.write("===============================\n\n")
 
   ##################
   # get all episodes for users who achieved at least 16 successes during training
   ##################
-  sub_df = filter_users_by_success(
-    user_df.filter(manipulation=2, tell_reuse=tell_reuse)
+  sub_df, _ = filter_users_by_success(
+    user_df.filter(manipulation=2, tell_reuse=tell_reuse),
+    analysis_name="start_results"
   )
 
   ##################
@@ -713,6 +727,7 @@ def start_results(
     stats_file=stats_file,
     ax=ax,
     ylim=ylim,
+    use_median=median,
   )
 
   if save_figs:

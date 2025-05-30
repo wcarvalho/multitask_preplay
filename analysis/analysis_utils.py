@@ -254,6 +254,7 @@ def plot_bar_rt_comparison(
   include_raw_data: bool = False,
   ylim: Tuple[float, float] = None,
   compute_n_for_desired_power: bool = False,
+  overlap_threshold: float = 0.7,
   use_median: bool = True,
   use_box_plot: bool = True,
 ):
@@ -279,10 +280,19 @@ def plot_bar_rt_comparison(
   if use_box_plot and not use_median:
     raise ValueError("Box plots can only be used when use_median=True")
 
+  # Add boolean "reuse" column based on overlap threshold
+  df = df.with_columns(
+    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
+  )
+
+  # Filter rows where reuse is -1
+  df = df.filter(pl.col(reuse_column) != -1)
+
+  df = df.filter(pl.col("success").is_not_null() & pl.col(reuse_column).is_not_null())
+
   ylabel = ylabel or measure_to_ylabel[rt_column]
   title = title or measure_to_title[rt_column]
   len_before = len(df)
-  df = df.filter(pl.col("success").is_not_null() & pl.col(reuse_column).is_not_null())
   len_after = len(df)
   print(f"Filtered {len_before - len_after} rows with null success or reuse")
 
@@ -292,17 +302,18 @@ def plot_bar_rt_comparison(
     import pickle
 
     # Create a unique cache key based on the analysis parameters
-    cache_key = f"{rt_column}_{reuse_column}_{n_simulations}"
-    cache_path = f"temp/statsfile.{cache_key}.pkl"
+    cache_key = f"{rt_column}_{reuse_column}_{n_simulations}_{overlap_threshold}"
+    cache_path = os.path.join(data_configs.CACHE_DIR, f"statsfile.{cache_key}.pkl")
 
     if os.path.exists(cache_path) and not rereun_analysis:
       print(f"Loading cached results from {cache_path}")
-      try:
-        with open(cache_path, "rb") as f:
-          power_results = pickle.load(f)
-      except Exception as e:
-        print(f"Error loading cache: {e}")
-        power_results = None
+      #try:
+      with open(cache_path, "rb") as f:
+        power_results = pickle.load(f)
+        add_rt_power_results_to_stats_file(power_results, stats_file, label=rt_column)
+      #except Exception as e:
+      #  print(f"Error loading cache: {e}")
+      #  power_results = None
 
   # Run analysis if no cached results
   if power_results is None:
@@ -517,8 +528,8 @@ def plot_rt_differences(
   xlabels=None,
   include_raw_data: bool = False,
   ylim: Tuple[float, float] = None,
-  use_median: bool = True,
-  use_box_plot: bool = True,
+  use_median: bool = False,
+  use_box_plot: bool = False,
 ) -> Tuple[plt.Figure, plt.Axes]:
   """Plot RT differences between conditions.
 
@@ -545,9 +556,6 @@ def plot_rt_differences(
       difference_df.group_by("user_id").agg(pl.col(measure).mean()).select(measure)
     )
     all_diffs.append(user_means.to_numpy().flatten())
-    import pdb
-
-    pdb.set_trace()
 
   # Create/get axis
   if ax is None:
@@ -715,14 +723,14 @@ def compute_condition_difference_df(
 #  if stats_file:
 #    add_to_file(
 #      stats_file,
-#      algo="human data",
+#      algo="1.human data",
 #      label="success",
 #      text=human_success_stats["paper_result"],
 #    )
 
 #    add_to_file(
 #      stats_file,
-#      algo="human data",
+#      algo="1.human data",
 #      label="reuse",
 #      text=human_reuse_stats["paper_result"],
 #    )
@@ -840,9 +848,12 @@ def get_human_success_rate_path_reuse_data(
   overlap_threshold: float,
   reuse_column: str = "reuse",
   stats_file: str = None,
+  label: str = "",
 ) -> dict:
   # Add boolean "reuse" column based on overlap threshold
-  df = df.with_columns((pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column))
+  df = df.with_columns(
+    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
+  )
 
   # Filter rows where reuse is -1
   df = df.filter(pl.col(reuse_column) != -1)
@@ -857,15 +868,15 @@ def get_human_success_rate_path_reuse_data(
   if stats_file:
     add_to_file(
       stats_file,
-      algo="human data",
-      label="success",
+      algo="1.human data",
+      label=f"success_{label}",
       text=human_success_stats["paper_result"],
     )
 
     add_to_file(
       stats_file,
-      algo="human data",
-      label="reuse",
+      algo="1.human data",
+      label=f"reuse_{label}",
       text=human_reuse_stats["paper_result"],
     )
 
@@ -994,6 +1005,7 @@ def get_model_success_rate_path_reuse_data(
 
   return model_data
 
+
 def get_center(data, key):
   # Format error bars based on normality
   if data[f"{key}_is_normal"]:
@@ -1001,6 +1013,7 @@ def get_center(data, key):
     return data[f"{key}_mean"]
   else:
     return data[f"{key}_median"]
+
 
 def get_err(data, key):
   # Format error bars based on normality
@@ -1020,6 +1033,7 @@ def get_err(data, key):
       err = reuse_ci
   return err
 
+
 def plot_success_rate_path_reuse_metrics(
   df: DataFrame,
   model_df: DataFrame = None,
@@ -1035,7 +1049,7 @@ def plot_success_rate_path_reuse_metrics(
   legend_loc: str = "lower right",
   legend_ncol: int = 1,
   overlap_threshold: float = 0.7,
-  point_size=100,
+  point_size=25,
 ) -> Tuple[plt.Figure, plt.Axes]:
   """Plot success rate vs path reuse as a 2D scatter plot with error bars.
 
@@ -1324,7 +1338,6 @@ def compute_binary_measure_statistics(
   # Standard deviation of the group means
   sd = group_means["rate"].std()
 
-
   # Mean of group means (weighted by n_trials)
   total_trials = group_means["n_trials"].sum()
 
@@ -1333,35 +1346,36 @@ def compute_binary_measure_statistics(
 
   alpha = 0.05
   if is_normal:
-      # For normal data: use parametric approach with mean
-      se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
-      ci_low = p_obs - stats.norm.ppf(1-alpha/2) * se
-      ci_high = p_obs + stats.norm.ppf(1-alpha/2) * se
+    # For normal data: use parametric approach with mean
+    se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
+    ci_low = p_obs - stats.norm.ppf(1 - alpha / 2) * se
+    ci_high = p_obs + stats.norm.ppf(1 - alpha / 2) * se
   else:
-      # For non-normal data: use bootstrap for median CI
-      bootstrap_samples = 10000
-      bootstrap_means = []
-      n_trials = group_means["n_trials"].to_numpy()
-      for _ in range(bootstrap_samples):
-          # Sample indices with replacement
-          idx = np.random.choice(n_groups, size=n_groups, replace=True)
-          # Calculate weighted mean using the sampled rates and their corresponding n_trials
-          sampled_rates = rates[idx]
-          sampled_trials = n_trials[idx]
-          weighted_mean = np.sum(sampled_rates * sampled_trials) / np.sum(sampled_trials)
-          bootstrap_means.append(weighted_mean)
+    # For non-normal data: use bootstrap for median CI
+    bootstrap_samples = 10000
+    bootstrap_means = []
+    n_trials = group_means["n_trials"].to_numpy()
+    for _ in range(bootstrap_samples):
+      # Sample indices with replacement
+      idx = np.random.choice(n_groups, size=n_groups, replace=True)
+      # Calculate weighted mean using the sampled rates and their corresponding n_trials
+      #sampled_rates = rates[idx]
+      #sampled_trials = n_trials[idx]
 
-      # Percentile method for confidence intervals
-      ci_low = np.percentile(bootstrap_means, alpha/2 * 100)
-      ci_high = np.percentile(bootstrap_means, (1-alpha/2) * 100)
-      if ci_high < p_median:
-        ci_high = p_median
-      if ci_low > p_median:
-        ci_low = p_median
+      #weighted_mean = np.sum(sampled_rates * sampled_trials) / np.sum(sampled_trials)
+      #bootstrap_means.append(weighted_mean)
+      bootstrap_means.append(np.median(rates[idx]))
+
+    # Percentile method for confidence intervals
+    ci_low = np.percentile(bootstrap_means, alpha / 2 * 100)
+    ci_high = np.percentile(bootstrap_means, (1 - alpha / 2) * 100)
+    if ci_high < p_median:
+      ci_high = p_median
+    if ci_low > p_median:
+      ci_low = p_median
 
   ci_low = max(0.0, ci_low)  # Lower bound can't be below 0%
   ci_high = min(1.0, ci_high)  # Upper bound can't exceed 100%
-
 
   if is_normal:
     # One-sided t-test
@@ -1370,7 +1384,7 @@ def compute_binary_measure_statistics(
     p_value = p_value / 2 if t_stat > 0 else 1 - p_value / 2
 
     # Calculate Cohen's d effect size
-    d = (p_obs - mu) / np.std(rates, ddof=1)
+    d = (p_obs - mu) / (1e-5 + np.std(rates, ddof=1))
     effect_size = {"name": "Cohen's d", "value": d}
 
     test_name = "One-sample t-test"
@@ -1431,7 +1445,7 @@ def power_analysis_path_reuse(
   if stats_file:
     stats_file.write(results["paper_result"] + "\n")
     add_to_file(
-      stats_file, algo="human data", label=measure, text=results["paper_result"]
+      stats_file, algo="1.human data", label=measure, text=results["paper_result"]
     )
 
     # Add W value if it's a Wilcoxon test
@@ -1440,7 +1454,7 @@ def power_analysis_path_reuse(
       p_value = results["test"]["p_value"]
       add_to_file(
         stats_file,
-        algo="human data",
+        algo="1.human data",
         label=f"{measure} w-p values",
         text=f"W-value={w_stat:.3f}, p={p_value:.2g}",
       )
@@ -1541,12 +1555,18 @@ def power_analysis_rt_across_groups(
 
   # Calculate descriptive statistics by group
   user_stats = df.group_by(["user_id", reuse_column]).agg(
-    mean_val=pl.col(measure).mean()
+    mean_val=pl.col(measure).mean(),
+    n_trials=pl.col(measure).count()
   )
 
   reuse_means = user_stats.filter(pl.col(reuse_column) == True)["mean_val"].to_numpy()
   no_reuse_means = user_stats.filter(pl.col(reuse_column) == False)[
     "mean_val"
+  ].to_numpy()
+
+  reuse_trials = user_stats.filter(pl.col(reuse_column) == True)["n_trials"].to_numpy()
+  no_reuse_trials = user_stats.filter(pl.col(reuse_column) == False)[
+    "n_trials"
   ].to_numpy()
 
   n1, n2 = len(no_reuse_means), len(reuse_means)
@@ -1561,13 +1581,29 @@ def power_analysis_rt_across_groups(
   bootstrap_medians1, bootstrap_medians2 = [], []
 
   for _ in range(n_bootstrap):
-    bootstrap_sample1 = np.random.choice(no_reuse_means, size=n1, replace=True)
-    bootstrap_sample2 = np.random.choice(reuse_means, size=n2, replace=True)
-    bootstrap_medians1.append(np.median(bootstrap_sample1))
-    bootstrap_medians2.append(np.median(bootstrap_sample2))
+    # Sample indices with replacement for each group
+    idx1 = np.random.choice(n1, size=n1, replace=True)
+    idx2 = np.random.choice(n2, size=n2, replace=True)
+    # Calculate the median of the sampled user means
+    sampled_median1 = np.median(no_reuse_means[idx1])
+    sampled_median2 = np.median(reuse_means[idx2])
+    
+    bootstrap_medians1.append(sampled_median1)
+    bootstrap_medians2.append(sampled_median2)
 
   ci_low1, ci_high1 = np.percentile(bootstrap_medians1, [2.5, 97.5])
   ci_low2, ci_high2 = np.percentile(bootstrap_medians2, [2.5, 97.5])
+
+  # Bound confidence intervals to ensure they don't go out of reasonable bounds
+  if ci_high1 < median1:
+    ci_high1 = median1
+  if ci_low1 > median1:
+    ci_low1 = median1
+    
+  if ci_high2 < median2:
+    ci_high2 = median2
+  if ci_low2 > median2:
+    ci_low2 = median2
 
   if stats_file is None:
     return {
@@ -1584,6 +1620,7 @@ def power_analysis_rt_across_groups(
   # Fit linear mixed effects model
   model = smf.mixedlm("RT ~ reuse", data, groups=data["user_id"])
   result = model.fit(reml=True)
+  ci = result.conf_int(alpha=0.05)
 
   # Get effect size (standardized coefficient)
   def get_param_name(result):
@@ -1650,6 +1687,7 @@ def power_analysis_rt_across_groups(
       "name": "Linear mixed effects model",
       "statistic": result.tvalues[param_name],
       "p_value": result.pvalues[param_name],
+      "ci": ci,
       "n1": n1,
       "n2": n2,
     },
@@ -1670,20 +1708,27 @@ def power_analysis_rt_across_groups(
   t_val = result.tvalues[param_name]
   p_val = result.pvalues[param_name]
   df = result.df_resid
-  paper_result = f"β = {b1:.2f}, SE = {se:.2f}, t({df}) = {t_val:.2f}, p = {p_val:.2g}, 95% CI [{ci[0]:.2f}, {ci[1]:.2f}]"
-  add_to_file(stats_file, algo="human data", label="rt_difference", text=paper_result)
+
+  paper_result = f"beta = {b1:.2f}, SE = {se:.2f}, t({df}) = {t_val:.2f}, p = {p_val:.2g}, 95% CI [{ci[0]:.2f}, {ci[1]:.2f}]"
+
+
+  add_to_file(
+    stats_file,
+    algo="1.human data",
+    label=f"{measure}_rt_difference",
+    text=paper_result)
 
   # Add medians and CIs to the stats file
   add_to_file(
     stats_file,
-    algo="human data",
-    label="no_reuse_median",
+    algo="1.human data",
+    label=f"{measure}_no_reuse_median_RT",
     text=f"Median = {median1:.2f} [95% CI: {ci_low1:.2f}, {ci_high1:.2f}]",
   )
   add_to_file(
     stats_file,
-    algo="human data",
-    label="reuse_median",
+    algo="1.human data",
+    label=f"{measure}_reuse_median_RT",
     text=f"Median = {median2:.2f} [95% CI: {ci_low2:.2f}, {ci_high2:.2f}]",
   )
 
@@ -1740,21 +1785,58 @@ def power_analysis_path_length_across_groups(
     mean_val=pl.col(measure).mean(),
     median_val=pl.col(measure).median(),
     std_val=pl.col(measure).std(),
+    n_trials=pl.col(measure).count()
   )
 
   reuse_stats = user_stats.filter(pl.col("reuse") == True)
   no_reuse_stats = user_stats.filter(pl.col("reuse") == False)
 
-  n1, n2 = len(no_reuse_stats), len(reuse_stats)
-  mean1, mean2 = no_reuse_stats["mean_val"].mean(), reuse_stats["mean_val"].mean()
-  median1, median2 = (
-    no_reuse_stats["median_val"].median(),
-    reuse_stats["median_val"].median(),
-  )
-  var1, var2 = (
-    np.var(no_reuse_stats["mean_val"].to_numpy(), ddof=1),
-    np.var(reuse_stats["mean_val"].to_numpy(), ddof=1),
-  )
+  reuse_means = reuse_stats["mean_val"].to_numpy()
+  no_reuse_means = no_reuse_stats["mean_val"].to_numpy()
+  reuse_trials = reuse_stats["n_trials"].to_numpy()
+  no_reuse_trials = no_reuse_stats["n_trials"].to_numpy()
+
+  n1, n2 = len(no_reuse_means), len(reuse_means)
+  mean1, mean2 = np.mean(no_reuse_means), np.mean(reuse_means)
+  var1, var2 = np.var(no_reuse_means, ddof=1), np.var(reuse_means, ddof=1)
+
+  # Calculate medians and bootstrap 95% CIs
+  median1, median2 = np.median(no_reuse_means), np.median(reuse_means)
+
+  # Bootstrap 95% confidence intervals for medians
+  n_bootstrap = 10000
+  bootstrap_medians1, bootstrap_medians2 = [], []
+
+  for _ in range(n_bootstrap):
+    # Sample indices with replacement for each group
+    idx1 = np.random.choice(n1, size=n1, replace=True)
+    idx2 = np.random.choice(n2, size=n2, replace=True)
+    
+    # Calculate weighted means using the sampled means and their corresponding n_trials
+    sampled_means1 = no_reuse_means[idx1]
+    sampled_trials1 = no_reuse_trials[idx1]
+    weighted_mean1 = np.sum(sampled_means1 * sampled_trials1) / np.sum(sampled_trials1)
+    
+    sampled_means2 = reuse_means[idx2]
+    sampled_trials2 = reuse_trials[idx2]
+    weighted_mean2 = np.sum(sampled_means2 * sampled_trials2) / np.sum(sampled_trials2)
+    
+    bootstrap_medians1.append(weighted_mean1)
+    bootstrap_medians2.append(weighted_mean2)
+
+  ci_low1, ci_high1 = np.percentile(bootstrap_medians1, [2.5, 97.5])
+  ci_low2, ci_high2 = np.percentile(bootstrap_medians2, [2.5, 97.5])
+
+  # Bound confidence intervals to ensure they don't go out of reasonable bounds
+  if ci_high1 < median1:
+    ci_high1 = median1
+  if ci_low1 > median1:
+    ci_low1 = median1
+    
+  if ci_high2 < median2:
+    ci_high2 = median2
+  if ci_low2 > median2:
+    ci_low2 = median2
 
   if stats_file is None:
     return {
@@ -1932,7 +2014,11 @@ def mixed_effects_compute_power_gamma(
 
 
 def power_analysis_rt_differences(
-  difference_df: pl.DataFrame, measure: str, alpha: float = 0.05, stats_file=None
+  difference_df: pl.DataFrame,
+  measure: str,
+  alpha: float = 0.05,
+  stats_file=None,
+  setting: str = '',
 ) -> dict:
   """Analyze RT differences between conditions with appropriate statistical tests.
 
@@ -1946,10 +2032,11 @@ def power_analysis_rt_differences(
       dict containing test results and effect size
   """
   # Get mean difference per user (averaging across reversals)
-  user_means = (
-    difference_df.group_by("user_id").agg(pl.col(measure).mean()).select(measure)
+  user_stats = difference_df.group_by("user_id").agg(
+    mean_val=pl.col(measure).mean(), n_trials=pl.col(measure).count()
   )
-  differences = user_means.to_numpy().flatten()
+  differences = user_stats["mean_val"].to_numpy().flatten()
+  n_trials = user_stats["n_trials"].to_numpy()
 
   n = len(differences)
 
@@ -1969,10 +2056,24 @@ def power_analysis_rt_differences(
   n_bootstrap = 10000
   bootstrap_medians = []
   for _ in range(n_bootstrap):
-    bootstrap_sample = np.random.choice(differences, size=n, replace=True)
-    bootstrap_medians.append(np.median(bootstrap_sample))
+    # Sample indices with replacement
+    idx = np.random.choice(n, size=n, replace=True)
+    # Calculate weighted mean using the sampled differences and their corresponding n_trials
+    #sampled_differences = differences[idx]
+    #sampled_trials = n_trials[idx]
+
+    #weighted_mean = np.sum(sampled_differences * sampled_trials) / np.sum(
+    #  sampled_trials
+    #)
+    bootstrap_medians.append(np.median(differences[idx]))
 
   ci_low, ci_high = np.percentile(bootstrap_medians, [2.5, 97.5])
+
+  # Bound confidence intervals to ensure they don't go out of reasonable bounds
+  if ci_high < median:
+    ci_high = median
+  if ci_low > median:
+    ci_low = median
 
   if stats_file:
     stats_file.write(f"\n{measure}:\n")
@@ -2053,7 +2154,10 @@ def power_analysis_rt_differences(
       required_n[power] = ceil(n_required / 0.95)
 
   paper_result = f"Mean={mean:.3f}, Median={median:.3f} [95% CI: {ci_low:.3f}, {ci_high:.3f}], t({df})={test_stat:.3f}, p={p_value:.2g}"
-  add_to_file(stats_file, algo="human data", label="rt_difference", text=paper_result)
+  add_to_file(stats_file,
+  algo="1.human data",
+  label=f"{measure}_rt_difference_{setting}",
+  text=paper_result)
   if stats_file:
     stats_file.write(f"{test_name}:\n")
     stats_file.write(f"statistic = {test_stat:.3f}\n")
@@ -2199,3 +2303,85 @@ def plot_success_rate_efficient_reuse_metrics(
   ax.grid(True, linestyle="--", alpha=0.7)
 
   return fig, ax
+
+
+def add_rt_power_results_to_stats_file(power_results, stats_file, label: str):
+  """Add RT power analysis results to stats file.
+  
+  Args:
+      power_results: Dictionary containing power analysis results
+      stats_file: File handle to write statistics to
+  """
+  if stats_file is None or power_results is None:
+    return
+      
+  # Add descriptive statistics
+  descriptive = power_results.get('descriptive', {})
+  means = descriptive.get('means', {})
+  medians = descriptive.get('medians', {})
+  median_cis = descriptive.get('median_cis', {})
+  
+  # Add median statistics to stats file if available
+  if 'no_reuse' in medians and 'reuse' in medians:
+    median1 = medians['no_reuse']
+    median2 = medians['reuse']
+    
+    if 'no_reuse' in median_cis and 'reuse' in median_cis:
+      ci_low1, ci_high1 = median_cis['no_reuse']
+      ci_low2, ci_high2 = median_cis['reuse']
+      
+      add_to_file(
+        stats_file,
+        algo="1.human data",
+        label=f"{label}_no_reuse_median_RT",
+        text=f"Median = {median1:.2f} [95% CI: {ci_low1:.2f}, {ci_high1:.2f}]",
+      )
+      add_to_file(
+        stats_file,
+        algo="1.human data", 
+        label=f"{label}_reuse_median_RT",
+        text=f"Median = {median2:.2f} [95% CI: {ci_low2:.2f}, {ci_high2:.2f}]",
+      )
+  
+  # Add test results if available
+  test_results = power_results.get('test_results', {})
+  if test_results:
+    statistic = test_results.get('statistic')
+    p_value = test_results.get('p_value')
+    ci = test_results.get('ci')
+    n1 = test_results.get('n1')
+    n2 = test_results.get('n2')
+    
+    if all(x is not None for x in [statistic, p_value, ci]):
+      # Extract confidence interval bounds
+      if hasattr(ci, 'iloc'):
+        # If ci is a pandas DataFrame with iloc (DataFrame/Series)
+        ci_lower, ci_upper = float(ci.iloc[0, 0]), float(ci.iloc[0, 1])
+      elif hasattr(ci, 'values') and len(ci.values) >= 2:
+        # If ci is a pandas Series with values
+        ci_lower, ci_upper = float(ci.values[0,0]), float(ci.values[0,1])
+      elif len(ci) == 2:
+        # If ci is a tuple/list
+        ci_lower, ci_upper = float(ci[0]), float(ci[1])
+      else:
+        ci_lower, ci_upper = float(ci), float(ci)
+        
+      # Get effect size (B1 coefficient)
+      b1 = power_results.get('B1', statistic)
+      se = power_results.get('se', 0)  # Standard error if available
+      df = power_results.get('df', n1 + n2 - 2 if n1 and n2 else 'unknown')
+      
+      # Ensure all values are numeric
+      b1 = float(b1) if b1 is not None else 0.0
+      se = float(se) if se is not None else 0.0
+      statistic = float(statistic) if statistic is not None else 0.0
+      p_value = float(p_value) if p_value is not None else 1.0
+      
+      paper_result = f"beta = {b1:.2f}, SE = {se:.2f}, t({df}) = {statistic:.2f}, p = {p_value:.2g}, 95% CI [{ci_lower:.2f}, {ci_upper:.2f}]"
+      
+      add_to_file(
+        stats_file,
+        algo="1.human data",
+        label=f"{label}_rt_difference",
+        text=paper_result
+      )

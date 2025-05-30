@@ -6,17 +6,20 @@ import os
 import json
 
 from tqdm.notebook import tqdm
-from data_configs import default_colors, model_colors, DIRECTORY
+from plot_configs import default_colors, model_colors
+from data_configs import CRAFTAX_AI_DIR
 
-DIRECTORY = os.path.join(DIRECTORY, "craftax_AI_results", "data")
+DIRECTORY = os.path.join(CRAFTAX_AI_DIR, "main")
 DEFAULT_TITLE_SIZE = 16
 DEFAULT_XLABEL_SIZE = 12
 DEFAULT_YLABEL_SIZE = 14
 DEFAULT_LEGEND_SIZE = 12
 
 model_colors = {
-  "ql": default_colors["purple"],
-  "ql_sf": default_colors["nice purple"],
+  #"ql": default_colors["purple"],
+  #"ql_sf": default_colors["nice purple"],
+  "ql": model_colors["qlearning"],
+  "ql_sf": model_colors["usfa"],
   "dyna": model_colors["dyna"],
   "preplay": model_colors["preplay"],
 }
@@ -470,9 +473,9 @@ if __name__ == "__main__":
     show_legend=False,
     evaluation=False,
     ax=ax[0],
-    ylim=(1.5, 16),
-    extra_baselines=extra_baseline_scores,
-    extra_baseline_colors=extra_baseline_colors,
+    ylim=(1.5, 7),
+    #extra_baselines=extra_baseline_scores,
+    #extra_baseline_colors=extra_baseline_colors,
   )
   plot_training_envs_score(
     df,
@@ -480,9 +483,9 @@ if __name__ == "__main__":
     show_legend=True,
     evaluation=True,
     ax=ax[1],
-    ylim=(1.5, 16),
-    extra_baselines=extra_baseline_scores,
-    extra_baseline_colors=extra_baseline_colors,
+    ylim=(1.5, 7),
+    #extra_baselines=extra_baseline_scores,
+    #extra_baseline_colors=extra_baseline_colors,
   )
   save_figure(fig, "train_eval")
 
@@ -492,9 +495,9 @@ if __name__ == "__main__":
     ntraining_envs=[8, 16, 32, 64, 128, 256, 512],
     show_legend=True,
     evaluation=True,
-    ylim=(1.5, 16),
-    extra_baselines=extra_baseline_scores,
-    extra_baseline_colors=extra_baseline_colors,
+    ylim=(1.5, 7),
+    #extra_baselines=extra_baseline_scores,
+    #extra_baseline_colors=extra_baseline_colors,
   )
   save_figure(fig, "eval")
 

@@ -9,6 +9,7 @@ import polars as pl
 import time
 from absl import logging
 from flax import serialization, struct
+from serialization import SerializationWrapper
 import jax
 import jax.numpy as jnp
 
@@ -41,7 +42,7 @@ def load_episode_data(filename: str, example_timestep: struct.PyTreeNode):
     attempt1 = serialization.from_bytes(None, serialized_data)
     nepisodes = len(attempt1)
     episode_data = serialization.from_bytes(
-      [example_episode] * nepisodes, serialized_data
+      [SerializationWrapper(example_episode)] * nepisodes, serialized_data
     )
   logging.info(
     f"Loaded episode data for {os.path.basename(filename)} in {time.time() - start_time} seconds"

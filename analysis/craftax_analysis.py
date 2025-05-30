@@ -6,6 +6,8 @@ Functions for
 
 import sys
 import os
+import pickle
+import inspect
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import data_configs
@@ -25,13 +27,14 @@ from experiments.craftax import craftax_experiment_structure as experiment
 from IPython.display import HTML, display
 
 import plot_configs
+import data_configs
 from plot_configs import model_colors
 
 
 OPTIMAL_TEST_PATHS = {}
 for config in craftax_experiment_configs.PATHS_CONFIGS:
   # Create cache path
-  cache_dir = "craftax_cache/optimal_paths"
+  cache_dir = os.path.join(data_configs.CACHE_DIR, "craftax/optimal_paths")
   os.makedirs(cache_dir, exist_ok=True)
   cache_file = os.path.join(cache_dir, f"path_{hash(str(config))}.npy")
 
@@ -118,7 +121,7 @@ def path_similarity(path1, path2):
 
 def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
   user_df = df.filter(user_id=user_id)
-  test_mazes = user_df["name"].unique()
+  test_mazes = user_df["maze"].unique()
   test_mazes = [t for t in test_mazes if "eval" in t]
   test_mazes = sorted(test_mazes)
 
@@ -129,7 +132,7 @@ def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
     # get random test maze
     i = int(i)
     test_maze = test_mazes[i]
-    test_df = user_df.filter(eval=True, name=test_maze, **kwargs)
+    test_df = user_df.filter(eval=True, maze=test_maze, **kwargs)
     if len(test_df.episodes) == 0:
       print(f"No test episodes for maze: {test_maze}")
       continue
@@ -138,7 +141,7 @@ def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
     train_maze = test_maze.replace("eval1", "training")
     start_pos = test_df["start_pos"].to_list()[0]
     train_df = user_df.filter(
-      name=train_maze, room=0, eval=False, success=1, start_pos=start_pos
+      maze=train_maze, room=0, eval=False, success=1, start_pos=start_pos
     )
 
     if len(train_df.episodes) == 0:
@@ -175,7 +178,7 @@ def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
     train_episode = train_df.episodes[0]
     test_episode = test_df.episodes[0]
     with jax.disable_jit():
-      display(HTML(test_df.to_pandas().to_html()))
+      #display(HTML(test_df.to_pandas().to_html()))
       make_image_path_panel(train_episode, axs[0])
       title = f"User: {user_id}. {train_maze}"
       path_length = len(train_episode.positions)
@@ -274,9 +277,10 @@ def plot_success_rate_path_reuse_metrics(
       overlap_threshold=overlap_threshold,
       reuse_column=reuse_column,
       stats_file=stats_file,
+      label=label,
     )
-    all_data[label] = human_data['human']
-  
+    all_data[label] = human_data["human"]
+
   if model_df is not None:
     model_data = analysis_utils.get_model_success_rate_path_reuse_data(
       model_df=model_df.filter(eval=True),
@@ -289,18 +293,54 @@ def plot_success_rate_path_reuse_metrics(
   # Define colors for human data points
   human_colors = {
     tell_reuse_labels[0]: plot_configs.default_colors["orange"],  # Green
-    tell_reuse_labels[1]: plot_configs.default_colors["light gray"],  # Red
+    tell_reuse_labels[1]: plot_configs.default_colors["google blue"],  # Red
   }
 
   # Plot data points with error bars
-  marker_size = 50  # Default size for all scatter points
+  marker_size = 100  # Default size for all scatter points
+
+  # Then plot model data points
+  if model_df is not None:
+    ordered_keys = [k for k in analysis_utils.model_order if k in all_data]
+    for key in ordered_keys:
+      if key in tell_reuse_labels:  # Skip if it's human data (already plotted)
+        continue
+
+      data = all_data[key]
+      color = model_colors[key]
+      xerr = analysis_utils.get_err(data, "reuse")
+      yerr = analysis_utils.get_err(data, "success")
+
+      ax.errorbar(
+        data["reuse"],
+        data["success"],
+        xerr=xerr,
+        yerr=yerr,
+        fmt="none",
+        color=color,
+        capsize=5,
+        capthick=2,
+        elinewidth=2,
+        zorder=2,
+      )
+
+      ax.scatter(
+        data["reuse"],
+        data["success"],
+        color=color,
+        s=marker_size,
+        # marker=data["marker"],
+        label=analysis_utils.model_names[key],
+        zorder=3,
+      )
+
 
   # First plot human data points
   for idx, key in enumerate(tell_reuse_labels):
     data = all_data[key]
     color = human_colors.get(key, "#333333")
     marker = tell_reuse_markers[idx]
-    xerr = analysis_utils.get_err(data, "reuse")  
+    xerr = analysis_utils.get_err(data, "reuse")
     yerr = analysis_utils.get_err(data, "success")
     ax.errorbar(
       data["reuse"],
@@ -325,41 +365,6 @@ def plot_success_rate_path_reuse_metrics(
       zorder=3,
       linewidths=2,  # Make markers thicker for better visibility
     )
-
-  # Then plot model data points
-  if model_df is not None:
-    ordered_keys = [k for k in analysis_utils.model_order if k in all_data]
-    for key in ordered_keys:
-      if key in tell_reuse_labels:  # Skip if it's human data (already plotted)
-        continue
-
-      data = all_data[key]
-      color = model_colors[key]
-      xerr = analysis_utils.get_err(data, "reuse")  
-      yerr = analysis_utils.get_err(data, "success")
-
-      ax.errorbar(
-        data["reuse"],
-        data["success"],
-        xerr=xerr,
-        yerr=yerr,
-        fmt="none",
-        color=color,
-        capsize=5,
-        capthick=2,
-        elinewidth=2,
-        zorder=2,
-      )
-
-      ax.scatter(
-        data["reuse"],
-        data["success"],
-        color=color,
-        s=marker_size,
-        #marker=data["marker"],
-        label=analysis_utils.model_names[key],
-        zorder=3,
-      )
 
   # Customize axes
   ax.set_xlabel("Path Reuse (%)", fontsize=analysis_utils.DEFAULT_LABEL_SIZE)
@@ -393,7 +398,26 @@ def num_users(df):
   return len(df["user_id"].unique())
 
 
-def filter_users_by_success_and_tell_reuse(df):
+def filter_users_by_success_and_tell_reuse(df, analysis_maze=None, **kwargs):
+  # Get the calling function name if not provided
+  if analysis_name is None:
+    analysis_name = inspect.currentframe().f_back.f_code.co_name
+  
+  # Create cache file path
+  cache_path = os.path.join(data_configs.CACHE_DIR, f"{analysis_name}_tell_reuse_user_ids.pkl")
+  
+  # Try to load cached user IDs
+  if os.path.exists(cache_path):
+    with open(cache_path, "rb") as f:
+      print(f"Loading cached user IDs from {cache_path}")
+      first_100_users = pickle.load(f)
+    
+    # Filter dataframe to only include rows with those user IDs
+    df_filtered = df.filter(pl.col("user_id").is_in(first_100_users))
+    print("Num users after cache filter: ", num_users(df_filtered))
+    return df_filtered, first_100_users
+
+  # Compute user IDs if cache doesn't exist or failed to load
   print("Num initial users: ", num_users(df))
 
   df = df.filter(min_train_success=True, eval=True)
@@ -406,10 +430,16 @@ def filter_users_by_success_and_tell_reuse(df):
     print(f"Adding {len(unique_user_ids)} users for tell_reuse={tell_reuse}")
     first_100_users.extend(unique_user_ids)
 
+  # Save to cache
+  os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+  with open(cache_path, "wb") as f:
+    pickle.dump(first_100_users, f)
+  print(f"Saved user IDs to cache: {cache_path}")
+
   # Filter dataframe to only include rows with those user IDs
   df = df.filter(pl.col("user_id").is_in(first_100_users))
   print("Num initial users after first 100 filter: ", num_users(df))
-  return df
+  return df, first_100_users
 
 
 def path_reuse_manipulation_analysis(
@@ -429,7 +459,7 @@ def path_reuse_manipulation_analysis(
   save_dir = save_dir or data_configs.CRAFTAX_RESULTS_DIR
   save_dir = os.path.join(save_dir, "5.craftax_path_reuse_manipulation")
   os.makedirs(save_dir, exist_ok=True)
-  stats_file = os.path.join(save_dir, "craftax_path_reuse_stats.txt")
+  stats_file = os.path.join(save_dir, "5.craftax_path_reuse_stats.txt")
   stats_file = open(stats_file, "w")
   stats_file.write("Statistical Analysis\n\n")
 
@@ -446,7 +476,7 @@ def path_reuse_manipulation_analysis(
   ############################################################
 
   # Filter dataframe to only include rows with those user IDs
-  sub_df = filter_users_by_success_and_tell_reuse(sub_df)
+  sub_df, first_100_users = filter_users_by_success_and_tell_reuse(sub_df)
 
   # first plot when tell_reuse is 1
   fig, ax = plot_success_rate_path_reuse_metrics(
@@ -504,6 +534,7 @@ def plot_non_reuse_frequency_by_world_seed(
   display_figs: bool = True,
   figsize=(10, 6),
   title="Frequency of Non-Reuse (reuse=0) by World Seed",
+  tell_reuse=1,
   overlap_threshold: float = 0.2,
 ):
   """
@@ -521,19 +552,24 @@ def plot_non_reuse_frequency_by_world_seed(
       figsize (tuple, optional): Figure size. Defaults to (10, 6).
       title (str, optional): Plot title. Defaults to "Frequency of Non-Reuse (reuse=0) by World Seed".
   """
-  user_df = filter_users_by_success_and_tell_reuse(user_df)
-  user_df = user_df.with_columns((pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias("reuse"))
-  model_df = model_df.with_columns((pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias("reuse"))
+  user_df, _ = filter_users_by_success_and_tell_reuse(user_df)
+  user_df = user_df.with_columns(
+    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias("reuse")
+  )
+  model_df = model_df.with_columns(
+    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias("reuse")
+  )
 
   # --- Process User Data ---
   settings = dict(eval=True)
+  user_settings = dict(eval=True, tell_reuse=tell_reuse)
   user_counts = (
-    user_df.filter(**settings)
+    user_df.filter(**user_settings)
     .group_by("world_seed")
     .agg(count=pl.count())
     .sort("world_seed")
   )
-  user_reuse0 = user_df.filter(reuse=1, **settings)
+  user_reuse0 = user_df.filter(reuse=1, **user_settings)
   user_reuse0_counts = (
     user_reuse0.group_by("world_seed").agg(count=pl.count()).sort("world_seed")
   )
@@ -624,12 +660,5 @@ def plot_non_reuse_frequency_by_world_seed(
     fig.savefig(f"{plot_filename_base}.pdf", bbox_inches="tight", dpi=300)
     # fig.savefig(f"{plot_filename_base}.png", bbox_inches="tight", dpi=300)
     print(f"Saved plot to {plot_filename_base}.pdf")
-
-  if display_figs:
-    from IPython.display import display
-
-    display(fig)
-  else:
-    plt.close(fig)  # Close the figure if not displaying to save memory
 
   return fig, ax

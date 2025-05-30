@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import nicewebrl
 import numpy as np
 from flax import serialization
+from serialization import SerializationWrapper
 import polars as pl
 import functools
 from experiments.jaxmaze.experiment_utils import SuccessTrackingAutoResetWrapper
@@ -53,7 +54,8 @@ def get_block_stage_description(datum):
 
 def deserialize_timestep(datum, example_timestep):
   timestep = datum["data"]["timestep"]
-  timestep = serialization.from_bytes(example_timestep, timestep)
+
+  timestep = serialization.from_bytes(SerializationWrapper(example_timestep), timestep)
 
   return timestep
 
@@ -115,11 +117,13 @@ def make_human_episode_row_data(
   maze = metadata.get("maze")
   # Extract world_seed by removing the block identifier pattern
   world_seed = re.sub(r"_\([TF],[TF]\)", "", maze)
+
+  block_name = tuple([int(i) for i in reversal])
   row = dict(
     domain="jaxmaze",
     maze=maze,
     world_seed=world_seed,
-    block_name=str(reversal),
+    block_name=str(block_name),
     condition=int(metadata.get("condition", 0)),
     name=metadata["name"],
     block=metadata["block_metadata"]["desc"],
@@ -212,15 +216,21 @@ def create_maps(episode_data_list, start_pos=0):
 def compute_overlap(map1: np.ndarray, map2: np.ndarray):
   """map1: HxW, map2: HxW"""
   """Calculate the overlap between two maps."""
-  nonzero_indices = np.argwhere(map1 > 0)
-  values_map1 = (map1[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-    np.float32
-  )
-  values_map2 = (map2[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-    np.float32
-  )
-  overlap = (values_map1 + values_map2) > 1
+  shared_length = ((map2 + map1) * map2 > 1).sum()
+  map2_length = (map2 > 0).sum()
+  overlap = shared_length / map2_length
   return overlap
+
+  # import pdb; pdb.set_trace()
+  # nonzero_indices = np.argwhere(map2 > 0)
+  # values_map1 = (map1[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
+  #  np.float32
+  # )
+  # values_map2 = (map2[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
+  #  np.float32
+  # )
+  # overlap = (values_map1 + values_map2) > 1
+  # return overlap
 
 
 def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
@@ -369,6 +379,7 @@ def dummy_config():
     randomize_agent=False,
     make_env_params=True,
   )
+  env_params = jax.tree_map(lambda x: jnp.asarray(x), env_params)
   return dict(
     env_params=env_params,
     maze_name="string",
@@ -380,25 +391,25 @@ def dummy_config():
   )
 
 
-def generate_algorithm_episodes(algorithm, rng, extras: dict = None):
+def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False):
   task_runner = extras.get("task_runner", None)
 
   char2idx, groups, task_objects = mazes.get_group_set()
-  _, test_params, _, label2name = housemaze_experiments.exp4(algorithm.config, analysis_eval=True)
-
-  maze_names = list(label2name.values())
+  _, test_params, _, label2name = housemaze_experiments.exp4(
+    algorithm.config, analysis_eval=True, debug=debug
+  )
 
   all_episodes = []
   all_configs = []
 
-  def collect_data(env_params, task, is_eval):
+  def collect_data(env_params, task, rng_, is_eval):
     task_vector = task_runner.task_vector(task)
     task_env_params = env_params.replace(task_probs=task_vector.astype(jnp.float32))
-    episodes = algorithm.eval_fn(rng, task_env_params)
+    episodes = algorithm.eval_fn(rng_, task_env_params)
     episodes = episodes._replace(positions=get_agent_position(episodes.timesteps))
     nepisodes = episodes.actions.shape[0]
     maze_name = label2name[int(env_params.reset_params.label[0])]
-   
+
     # Split episodes
     for i in range(nepisodes):
       # minimize space requirements
@@ -418,17 +429,24 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None):
         )
       )
 
+  test_params = jax.tree_map(lambda x: jnp.asarray(x), test_params)
   nparams = test_params.reset_params.train_objects.shape[0]
   index = lambda x: jax.tree_map(lambda x: x[idx][None], x)
-  for idx in tqdm(range(nparams), desc=f"{algorithm.model_name}: Generating maze episodes"):
-    env_params = test_params.replace(
-      reset_params=index(test_params.reset_params))
-    train_object = env_params.reset_params.train_objects[0,0]
-    test_object = env_params.reset_params.test_objects[0,0]
+  for idx in tqdm(
+    range(nparams), desc=f"{algorithm.model_name}: Generating maze episodes"
+  ):
+    env_params = test_params.replace(reset_params=index(test_params.reset_params))
+    train_object = env_params.reset_params.train_objects[0, 0]
+    test_object = env_params.reset_params.test_objects[0, 0]
 
-    collect_data(env_params, train_object, is_eval=False)
-    collect_data(env_params, test_object, is_eval=True)
-
+    is_train = env_params.reset_params.train
+    rng, rng_subkey = jax.random.split(rng)
+    if is_train:
+      if debug:
+        continue  # skip train episodes in debug mode
+      collect_data(env_params, train_object, rng_=rng_subkey, is_eval=False)
+    else:
+      collect_data(env_params, test_object, rng_=rng_subkey, is_eval=True)
 
   return all_episodes, all_configs
 
@@ -439,12 +457,16 @@ def make_model_episode_row_data(episode, metadata):
   if algo == "dynaq_shared":
     algo = "preplay"
 
-  env_rotation = jnp.asarray(metadata['env_params'].reset_params.rotation).squeeze()  # [2,1] --> 2
+  env_rotation = jnp.asarray(
+    metadata["env_params"].reset_params.rotation
+  ).squeeze()  # [2,1] --> 2
+  block_name = tuple([int(i) for i in env_rotation])
   return dict(
     # shared across {human, model}, {craftax, jaxmaze}
     domain="jaxmaze",
     algo=algo,
-    block_name=str(env_rotation), 
+    world_seed=maze_name,
+    block_name=str(block_name),
     condition=int(metadata.get("condition", 0)),
     eval=metadata["eval"],
     start_pos=str(get_agent_position(episode.timesteps)[0]),
@@ -478,11 +500,15 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
   reuse_dict = {}
   overlap_dict = {}
 
-  def update_reuse_dict_with_overlap(train_mazes, test_mazes, overlap_threshold):
+  def update_reuse_dict_with_overlap(
+    train_mazes, test_mazes, block_name, overlap_threshold
+  ):
     # Get unique users
     for train_maze, test_maze in zip(train_mazes, test_mazes):
       # Get train episodes
-      train = df.filter(maze=train_maze, room=0, eval=False, success=1)
+      train = df.filter(
+        world_seed=train_maze, block_name=block_name, room=0, eval=False, success=1
+      )
 
       if len(train.episodes) == 0:
         continue
@@ -491,7 +517,7 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
       train_map = create_maps(train.episodes).sum(0)
 
       # Get test episodes
-      test = df.filter(maze=test_maze, eval=True)
+      test = df.filter(world_seed=test_maze, block_name=block_name, eval=True)
 
       # Process each test episode
       for idx, row in enumerate(test._df.iter_rows(named=True)):
@@ -507,20 +533,21 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
         overlap_dict[episode_id] = overlap_mean
         reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
 
-  def update_reuse_dict_via_junction(test_mazes, junction):
-    # Get unique users
-    for test_maze in test_mazes:
-      # Get test episodes
-      test = df.filter(maze=test_maze, eval=True)
+  # def update_reuse_dict_via_junction(test_mazes, junction):
+  #  # Get unique users
+  #  for test_maze in test_mazes:
+  #    # Get test episodes
+  #    test = df.filter(world_seed=test_maze, eval=True)
 
-      # Process each test episode
-      for idx, row in enumerate(test._df.iter_rows(named=True)):
-        global_index = row["global_episode_idx"]
-        episode = test.episodes[idx]
+  #    # Process each test episode
+  #    for idx, row in enumerate(test._df.iter_rows(named=True)):
+  #      global_index = row["global_episode_idx"]
+  #      episode = test.episodes[idx]
 
-        episode_id = (test_maze, global_index)
-        reuse_dict[episode_id] = int(went_to_junction(episode, junction))
+  #      episode_id = (test_maze, global_index)
+  #      reuse_dict[episode_id] = int(went_to_junction(episode, junction))
 
+  block_names = df["block_name"].unique().to_list()
   # -----------------
   # paths manipulation (3)
   # -----------------
@@ -529,7 +556,10 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
   train_mazes = test_mazes = [
     "big_m3_maze1",
   ]
-  update_reuse_dict_with_overlap(train_mazes, test_mazes, overlap_threshold=0.5)
+  for block_name in block_names:
+    update_reuse_dict_with_overlap(
+      train_mazes, test_mazes, block_name, overlap_threshold=0.5
+    )
   # -----------------
   # shortcut manipulation (1)
   # -----------------
@@ -542,7 +572,10 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
   test_mazes = [
     "big_m1_maze3_shortcut",
   ]
-  update_reuse_dict_with_overlap(train_mazes, test_mazes, overlap_threshold=0.7)
+  for block_name in block_names:
+    update_reuse_dict_with_overlap(
+      train_mazes, test_mazes, block_name, overlap_threshold=0.7
+    )
   # update_reuse_dict_via_junction(test_mazes, (2, 14))
   # Return the dictionaries directly
   return reuse_dict, overlap_dict

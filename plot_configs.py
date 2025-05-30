@@ -32,6 +32,7 @@ model_colors = {
   "usfa": default_colors["nice purple"],
   "qlearning": default_colors["light gray"],
   # "dynaq_shared": default_colors["dark gray"],
+  #"dyna": default_colors["dark gray"],
   "dyna": default_colors["dark gray"],
   "preplay": default_colors["vermillion"],
   "bfs": default_colors["pretty blue"],
@@ -42,10 +43,8 @@ model_colors = {
 
 model_names = {
   "human": "Human",
-  "human_terminate": "Human (finished)",
-  "human_success": "Human (Succeeded)",
   "qlearning": "Universal Value Function",
-  "usfa": "Landmark-based Universal SFs",
+  "usfa": "Universal Landmark Successor Features",
   "dyna": "Dyna",
   "dynaq_shared": "Multitask preplay",
   "preplay": "Multitask Preplay",
@@ -55,6 +54,7 @@ model_names = {
 
 
 model_order = [
+  "human",
   "human_success",
   "human_terminate",
   "qlearning",
@@ -64,7 +64,6 @@ model_order = [
   "preplay",
   "bfs",
   "dfs",
-  "human",
 ]
 
 
@@ -90,20 +89,6 @@ measure_to_title = {
   "avg_log_rt": "Average Response Time",
   "total_log_rt": "Total Response Time",
   "max_log_rt": "Max Response Time",
-  # "log_avg_post_rt": "Post First Average Response Time (Log)",
-  # "log_max_post_rt": "Post First Maximum Response Time (Log)",
-  # "log_max_init_post_rt": "Initial Post First Maximum Response Time (Log)",
-  # "log_max_end_rt": "End-Phase Maximum Response Time (Log)",
-  # "log_max_final_rt": "Final Maximum Response Time (Log)",
-  # "first_rt": "First Response Time",
-  # "avg_rt": "Average Response Time",
-  # "total_rt": "Total Response Time",
-  # "avg_post_rt": "Post First Average Response Time",
-  # "max_rt": "Maximum Response Time",
-  # "max_post_rt": "Post First Maximum Response Time",
-  # "max_init_post_rt": "Initial Post First Action Maximum Response Time",
-  # "max_end_rt": "End-Phase Maximum Response Time",
-  # "max_final_rt": "Final Maximum Response Time",
 }
 
 measure_to_ylabel = {

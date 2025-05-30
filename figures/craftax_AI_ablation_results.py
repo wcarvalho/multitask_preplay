@@ -6,8 +6,9 @@ import os
 import json
 from tqdm.auto import tqdm
 
-from configs import CRAFTAX_AI_DIR, default_colors
-import data_configs
+from data_configs import CRAFTAX_AI_DIR
+import plot_configs as configs
+from plot_configs import default_colors
 
 # Define directory for saving data and results
 DIRECTORY = os.path.join(CRAFTAX_AI_DIR, "ablations")

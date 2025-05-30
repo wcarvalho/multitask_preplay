@@ -390,7 +390,8 @@ def dummy_config():
   )
 
 
-def generate_algorithm_episodes(algorithm, rng, extras: dict = None):
+def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False):
+  del debug
   train_configs = craftax_simulation_configs.TRAIN_EVAL_CONFIGS
   test_configs = craftax_simulation_configs.TEST_CONFIGS
 
