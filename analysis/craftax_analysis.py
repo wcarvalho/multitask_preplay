@@ -174,11 +174,11 @@ def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
       )
 
     # plot {train, test} images
-    first = lambda t: jax.tree_map(lambda x: x[0], t)
+    first = lambda t: jax.tree_util.tree_map(lambda x: x[0], t)
     train_episode = train_df.episodes[0]
     test_episode = test_df.episodes[0]
     with jax.disable_jit():
-      #display(HTML(test_df.to_pandas().to_html()))
+      # display(HTML(test_df.to_pandas().to_html()))
       make_image_path_panel(train_episode, axs[0])
       title = f"User: {user_id}. {train_maze}"
       path_length = len(train_episode.positions)
@@ -334,7 +334,6 @@ def plot_success_rate_path_reuse_metrics(
         zorder=3,
       )
 
-
   # First plot human data points
   for idx, key in enumerate(tell_reuse_labels):
     data = all_data[key]
@@ -398,20 +397,22 @@ def num_users(df):
   return len(df["user_id"].unique())
 
 
-def filter_users_by_success_and_tell_reuse(df, analysis_maze=None, **kwargs):
+def filter_users_by_success_and_tell_reuse(df, analysis_name=None, **kwargs):
   # Get the calling function name if not provided
   if analysis_name is None:
     analysis_name = inspect.currentframe().f_back.f_code.co_name
-  
+
   # Create cache file path
-  cache_path = os.path.join(data_configs.CACHE_DIR, f"{analysis_name}_tell_reuse_user_ids.pkl")
-  
+  cache_path = os.path.join(
+    data_configs.CACHE_DIR, f"{analysis_name}_tell_reuse_user_ids.pkl"
+  )
+
   # Try to load cached user IDs
   if os.path.exists(cache_path):
     with open(cache_path, "rb") as f:
       print(f"Loading cached user IDs from {cache_path}")
       first_100_users = pickle.load(f)
-    
+
     # Filter dataframe to only include rows with those user IDs
     df_filtered = df.filter(pl.col("user_id").is_in(first_100_users))
     print("Num users after cache filter: ", num_users(df_filtered))

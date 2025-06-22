@@ -1,5 +1,6 @@
 import re
 import os.path
+import ast
 import jax
 import jax.numpy as jnp
 import nicewebrl
@@ -121,6 +122,7 @@ def make_human_episode_row_data(
   block_name = tuple([int(i) for i in reversal])
   row = dict(
     domain="jaxmaze",
+    algo='human',
     maze=maze,
     world_seed=world_seed,
     block_name=str(block_name),
@@ -136,6 +138,7 @@ def make_human_episode_row_data(
     start_pos=str(get_agent_position(timesteps)[0]),
     tell_reuse=tell_reuse,
     reversal=str(reversal),
+    task_vector=str(timesteps.state.task_w[0]),
   )
   row.update(metadata["user_data"])
   row.update(user_storage["user_info"])
@@ -191,6 +194,7 @@ def make_human_episode_row_data(
   # )
   # row["optimal_length"] = len(path) - 1  # includes done
 
+  row = fix_row(row)
   return row
 
 
@@ -379,7 +383,7 @@ def dummy_config():
     randomize_agent=False,
     make_env_params=True,
   )
-  env_params = jax.tree_map(lambda x: jnp.asarray(x), env_params)
+  env_params = jax.tree_util.tree_map(lambda x: jnp.asarray(x), env_params)
   return dict(
     env_params=env_params,
     maze_name="string",
@@ -396,7 +400,7 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False
 
   char2idx, groups, task_objects = mazes.get_group_set()
   _, test_params, _, label2name = housemaze_experiments.exp4(
-    algorithm.config, analysis_eval=True, debug=debug
+    algorithm.config, analysis_eval=True
   )
 
   all_episodes = []
@@ -429,9 +433,9 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False
         )
       )
 
-  test_params = jax.tree_map(lambda x: jnp.asarray(x), test_params)
+  test_params = jax.tree_util.tree_map(lambda x: jnp.asarray(x), test_params)
   nparams = test_params.reset_params.train_objects.shape[0]
-  index = lambda x: jax.tree_map(lambda x: x[idx][None], x)
+  index = lambda x: jax.tree_util.tree_map(lambda x: x[idx][None], x)
   for idx in tqdm(
     range(nparams), desc=f"{algorithm.model_name}: Generating maze episodes"
   ):
@@ -461,7 +465,8 @@ def make_model_episode_row_data(episode, metadata):
     metadata["env_params"].reset_params.rotation
   ).squeeze()  # [2,1] --> 2
   block_name = tuple([int(i) for i in env_rotation])
-  return dict(
+
+  row = dict(
     # shared across {human, model}, {craftax, jaxmaze}
     domain="jaxmaze",
     algo=algo,
@@ -483,6 +488,65 @@ def make_model_episode_row_data(episode, metadata):
     maze=maze_name,
     task_vector=str(episode.timesteps.state.task_w[0]),
   )
+  row = fix_row(row)
+  return row
+
+def fix_row(row):
+  new_row = dict(row)
+
+  new_row["world"] = new_row.pop('world_seed')
+  reversal = ast.literal_eval(new_row['block_name'])
+  new_row['block_name'] = f'reverse(H={bool(reversal[0])},W={bool(reversal[1])})'
+
+  new_row['task_object_id'] = new_row.pop('task')
+  new_row['task_set'] = new_row.pop('room')
+
+  if 'seed' in new_row and new_row['algo'] != 'human':
+    new_row['user_id'] = new_row.pop('seed')
+
+  if 'manipulation' in new_row:
+    if isinstance(new_row['manipulation'], int):
+      new_row['manipulation'] = {
+        1: 'shortcut',
+        2: 'start',
+        3: 'paths',
+        4: 'juncture',
+      }[new_row['manipulation']]
+    elif isinstance(new_row['manipulation'], str):
+      assert new_row['manipulation'] in ['shortcut', 'start', 'paths', 'juncture']
+    else:
+      raise ValueError(f"Invalid manipulation: {new_row['manipulation']}")
+
+  desired_types = dict(
+    domain=str,
+    algo=str,
+    block_name=str,
+    world=str,
+    condition=int,
+    eval=bool,
+    start_pos=str,
+    manipulation=str,
+    task_object_id=int,
+    task_set=int,
+    task_vector=str,
+  )
+  for k, v in desired_types.items():
+    assert isinstance(new_row[k], v), f"Expected {k} to be {v}, got {type(new_row[k])}"
+
+  keys_to_remove = [
+    'debug',
+    'git_version',
+    'name',
+    'seed',
+    'maze',
+    'reversal',
+    'user',
+    'block',
+  ]
+  for k in keys_to_remove:  
+    new_row.pop(k, None)
+
+  return new_row
 
 
 def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:

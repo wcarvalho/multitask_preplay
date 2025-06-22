@@ -44,16 +44,16 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
   # Get the calling function name if not provided
   if analysis_name is None:
     analysis_name = inspect.currentframe().f_back.f_code.co_name
-  
+
   # Create cache file path
   cache_path = os.path.join(data_configs.CACHE_DIR, f"{analysis_name}_user_ids.pkl")
-  
+
   # Try to load cached user IDs
   if os.path.exists(cache_path):
     with open(cache_path, "rb") as f:
       print(f"Loading cached user IDs from {cache_path}")
       unique_user_ids = pickle.load(f)
-    
+
     # Filter dataframe to only include rows with those user IDs
     df_filtered = df.filter(pl.col("user_id").is_in(unique_user_ids))
     print("Num users after cache filter: ", num_users(df_filtered))
@@ -78,7 +78,6 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
   df = df.filter(pl.col("user_id").is_in(unique_user_ids))
   print("Num initial users after first 100 filter: ", num_users(df))
   return df, unique_user_ids
-
 
 
 ######################################
@@ -281,7 +280,7 @@ def path_reuse_results(
       tell_reuse=tell_reuse,
       eval_shares_start_pos=True,
     ),
-    analysis_name="path_reuse_results"
+    analysis_name="path_reuse_results",
   )
 
   ##################
@@ -335,7 +334,7 @@ def path_reuse_results(
     for use_box_plot in [False]:
       fig, ax = plt.subplots(figsize=(4, 4))
       analysis_utils.plot_bar_rt_comparison(
-        #sub_df.filter(success=1),
+        # sub_df.filter(success=1),
         sub_df,
         measure,
         n_simulations=n_simulations if do_analysis[idx] else 1,
@@ -422,7 +421,9 @@ def juncture_results(
   stats_file = open(stats_filename, "w")
   stats_file.write("Juncture Manipulation Statistical Analysis\n\n")
 
-  user_df, _ = filter_users_by_success(user_df.filter(manipulation=4), analysis_name="juncture_results")
+  user_df, _ = filter_users_by_success(
+    user_df.filter(manipulation=4), analysis_name="juncture_results"
+  )
   first_100_users = []
   for tell_reuse in [1, 0]:
     unique_user_ids = user_df.filter(tell_reuse=tell_reuse)["user_id"].unique()
@@ -615,7 +616,7 @@ def shortcut_results(
 
   sub_df, _ = filter_users_by_success(
     user_df.filter(manipulation=1, tell_reuse=tell_reuse, eval_shares_start_pos=True),
-    analysis_name="shortcut_results"
+    analysis_name="shortcut_results",
   )
 
   ##################
@@ -683,8 +684,7 @@ def start_results(
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
-    user_df.filter(manipulation=2, tell_reuse=tell_reuse),
-    analysis_name="start_results"
+    user_df.filter(manipulation=2, tell_reuse=tell_reuse), analysis_name="start_results"
   )
 
   ##################

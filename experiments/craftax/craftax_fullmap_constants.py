@@ -7,6 +7,8 @@ from PIL import Image
 from craftax.craftax.util.maths_utils import get_distance_map
 from craftax.environment_base.util import load_compressed_pickle, save_compressed_pickle
 from craftax.craftax import constants as original_constants
+from importlib.util import find_spec
+import shutil
 
 original_constant_directory = os.path.dirname(original_constants.__file__)
 
@@ -22,6 +24,45 @@ INVENTORY_OBS_HEIGHT = 4
 TEXTURE_CACHE_FILE = os.path.join(
   original_constant_directory, "assets", "fullmap_texture_cache_48.pbz2"
 )
+
+
+def restore_texture_cache_if_needed():
+  """Restore texture cache files from local cache if they don't exist in the package directory."""
+  # Get paths for texture cache files
+  original_constants_directory = os.path.join(
+    os.path.dirname(find_spec("craftax.craftax.constants").origin), "assets"
+  )
+  TEXTURE_CACHE_FILE = os.path.join(original_constants_directory, "texture_cache.pbz2")
+  FULLMAP_TEXTURE_CACHE_FILE = os.path.join(
+    original_constants_directory, "fullmap_texture_cache_48.pbz2"
+  )
+
+  # Local cache paths
+  cache_dir = os.environ.get("CRAFTAX_CACHE_DIR", "craftax_cache")
+  source_cache = os.path.join(cache_dir, "texture_cache.pbz2")
+  source_fullmap_cache = os.path.join(cache_dir, "fullmap_texture_cache_48.pbz2")
+
+  # Create the destination directories if they don't exist
+  os.makedirs(os.path.dirname(TEXTURE_CACHE_FILE), exist_ok=True)
+  os.makedirs(os.path.dirname(FULLMAP_TEXTURE_CACHE_FILE), exist_ok=True)
+
+  # Copy texture cache files if needed
+  if not os.path.exists(TEXTURE_CACHE_FILE) and os.path.exists(source_cache):
+    print(f"Restoring texture cache from {source_cache} to {TEXTURE_CACHE_FILE}")
+    shutil.copy2(source_cache, TEXTURE_CACHE_FILE)
+    print("Regular cache file restored successfully!")
+
+  if not os.path.exists(FULLMAP_TEXTURE_CACHE_FILE) and os.path.exists(
+    source_fullmap_cache
+  ):
+    print(
+      f"Restoring fullmap texture cache from {source_fullmap_cache} to {FULLMAP_TEXTURE_CACHE_FILE}"
+    )
+    shutil.copy2(source_fullmap_cache, FULLMAP_TEXTURE_CACHE_FILE)
+    print("Fullmap cache file restored successfully!")
+
+
+restore_texture_cache_if_needed()
 
 
 # ENUMS
@@ -1099,7 +1140,6 @@ if os.path.exists(TEXTURE_CACHE_FILE) and not os.environ.get(
   "CRAFTAX_RELOAD_TEXTURES", False
 ):
   print("Loading textures from cache.")
-  print(TEXTURE_CACHE_FILE)
   TEXTURES = load_compressed_pickle(TEXTURE_CACHE_FILE)
   # Check validity of texture cache
   for ts in (

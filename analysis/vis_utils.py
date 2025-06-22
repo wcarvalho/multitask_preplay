@@ -22,12 +22,14 @@ def render_path(episode_data, from_model=True, ax=None):
   if from_model:
     in_episode = get_in_episode(timesteps)
     actions = actions[in_episode][:-1]
-    positions = jax.tree_map(lambda x: x[in_episode][:-1], timesteps.state.agent_pos)
+    positions = jax.tree_util.tree_map(
+      lambda x: x[in_episode][:-1], timesteps.state.agent_pos
+    )
   else:
     positions = timesteps.state.agent_pos[:-1]
   # positions in episode
 
-  state_0 = jax.tree_map(lambda x: x[0], timesteps.state)
+  state_0 = jax.tree_util.tree_map(lambda x: x[0], timesteps.state)
 
   # doesn't matter
   maze_height, maze_width, _ = timesteps.state.grid[0].shape

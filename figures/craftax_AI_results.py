@@ -16,8 +16,8 @@ DEFAULT_YLABEL_SIZE = 14
 DEFAULT_LEGEND_SIZE = 12
 
 model_colors = {
-  #"ql": default_colors["purple"],
-  #"ql_sf": default_colors["nice purple"],
+  # "ql": default_colors["purple"],
+  # "ql_sf": default_colors["nice purple"],
   "ql": model_colors["qlearning"],
   "ql_sf": model_colors["usfa"],
   "dyna": model_colors["dyna"],
@@ -25,7 +25,7 @@ model_colors = {
 }
 
 extra_baseline_scores = {
-  "$M^3$ (1M, IID)": 6.6,
+  "$Simulus$ (1M, IID)": 6.6,
   "EfficientMBRL (1M, IID)": 5.4,
   "PPO (1M, IID)": 2.3,
   "PPO (1B, IID)": 15.3,
@@ -96,7 +96,7 @@ def get_runs(group, name, entity="wcarvalho92", project="craftax"):
   )
 
 
-def get_metric_data_by_group(model_to_group=None, debug=False):
+def get_metric_data_by_group(model_to_group=None, overwrite=False, debug=False):
   """Retrieves raw achievement data from Weights & Biases experiments by group.
 
   Args:
@@ -130,7 +130,7 @@ def get_metric_data_by_group(model_to_group=None, debug=False):
       cache_file = os.path.join(DIRECTORY, f"{model}_{group}_raw.json")
 
     # Try to load cached data
-    if os.path.exists(cache_file):
+    if os.path.exists(cache_file) and not overwrite:
       with open(cache_file, "r") as f:
         print(f"Loaded {cache_file}")
         data.extend(json.load(f))
@@ -146,29 +146,38 @@ def get_metric_data_by_group(model_to_group=None, debug=False):
       if len(keys) == 0:
         print(f"No keys found for {run.group}/{run.name}")
         continue
-      for key in keys:
-        if "Achievements" in key:
-          parts = key.split("/")
-          setting = parts[0]
-          metric = "/".join(parts[1:])  # Join remaining parts with '/'
-        elif "0.score" in key:
-          setting, metric = key.split("/")
-        else:
-          continue
-        value = history[key].max()
-        model_data.append(
-          {
-            "model": model,
-            "setting": setting,
-            "group": group,
-            "name": run.name,
-            "metric": metric,
-            "value": value,
-            "run_id": run.id,
-          }
-        )
-        if debug:
-          break
+      for larger_setting in ["eval", "actor"]:
+        score_keys = [k for k in keys if larger_setting in k and "0.score" in k]
+        try:
+          best_idx = np.nanargmax(history[score_keys].to_numpy())
+        except Exception as e:
+          best_idx = len(history[score_keys]) - 1
+
+        for key in keys:
+          if larger_setting not in key:
+            continue
+          if "Achievements" in key:
+            parts = key.split("/")
+            setting = parts[0]
+            metric = "/".join(parts[1:])  # Join remaining parts with '/'
+          elif "0.score" in key:
+            setting, metric = key.split("/")
+          else:
+            continue
+          value = history[key][best_idx]
+          model_data.append(
+            {
+              "model": model,
+              "setting": setting,
+              "group": group,
+              "name": run.name,
+              "metric": metric,
+              "value": value,
+              "run_id": run.id,
+            }
+          )
+          if debug:
+            break
       if debug:
         break
 
@@ -378,12 +387,183 @@ def plot_training_envs_score(
 
   # Customize plot
   ax.set_xlabel("Number of Unique Training Environments", fontsize=DEFAULT_XLABEL_SIZE)
-  ax.set_ylabel("% Maximum Score", fontsize=DEFAULT_YLABEL_SIZE)
+  ax.set_ylabel("% Maximum Reward", fontsize=DEFAULT_YLABEL_SIZE)
 
   if key == "evaluator":
     title = "Generalization Performance to \n10,000 Unique Environments"
   else:
     title = "Training Performance"
+  ax.set_title(title, fontsize=DEFAULT_TITLE_SIZE)
+
+  # Set x-ticks to match ntraining_envs values
+  ax.set_xscale("log", base=2)
+  ax.set_xticks(ntraining_envs)
+  ax.set_xticklabels(ntraining_envs, fontsize=DEFAULT_XLABEL_SIZE)
+  ax.set_xlim(min(ntraining_envs) / 1.5, max(ntraining_envs) * 1.5)
+
+  # Add grid
+  ax.grid(True, alpha=0.3)
+
+  # Add legend if both types of data are shown
+  if show_legend:
+    ax.legend(fontsize=DEFAULT_LEGEND_SIZE)
+
+  # Set ylims if provided
+  if ylim is not None:
+    ax.set_ylim(*ylim)
+
+  if ax is None:
+    plt.tight_layout()
+
+  return fig, ax
+
+
+def plot_training_envs_geometric_score(
+  df,
+  ntraining_envs,
+  ax=None,
+  figsize=(5, 5),
+  show_legend=True,
+  evaluation=True,
+  ylim=None,
+  extra_baselines=None,
+  extra_baseline_colors=None,
+):
+  """
+  Plot geometric mean of achievement scores across training environments.
+
+  Calculates the geometric mean score using the formula:
+  S = exp(1/N * Σ ln(1 + s_i)) - 1
+  where s_i is the success percentage for achievement i (0-100 scale).
+
+  Args:
+    df: DataFrame containing the metric data
+    ntraining_envs: List of training environment counts to plot
+    ax: Matplotlib axes object (optional)
+    figsize: Figure size if creating new figure
+    show_legend: Whether to show the legend
+    evaluation: Whether to use evaluator or actor performance
+    ylim: Y-axis limits (optional)
+    extra_baselines: Dict of extra baseline scores (optional)
+    extra_baseline_colors: Dict of colors for extra baselines (optional)
+
+  Returns:
+    fig, ax: Matplotlib figure and axes objects
+  """
+  # Create figure and axis if not provided
+  if ax is None:
+    fig, ax = plt.subplots(figsize=figsize)
+  else:
+    fig = ax.get_figure()
+
+  key = "evaluator" if evaluation else "actor"
+  # Get unique models
+  models = df["model"].unique()
+
+  # Plot lines and points for each model
+  for model in models:
+    model_data = []
+    model_sems = []
+    x_pos = []
+
+    for n_env in ntraining_envs:
+      setting = f"{key}_performance-achievements-{n_env}"
+
+      # Get all achievement data for this model/setting combination
+      achievement_data = df[
+        (df["model"] == model)
+        & (df["setting"] == setting)
+        & (df["metric"].str.startswith("Achievements/"))
+      ]
+
+      if len(achievement_data) == 0:
+        continue
+
+      # Get all unique achievement metrics for this setting
+      available_metrics = achievement_data["metric"].unique()
+
+      # Group by run_id to compute geometric mean for each run
+      geometric_scores = []
+      for run_id in achievement_data["run_id"].unique():
+        run_data = achievement_data[achievement_data["run_id"] == run_id]
+
+        # Get achievement scores for this run (should have one score per achievement)
+        achievement_scores = []
+        for metric in available_metrics:
+          metric_data = run_data[run_data["metric"] == metric]["value"]
+          if len(metric_data) > 0:
+            achievement_scores.append(
+              metric_data.iloc[0]
+            )  # Take first (should be only) value
+
+        if len(achievement_scores) > 0:
+          # Convert percentages (0-100) to 0-1 scale
+          # import pdb; pdb.set_trace()
+          achievement_scores = np.array(achievement_scores)
+
+          # Apply geometric mean formula: exp(mean(ln(1 + s_i))) - 1
+          # Add small epsilon to avoid log(1) = 0 issues with perfect scores
+          log_scores = np.log(1 + achievement_scores)
+          geometric_mean = np.exp(np.mean(log_scores)) - 1
+
+          # Convert back to percentage scale (0-100)
+          geometric_scores.append(geometric_mean)
+
+      if len(geometric_scores) > 0:
+        mean_score = np.mean(geometric_scores)
+        sem_score = np.std(geometric_scores) / np.sqrt(len(geometric_scores))
+
+        model_data.append(mean_score)
+        model_sems.append(sem_score)
+        x_pos.append(n_env)
+
+    if len(model_data) > 0:
+      # Plot line connecting points
+      ax.plot(
+        x_pos,
+        model_data,
+        "-o",  # Line style with circles for points
+        label=model_names[model.replace("-", "_")],
+        color=model_colors[model.replace("-", "_")],
+        linewidth=2,
+        markersize=8,
+      )
+
+      # Add error bars
+      ax.errorbar(
+        x_pos,
+        model_data,
+        yerr=model_sems,
+        fmt="none",  # No connecting line
+        color=model_colors[model.replace("-", "_")],
+        capsize=5,
+      )
+
+  # Add extra baseline scores as horizontal dashed lines
+  if extra_baselines is not None and extra_baseline_colors is not None:
+    x_min, x_max = min(ntraining_envs) / 1.5, max(ntraining_envs) * 1.5
+    for name, score in extra_baselines.items():
+      color = extra_baseline_colors.get(
+        name, "gray"
+      )  # Default to gray if color not found
+      ax.hlines(
+        y=score,
+        xmin=x_min,
+        xmax=x_max,
+        linestyles="dashed",
+        colors=color,
+        label=name,
+        linewidth=2,
+      )
+
+  # Customize plot
+  ax.set_xlabel("Number of Unique Training Environments", fontsize=DEFAULT_XLABEL_SIZE)
+  ax.set_ylabel("Geometric Score", fontsize=DEFAULT_YLABEL_SIZE)
+
+  if key == "evaluator":
+    title = "Generalization Performance \nto 10,000 Unique Environments"
+  else:
+    title = "Training Performance (Geometric Mean)"
   ax.set_title(title, fontsize=DEFAULT_TITLE_SIZE)
 
   # Set x-ticks to match ntraining_envs values
@@ -474,8 +654,6 @@ if __name__ == "__main__":
     evaluation=False,
     ax=ax[0],
     ylim=(1.5, 7),
-    #extra_baselines=extra_baseline_scores,
-    #extra_baseline_colors=extra_baseline_colors,
   )
   plot_training_envs_score(
     df,
@@ -484,8 +662,6 @@ if __name__ == "__main__":
     evaluation=True,
     ax=ax[1],
     ylim=(1.5, 7),
-    #extra_baselines=extra_baseline_scores,
-    #extra_baseline_colors=extra_baseline_colors,
   )
   save_figure(fig, "train_eval")
 
@@ -496,8 +672,6 @@ if __name__ == "__main__":
     show_legend=True,
     evaluation=True,
     ylim=(1.5, 7),
-    #extra_baselines=extra_baseline_scores,
-    #extra_baseline_colors=extra_baseline_colors,
   )
   save_figure(fig, "eval")
 

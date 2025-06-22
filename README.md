@@ -1,12 +1,37 @@
 # Preemptive Solving of Future Problems: Multitask Preplay in Humans and Machines
 This repository is the official implementation of [Preemptive Solving of Future Problems: Multitask Preplay in Humans and Machines](link).
 
+**Table of Contents**
+
+* [Install](#install)
+* [Running analysis on existing data](#analysis-on-paper-data)
+* [Running web experiments](#running-web-experiments)
+* [Data folder structure](#data-folder-structure)
+
+
 ## Install
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create environment and install dependencies with uv
+uv sync -e
+source .venv/bin/activate
 ```
-conda create -n multitask python=3.10 pip wheel -y
-conda activate multitask
-pip install -r requirements.txt
+
+## Analysis on paper data
+
+**Settings directory for data**
+Either manually set the `DIRECTORY` variable in `data_configs.py` or set the environment variable `MULTITASK_PREPLAY_DATA_DIR`
+```bash
+export MULTITASK_PREPLAY_DATA_DIR="/path/to/their/data"
 ```
+
+Use the following notebooks for getting plots:
+
+* **JaxMaze analysis**: `figures/jaxmaze_results.ipynb`
+* **Craftax analysis**: `figures/craftax_cogsci_results.ipynb`
+
 
 ## Running web experiments
 
@@ -40,7 +65,7 @@ python experiments/craftax/web_app.py SAY_REUSE=0
 
 
 
-## Data Structure
+## Data Folder Structure
 
 The root directory for all results is set in `data_configs.py` with the `DIRECTORY` variable. Change this to somewhere on your local machine.
 **Results**

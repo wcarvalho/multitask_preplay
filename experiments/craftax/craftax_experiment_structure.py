@@ -767,7 +767,7 @@ async def set_initial_timestep_from_training(
   goal_start_position = stage.env_params.start_positions[0]  # [2]
   timestep_start_position = all_timesteps.state.start_position  # [N, 2]
   match = (timestep_start_position == goal_start_position[None]).sum(axis=-1) == 2
-  relevant_timesteps = jax.tree_map(lambda t: t[match], all_timesteps)
+  relevant_timesteps = jax.tree_util.tree_map(lambda t: t[match], all_timesteps)
 
   # For each timestep, compute distance to goal
   current_goal = current_stage_state.timestep.state.current_goal
@@ -919,10 +919,10 @@ def reduce_timestep_size(t: nicewebrl.TimeStep):
 
   new_state = state.replace(
     # remove all levels after 1st
-    map=jax.tree_map(lambda t: make_uint(t[:1]), state.map),
-    item_map=jax.tree_map(lambda t: make_uint(t[:1]), state.item_map),
-    mob_map=jax.tree_map(lambda t: make_uint(t[:1]), state.mob_map),
-    light_map=jax.tree_map(lambda t: make_uint(t[:1]), state.light_map),
+    map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.map),
+    item_map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.item_map),
+    mob_map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.mob_map),
+    light_map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.light_map),
   )
   return t.replace(
     observation=None,  # remove observation

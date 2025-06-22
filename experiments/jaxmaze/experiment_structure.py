@@ -615,7 +615,7 @@ def make_block(
     metadata=dict(
       **metadata,
       groups=make_serializable(block_groups),
-      char2idx=jax.tree_map(int, block_char2idx),
+      char2idx=jax.tree_util.tree_map(int, block_char2idx),
     ),
     stages=stages,
     randomize=randomize,

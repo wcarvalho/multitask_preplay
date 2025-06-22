@@ -3,10 +3,11 @@ import os.path
 import json
 from glob import glob
 from typing import NamedTuple, Callable
-import polars as pl
+import time
 
 # Third-party imports
-import time
+import polars as pl
+from datasets import load_dataset
 from absl import logging
 from flax import serialization, struct
 from serialization import SerializationWrapper
@@ -14,7 +15,40 @@ import jax
 import jax.numpy as jnp
 
 import numpy as np
-import nicewebrl
+import data_configs
+
+
+def download_data(
+  data_dir: str,
+  dataset_name: str,
+):
+  dataset = load_dataset(f"wcarvalho/{dataset_name}")
+
+  # Create directories
+  os.makedirs(os.path.join(data_dir, "final"), exist_ok=True)
+
+  # Save each split as CSV
+  for split_name, split_data in dataset.items():
+    filename = os.path.join(data_dir, "final", f"{split_name}_episode_df.csv")
+    if os.path.exists(filename):
+      print(f"Skipping {split_name} data because it already exists")
+      continue
+    split_data.to_pandas().to_csv(filename, index=False)
+    print(f"Saved {split_name} data to {filename}")
+
+
+def download_jaxmaze_data():
+  download_data(
+    data_dir=data_configs.JAXMAZE_DATA_DIR,
+    dataset_name=data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME,
+  )
+
+
+def download_craftax_data():
+  download_data(
+    data_dir=data_configs.CRAFTAX_DATA_DIR,
+    dataset_name=data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME,
+  )
 
 
 class EpisodeData(NamedTuple):
@@ -48,128 +82,6 @@ def load_episode_data(filename: str, example_timestep: struct.PyTreeNode):
     f"Loaded episode data for {os.path.basename(filename)} in {time.time() - start_time} seconds"
   )
   return episode_data
-
-
-# def get_model_data(
-#  input_glob_pattern: str,
-#  output_data_path: str,
-#  example_timestep,
-#  env_name: str,
-#  model_name: str,
-#  generate_all_episodes_data: Callable,
-#  generate_all_episodes_df: Callable,
-#  overwrite_episode_data=False,
-#  overwrite_episode_df=False,
-#  load_df_only=True,
-#  debug=False,
-
-# ):
-#  """Process human data for a specific environment.
-
-#  This function handles both loading pre-processed data and processing raw data.
-
-#  Args:
-#    data_path: Path to the raw data files
-#    human_data_filebase: Base path for saving/loading processed data
-#    example_timestep: Example timestep for deserialization
-#    env_name: Environment name ("jaxmaze" or "craftax")
-#    overwrite_episode_data: Whether to reprocess episode data
-#    overwrite_episode_df: Whether to reprocess episode info
-#    load_df_only: Whether to return only the DataFrame (not episodes)
-#    debug: Whether to run in debug mode (processing fewer files)
-#    parallel: Whether to process files in parallel
-
-#  Returns:
-#    Either a DataFrame of episode info or a tuple of (DataFrame, failed_files)
-#  """
-#  ################################################################
-#  # Load data paths
-#  ################################################################
-#  failed_files = []
-
-#  if debug:
-#    all_episodes_data_filename = os.path.join(output_data_path, f"{model_name}_episodes.safetensor")
-#    all_episodes_metadata_filename = os.path.join(output_data_path, f"{model_name}_episode_metadata.json")
-#    all_episodes_df_filename = os.path.join(output_data_path, f"{model_name}_episode_df.csv")
-#  else:
-#    all_episodes_data_filename = os.path.join(output_data_path, 'debug', f"{model_name}_episodes.safetensor")
-#    all_episodes_metadata_filename = os.path.join(output_data_path, 'debug', f"{model_name}_episode_metadata.json")
-#    all_episodes_df_filename = os.path.join(output_data_path, 'debug', f"{model_name}_episode_df.csv")
-
-#  #--------------------------------
-#  # don't want to overwrite anything
-#  #--------------------------------
-#  if (not (overwrite_episode_data and overwrite_episode_df)
-#      and os.path.exists(all_episodes_data_filename)
-#      and os.path.exists(all_episodes_df_filename)):
-#      if load_df_only:
-#        all_episodes_df = pl.read_csv(all_episodes_df_filename)
-#        return all_episodes_df, failed_files
-#      else:
-#        all_episodes_df = pl.read_csv(all_episodes_df_filename)
-#        all_episode_data = load_episode_data(
-#          filename=all_episodes_data_filename,
-#          example_timestep=example_timestep)
-#        return nicewebrl.DataFrame(all_episodes_df, all_episode_data), failed_files
-#  #--------------------------------
-#  # don't want to overwrite episode data but want to overwrite episode info
-#  #--------------------------------
-#  elif (not overwrite_episode_data
-#        and overwrite_episode_df
-#        and os.path.exists(all_episodes_data_filename)
-#        and os.path.exists(all_episodes_metadata_filename)):
-
-#    # load all episode data from single safetensor file
-#    all_episode_data = load_episode_data(
-#      filename=all_episodes_data_filename,
-#      example_timestep=example_timestep)
-
-#    # load all episode metadata from single json file
-#    with open(all_episodes_metadata_filename, "r") as f:
-#      all_episodes_metadata = json.load(f)
-#      import ipdb; ipdb.set_trace()
-
-#    all_episodes_df = generate_all_episodes_df(all_episode_data, all_episodes_metadata)
-
-#    # Save updated episode info
-#    all_episodes_df.write_csv(all_episodes_df_filename)
-
-#    if load_df_only:
-#      return all_episodes_df, failed_files
-#    else:
-#      return nicewebrl.DataFrame(all_episodes_df, all_episode_data), failed_files
-#  #--------------------------------
-#  # overwrite everything
-#  #--------------------------------
-#  elif overwrite_episode_data and overwrite_episode_df:
-#    files = glob(input_glob_pattern)
-#    if debug:
-#      files = files[: max(int(len(files) * 0.1), 10)]
-
-#    all_episode_data, all_episode_metadata = generate_all_episodes_data(
-#      files=files,
-#      example_timestep=example_timestep,
-#      env_name=env_name,
-#      debug=debug,
-#      parallel=True,
-#    )
-
-#    all_episodes_df = generate_all_episodes_df(
-#      all_episode_data,
-#      all_episodes_metadata,
-#      env_name=env_name,
-#    )
-
-#    # Save episode dataframe
-#    all_episodes_df.write_csv(all_episodes_df_filename)
-
-#    if load_df_only:
-#      return all_episodes_df, failed_files
-#    else:
-#      return nicewebrl.DataFrame(all_episodes_df, all_episode_data), failed_files
-
-#  else:
-#    raise ValueError("Invalid overwrite_episode_data and overwrite_episode_info")
 
 
 def get_in_episode(timestep):

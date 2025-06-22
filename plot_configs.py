@@ -32,7 +32,7 @@ model_colors = {
   "usfa": default_colors["nice purple"],
   "qlearning": default_colors["light gray"],
   # "dynaq_shared": default_colors["dark gray"],
-  #"dyna": default_colors["dark gray"],
+  # "dyna": default_colors["dark gray"],
   "dyna": default_colors["dark gray"],
   "preplay": default_colors["vermillion"],
   "bfs": default_colors["pretty blue"],

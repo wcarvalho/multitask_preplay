@@ -13,7 +13,7 @@ import polars as pl
 from simulations import craftax_experiment_configs  # human
 from simulations import craftax_simulation_configs  # model. derivative of human configs
 from data_processing.utils import get_in_episode, total_reward, success, path_length
-from simulations.craftax_web_env import EnvParams, CraftaxSymbolicWebEnvNoAutoReset
+from simulations.craftax_web_env import EnvParams, CraftaxSymbolicWebEnvNoAutoReset, task_onehot
 from simulations.craftax_utils import astar
 
 ################################################
@@ -105,13 +105,13 @@ def reduce_timestep_size(t: nicewebrl.TimeStep):
 
   new_state = state.replace(
     # remove all levels after 1st
-    map=jax.tree_map(lambda t: make_uint(t[:1]), state.map),
-    item_map=jax.tree_map(lambda t: make_uint(t[:1]), state.item_map),
-    mob_map=jax.tree_map(lambda t: make_uint(t[:1]), state.mob_map),
-    light_map=jax.tree_map(lambda t: make_uint(t[:1]), state.light_map),
+    map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.map),
+    item_map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.item_map),
+    mob_map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.mob_map),
+    light_map=jax.tree_util.tree_map(lambda t: make_uint(t[:1]), state.light_map),
   )
   return t.replace(
-    observation=None,  # remove observation
+    observation=None,
     state=new_state,
   )
 
@@ -128,6 +128,10 @@ def get_task_object(timesteps: nicewebrl.TimeStep):
   goal = int(timesteps.state.current_goal[0])
   return craftax_experiment_configs.GOAL_TO_BLOCK[goal]
 
+def make_task_vector(timesteps: nicewebrl.TimeStep):
+  current_goal = timesteps.state.current_goal[0]
+  task_w = task_onehot(current_goal)
+  return task_w
 
 def get_step_number(timesteps: nicewebrl.TimeStep):
   return timesteps.state.timestep
@@ -175,6 +179,7 @@ def make_human_episode_row_data(
     # world_seed=metadata.get("world_seed"),
     block=metadata["block_metadata"]["desc"],
     episode_idx=metadata["nepisodes"],
+    task_vector=str(make_task_vector(timesteps)),
   )
   row.update(metadata["user_data"])
 
@@ -228,9 +233,82 @@ def make_human_episode_row_data(
   row["efficient_2"] = path_length <= 2 * optimal_length
   deviation = path_length - optimal_length
 
+  row["path_length"] = path_length
   row["path_length_deviance"] = max(0, deviation)
 
+  row = fix_row(row)
   return row
+
+
+def fix_row(row):
+  new_row = dict(row)
+  if "world_seed" in row:
+    world_seed = new_row["world_seed"]
+    new_row["world"] = f"world_{world_seed}"
+
+  # same for this domain
+  new_row['block_name'] = new_row["world"]
+
+  if 'task' in new_row:
+    new_row['task_object_id'] = new_row['task']
+
+  new_row.pop('room', None)
+
+  if 'seed' in new_row:
+    new_row['user_id'] = new_row['seed']
+
+  if 'manipulation' in new_row:
+    if isinstance(new_row['manipulation'], int):
+      new_row['manipulation'] = {
+        1: 'shortcut',
+        2: 'start',
+        3: 'paths',
+        4: 'juncture',
+        5: 'paths',
+      }[new_row['manipulation']]
+    elif isinstance(new_row['manipulation'], str):
+      assert new_row['manipulation'] in ['paths']
+    else:
+      raise ValueError(f"Invalid manipulation: {new_row['manipulation']}")
+
+  new_row.pop('seed', None)
+  new_row.pop('maze', None)
+
+
+  desired_types = dict(
+    domain=str,
+    algo=str,
+    block_name=str,
+    world=str,
+    condition=int,
+    eval=bool,
+    start_pos=str,
+    manipulation=str,
+    task_object_id=int,
+    task_set=int,
+    task_vector=str,
+  )
+  for k, v in desired_types.items():
+    assert isinstance(new_row[k], v), f"Expected {k} to be {v}, got {type(new_row[k])}"
+
+  keys_to_remove = [
+    'debug',
+    'git_version',
+    'name',
+    'seed',
+    'maze',
+    'reversal',
+    'user',
+    'world_seed',
+    'block',
+    'exp_name',
+    'version',
+    'task'
+  ]
+  for k in keys_to_remove:
+    new_row.pop(k, None)
+
+  return new_row
 
 
 def get_agent_position(timesteps: nicewebrl.TimeStep):
@@ -243,22 +321,46 @@ def any_feature_achieved(episode_data):
   return achieved.any().astype(np.float32)
 
 
+def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
+  """maps: NxHxW, test_map: HxW"""
+  """Calculate the overlap between two maps."""
+  # Find the train episode with highest overlap
+  overlaps = []
+  for i, map in enumerate(maps):
+    if test_maps.ndim == 2:
+      overlap = compute_overlap(map, test_maps).mean()
+      overlaps.append(overlap)
+    else:
+      test_overlaps = []
+      for test_map in test_maps:
+        test_overlap = compute_overlap(map, test_map).mean()
+        test_overlaps.append(test_overlap)
+      min_overlap = np.min(test_overlaps)
+      if min_overlap < 0.15:
+        overlaps.append(0)
+      else:
+        overlaps.append(min_overlap)
+
+  # Select the train episode/map with highest overlap
+  best_idx = np.argmax(overlaps)
+  best_map = maps[best_idx]
+  best_overlap = overlaps[best_idx]
+  return best_idx, best_map, best_overlap
+
+
 def compute_overlap(map1: np.ndarray, map2: np.ndarray):
   """map1: HxW, map2: HxW"""
   """Calculate the overlap between two maps."""
-  nonzero_indices = np.argwhere(map2 > 0)
-  values_map1 = (map1[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-    np.float32
-  )
-  values_map2 = (map2[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-    np.float32
-  )
 
-  overlap = (values_map1 + values_map2) > 1
+  shared_length = ((map2 + map1) * map2 > 1).sum()
+  map2_length = (map2 > 0).sum()
+  overlap = shared_length / map2_length
   return overlap
 
 
-def create_maps(episode_data_list, start_pos=0):
+def create_maps(
+  episode_data_list, add_error=False, cut_middle=False, optimal_path=None
+):
   maps = []
 
   for episode_data in episode_data_list:
@@ -268,13 +370,35 @@ def create_maps(episode_data_list, start_pos=0):
     # Assuming grid is 3D with time as first dimension
     grid_shape = timesteps.state.map.shape
 
-    # skip the time dimension and final channel dimension
-    grid = jnp.zeros(grid_shape[2:], dtype=jnp.int32)
+    def make_grid(positions):
+      # skip the time dimension and final channel dimension
+      grid = jnp.zeros(grid_shape[2:], dtype=jnp.int32)
+      for pos in positions:
+        if add_error:
+          y, x = pos[0], pos[1]
+          for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+              grid = grid.at[y + dy, x + dx].set(1)
+        else:
+          grid = grid.at[pos[0], pos[1]].set(1)
+      return grid
 
     # go through each position and set the corresponding index to 1
-    for pos in episode_data.positions[start_pos:]:
-      grid = grid.at[pos[0], pos[1]].set(1)
-    maps.append(grid)
+    positions = episode_data.positions[:-1]
+    if cut_middle:
+      if optimal_path is not None:
+        length = min(int(1.5 * len(optimal_path)), len(positions))
+        first_third = length // 3
+      else:
+        first_third = len(positions) // 3
+      grid = make_grid(positions[:first_third])
+      maps.append(grid)
+      grid = make_grid(positions[-first_third:])
+      maps.append(grid)
+    else:
+      grid = make_grid(positions)
+      maps.append(grid)
+
   return np.array(maps)
 
 
@@ -310,7 +434,7 @@ def add_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> tuple:
         continue
 
       # Create map for training episodes
-      train_map = create_maps(train.episodes).sum(0)
+      train_maps = create_maps(train.episodes, add_error=True)
 
       # Get test episodes
 
@@ -319,14 +443,17 @@ def add_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> tuple:
         global_index = row["global_episode_idx"]
         episode = test.episodes[idx]
         # Create map for single test episode
-        test_map = create_maps([episode]).sum(0)
-        overlap = compute_overlap(train_map, test_map)
-        overlap_mean = overlap.mean()
+        test_map = create_maps([episode], cut_middle=True)
+        best_idx, best_map, best_overlap = best_path_overlap(train_maps, test_map)
 
+        optimal_path = OPTIMAL_TEST_PATHS[row["world_seed"]]
+        ratio_optimal_test_path = len(episode.positions) / len(optimal_path)
+        above_ratio = ratio_optimal_test_path > 2.0
+        best_overlap = best_overlap * int(1 - above_ratio)
         # Store both raw overlap and binary reuse values
         episode_id = (test_maze, global_index)
-        overlap_dict[episode_id] = overlap_mean
-        reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
+        overlap_dict[episode_id] = best_overlap
+        reuse_dict[episode_id] = int(best_overlap > overlap_threshold)
 
   # all_mazes = df["name"].unique()
   train_mazes = [f"paths_{i}_training" for i in range(4)]
@@ -401,12 +528,12 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False
     nparams = configs.world_seed.shape[0]
     for i in range(nparams):
       env_params = craftax_simulation_configs.make_multigoal_env_params(
-        jax.tree_map(lambda x: x[i : i + 1], configs)
+        jax.tree_util.tree_map(lambda x: x[i : i + 1], configs)
       )
       episodes = algorithm.eval_fn(rng, env_params)
       episodes = episodes._replace(positions=get_agent_position(episodes.timesteps))
       # Split episodes
-      task_config = jax.tree_map(lambda x: x[0], env_params.task_configs)
+      task_config = jax.tree_util.tree_map(lambda x: x[0], env_params.task_configs)
       for j in range(nepisodes):
         # minimize space requirements
         episode = jax.tree_util.tree_map(lambda x: x[j], episodes)
@@ -447,7 +574,7 @@ def make_model_episode_row_data(episode, metadata):
       name += "_training"
     return name
 
-  return dict(
+  row = dict(
     # shared across {human, model}, {craftax, jaxmaze}
     domain="craftax",
     algo=metadata["algo"],
@@ -470,6 +597,7 @@ def make_model_episode_row_data(episode, metadata):
     # maze=int(task_config.world_seed),
     task_vector=str(episode.timesteps.observation.task_w[0]),
   )
-
+  row = fix_row(row)
+  return row
 
 add_model_reuse_columns = add_reuse_columns  # same in this env for both

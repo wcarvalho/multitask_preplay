@@ -16,6 +16,7 @@ import data_configs
 import nicewebrl
 import numpy as np
 
+
 def visualize_examples_by_reuse(
   df: nicewebrl.DataFrame,
   manipulation_id: int,
@@ -241,7 +242,6 @@ def visualize_examples_by_reuse(
     plt.close(fig)  # Close the figure to free memory
 
 
-
 if __name__ == "__main__":
   from data_processing import process_model_data
   from data_processing import process_user_data
@@ -282,6 +282,35 @@ if __name__ == "__main__":
   model2algo = dict(
     preplay_new="preplay",
   )
+
+  print("Loading model data...")
+  # Load model data
+  model_df = process_model_data.get_jaxmaze_model_data(
+    load_df_only=False,
+    models=models,
+  )
+  # Process model data for each manipulation, threshold, and model
+  for manipulation in manipulations:
+    manip_name = manipulation["name"]
+    manip_id = manipulation["manipulation_id"]
+    train_maze = manipulation["train_maze"]
+    test_maze = manipulation["test_maze"]
+
+  # Process each model
+  for model in models:
+    print(f"\nProcessing {model} model for {manip_name}")
+
+    # Process each threshold for this model
+    for threshold in thresholds:
+      print(f"Processing {manip_name} with threshold {threshold} for {model}")
+      visualize_examples_by_reuse(
+        df=model_df.filter(algo=model2algo.get(model, model)),
+        manipulation_id=manip_id,
+        threshold=threshold,
+        model=model,
+        train_maze=train_maze,
+        test_maze=test_maze,
+      )
 
   # Load human data
   print("Loading human data...")

@@ -884,7 +884,7 @@ def create_episode_reaction_times_video(
     ).astype(jnp.uint8)
 
   initial_map = full_render_fn(
-    jax.tree_map(lambda x: x[0], episode_data.timesteps.state)
+    jax.tree_util.tree_map(lambda x: x[0], episode_data.timesteps.state)
   )
   images = jax.vmap(partial_render_fn)(episode_data.timesteps.state)
   reaction_times = episode_data.reaction_times
@@ -893,7 +893,7 @@ def create_episode_reaction_times_video(
   assert len(path) == len(actions) == len(reaction_times), (
     f"lengths: {len(path)}, {len(actions)}, {len(reaction_times)}"
   )
-  first_state = jax.tree_map(lambda s: s[0], episode_data.timesteps.state)
+  first_state = jax.tree_util.tree_map(lambda s: s[0], episode_data.timesteps.state)
   video = create_reaction_times_video(
     initial_map=initial_map,
     first_state=first_state,
@@ -940,12 +940,12 @@ def create_episode_video(
     ).astype(jnp.uint8)
 
   initial_map = full_render_fn(
-    jax.tree_map(lambda x: x[0], episode_data.timesteps.state)
+    jax.tree_util.tree_map(lambda x: x[0], episode_data.timesteps.state)
   )
   images = jax.vmap(partial_render_fn)(episode_data.timesteps.state)
   path = episode_data.timesteps.state.player_position
   actions = actions_from_path(path)
-  first_state = jax.tree_map(lambda s: s[0], episode_data.timesteps.state)
+  first_state = jax.tree_util.tree_map(lambda s: s[0], episode_data.timesteps.state)
 
   # Ensure the directory exists
   output_dir = os.path.dirname(output_file)
