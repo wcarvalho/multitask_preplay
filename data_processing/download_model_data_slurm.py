@@ -87,7 +87,7 @@ def download_model_files(base_server_dir, base_local_dir, model_dirs, model_name
   hostname = "rcfas_login"  # Using the SSH config alias
 
   # Common rsync options
-  rsync_options = "-avz --prune-empty-dirs --exclude='*wandb*'"
+  rsync_options = "-avz --progress --prune-empty-dirs --exclude='*wandb*' --exclude='*_*.safetensors'"
 
   for model, dir_path in model_dirs.items():
     print("=" * 50)
@@ -143,15 +143,15 @@ if __name__ == "__main__":
     ############################################################
     print("Downloading Housemaze model data...")
     server_dir = (
-      "/n/holylfs06/LABS/kempner_fellow_wcarvalho/jax_rl_results/housemaze_trainer"
+      "/n/holylfs06/LABS/kempner_fellow_wcarvalho/jax_rl_results/jaxmaze_trainer"
     )
     download_model_files(
       base_server_dir=server_dir,
       base_local_dir=data_configs.JAXMAZE_DATA_DIR,
       model_dirs={
         # "qlearning": "ql-final/save_data/ql-final-rotations-2/exp=exp4",
-        # "sf": "usfa-final/save_data/usfa-final-rotations-2/exp=exp4",
-        "dyna": "dyna-final/save_data/dyna-final-rotations-2/alg=dyna,exp=exp4",
+        # "sf": "usfa-final/save_data/usfa-final-rotations-2/euxp=exp4",
+        "dyna": "dyna-final/save_data/dyna-final-rotations-4/alg=dyna,exp=exp4",
         # # STOPPED "preplay": "preplay-old-final/save_data/preplay-old-final-rotations-4/alg=dynaq_shared,exp=exp4",
         # "preplay-new": "preplay-final/save_data/preplay-final-rotations-5/alg=preplay,simu=15,exp=exp4",
       },

@@ -657,6 +657,9 @@ def get_human_data(
         shutil.move(file_path, dest_path)
 
     # Save using Flax serialization
+    if len(all_episode_data) == 0:
+      raise RuntimeError("No episode data found")
+
     with open(all_episodes_data_filename, "wb") as f:
       serialized_data = serialization.to_bytes(all_episode_data)
       f.write(serialized_data)

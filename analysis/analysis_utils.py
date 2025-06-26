@@ -285,6 +285,7 @@ def plot_bar_rt_comparison(
     (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
   )
 
+  len_before = len(df)
   # Filter rows where reuse is -1
   df = df.filter(pl.col(reuse_column) != -1)
 
@@ -292,7 +293,6 @@ def plot_bar_rt_comparison(
 
   ylabel = ylabel or measure_to_ylabel[rt_column]
   title = title or measure_to_title[rt_column]
-  len_before = len(df)
   len_after = len(df)
   print(f"Filtered {len_before - len_after} rows with null success or reuse")
 
@@ -307,13 +307,9 @@ def plot_bar_rt_comparison(
 
     if os.path.exists(cache_path) and not rereun_analysis:
       print(f"Loading cached results from {cache_path}")
-      # try:
       with open(cache_path, "rb") as f:
         power_results = pickle.load(f)
         add_rt_power_results_to_stats_file(power_results, stats_file, label=rt_column)
-      # except Exception as e:
-      #  print(f"Error loading cache: {e}")
-      #  power_results = None
 
   # Run analysis if no cached results
   if power_results is None:
@@ -442,77 +438,6 @@ def plot_bar_rt_comparison(
     y_min, y_max = ylim
     y_range = y_max - y_min
     ax.set_ylim(y_min - 0.1 * y_range, y_max + 0.1 * y_range)
-
-  return ax
-
-
-def plot_bar_rt_comparison_columns(
-  df,
-  rt_columns,
-  ax=None,
-  title=None,
-  ylabel=None,
-  xlabels=None,
-  colors=None,
-):
-  """Plot comparison of response times between multiple columns in a DataFrame.
-
-  Args:
-      df: DataFrame containing response time data
-      rt_columns: List of column names to analyze (e.g. ['first_rt', 'avg_rt'])
-      ax: Optional matplotlib axis to plot on
-      title: Custom title
-      ylabel: Custom y-axis label
-      xlabels: List of labels for x-axis ticks (defaults to column names)
-      colors: List of colors for bars
-
-  Returns:
-      matplotlib axis
-  """
-
-  if colors is None:
-    colors = [i for i in default_colors.values()]
-    # Extend colors if needed
-    while len(colors) < len(rt_columns):
-      colors.extend(colors)
-
-  if ax is None:
-    _, ax = plt.subplots(figsize=(5, 4))
-
-  # Calculate log RTs and group by user for each column
-  all_data = []
-  for col in rt_columns:
-    log_col = f"log_{col}"
-    stats = (
-      df.with_columns((1000 * pl.col(col)).log().alias(log_col))
-      .group_by("user_id")
-      .agg(pl.col(log_col).mean())
-    )
-    all_data.append(stats[log_col].to_numpy())
-
-  # Calculate means and standard errors
-  means = [np.mean(data) for data in all_data]
-  sems = [np.std(data) / np.sqrt(len(data)) for data in all_data]
-
-  # Create bar plot
-  x_pos = np.arange(len(rt_columns))
-  bars = ax.bar(x_pos, means, yerr=sems, capsize=5, color=colors[: len(rt_columns)])
-
-  # Add individual points with jitter
-  for i, data in enumerate(all_data):
-    x_jitter = np.random.normal(i, 0.04, size=len(data))
-    ax.scatter(x_jitter, data, alpha=0.3, color="black", s=20)
-
-  # Customize plot
-  ax.set_xticks(x_pos)
-  if xlabels:
-    ax.set_xticklabels(xlabels, ha="center")
-  else:
-    ax.set_xticklabels(rt_columns, ha="center")
-  ax.set_ylabel(ylabel or "Log Response Time", fontsize=DEFAULT_LABEL_SIZE)
-  ax.set_title(title or "Response Time Comparison", fontsize=DEFAULT_TITLE_SIZE)
-  ax.tick_params(axis="both", which="major", labelsize=DEFAULT_LABEL_SIZE)
-  ax.grid(True, linestyle="--", alpha=0.7)
 
   return ax
 
@@ -697,151 +622,6 @@ def compute_condition_difference_df(
   return diff_df
 
 
-# def get_success_rate_path_reuse_data(
-#  df: DataFrame,
-#  overlap_threshold: float,
-#  model_df: DataFrame = None,
-#  reuse_column: str = "reuse",
-#  stats_file: str = None,
-# ) -> Tuple[DataFrame, DataFrame]:
-#  # for both df and model_df, add a boolean "reuse" column if over "overlap" column is greater than overlap_threshold
-#  df = df.with_columns((pl.col("overlap") > overlap_threshold).alias(reuse_column))
-#  model_df = model_df.with_columns((pl.col("overlap") > overlap_threshold).alias(reuse_column))
-
-#  # Calculate human statistics with consistent ordering
-#  # drop all rows where reuse is -1
-#  df = df.filter(pl.col(reuse_column) != -1)
-#  model_df = model_df.filter(pl.col(reuse_column) != -1)
-
-#  # Calculate human success statistics
-#  human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
-
-#  # Calculate human reuse statistics
-#  human_reuse_stats = compute_binary_measure_statistics(df, "user_id", reuse_column)
-
-#  # Add stats to file
-#  if stats_file:
-#    add_to_file(
-#      stats_file,
-#      algo="1.human data",
-#      label="success",
-#      text=human_success_stats["paper_result"],
-#    )
-
-#    add_to_file(
-#      stats_file,
-#      algo="1.human data",
-#      label="reuse",
-#      text=human_reuse_stats["paper_result"],
-#    )
-
-#  # Prepare data for plotting - choose metric based on normality
-#  all_data = {
-#    "human": {
-#      # Choose values based on normality test
-#      "success": 100
-#      * (
-#        human_success_stats["mean"]
-#        if human_success_stats["normality"]["is_normal"]
-#        else human_success_stats["median"]
-#      ),
-#      "reuse": 100
-#      * (
-#        human_reuse_stats["mean"]
-#        if human_reuse_stats["normality"]["is_normal"]
-#        else human_reuse_stats["median"]
-#      ),
-#      # Choose error metrics based on normality test
-#      "success_error": 100
-#      * (
-#        human_success_stats["se"]
-#        if human_success_stats["normality"]["is_normal"]
-#        else np.array(human_success_stats["median_ci"])
-#      ),
-#      "reuse_error": 100
-#      * (
-#        human_reuse_stats["se"]
-#        if human_reuse_stats["normality"]["is_normal"]
-#        else np.array(human_reuse_stats["median_ci"])
-#      ),
-#      # Store normality info for reference
-#      "success_is_normal": human_success_stats["normality"]["is_normal"],
-#      "reuse_is_normal": human_reuse_stats["normality"]["is_normal"],
-#    }
-#  }
-
-#  # Add model data if provided
-#  if model_df is not None:
-#    # Calculate model statistics
-#    algos = model_df["algo"].unique().to_list()
-#    for algo in model_order:
-#      if algo not in algos:
-#        continue
-
-#      # Filter for this algorithm
-#      algo_df = model_df.filter(algo=algo)
-
-#      # Skip if no data for this algorithm
-#      if len(algo_df) == 0:
-#        continue
-
-#      # Compute success statistics
-#      success_stats = compute_binary_measure_statistics(algo_df, "seed", "success")
-
-#      # Compute reuse statistics
-#      reuse_stats = compute_binary_measure_statistics(algo_df, "seed", reuse_column)
-
-#      # Add to stats file
-#      if stats_file:
-#        add_to_file(
-#          stats_file,
-#          algo=algo,
-#          label="success",
-#          text=success_stats["paper_result"],
-#        )
-
-#        add_to_file(
-#          stats_file,
-#          algo=algo,
-#          label="reuse",
-#          text=reuse_stats["paper_result"],
-#        )
-
-#      # Add to all_data dictionary for plotting
-#      all_data[algo] = {
-#        # Choose values based on normality test
-#        "success": 100
-#        * (
-#          success_stats["mean"]
-#          if success_stats["normality"]["is_normal"]
-#          else success_stats["median"]
-#        ),
-#        "reuse": 100
-#        * (
-#          reuse_stats["mean"]
-#          if reuse_stats["normality"]["is_normal"]
-#          else reuse_stats["median"]
-#        ),
-#        # Choose error metrics based on normality test
-#        "success_error": 100
-#        * (
-#          success_stats["se"]
-#          if success_stats["normality"]["is_normal"]
-#          else np.array(success_stats["median_ci"])
-#        ),
-#        "reuse_error": 100
-#        * (
-#          reuse_stats["se"]
-#          if reuse_stats["normality"]["is_normal"]
-#          else np.array(reuse_stats["median_ci"])
-#        ),
-#        # Store normality info for reference
-#        "success_is_normal": success_stats["normality"]["is_normal"],
-#        "reuse_is_normal": reuse_stats["normality"]["is_normal"],
-#      }
-
-#  return all_data
-
 
 def get_human_success_rate_path_reuse_data(
   df: DataFrame,
@@ -949,10 +729,10 @@ def get_model_success_rate_path_reuse_data(
       continue
 
     # Compute success statistics
-    success_stats = compute_binary_measure_statistics(algo_df, "seed", "success")
+    success_stats = compute_binary_measure_statistics(algo_df, "user_id", "success")
 
     # Compute reuse statistics
-    reuse_stats = compute_binary_measure_statistics(algo_df, "seed", reuse_column)
+    reuse_stats = compute_binary_measure_statistics(algo_df, "user_id", reuse_column)
 
     # Add to stats file
     if stats_file:

@@ -17,10 +17,17 @@ from housemaze.human_dyna import web_env
 from housemaze.human_dyna import multitask_env
 from housemaze.human_dyna import experiments as housemaze_experiments
 
-from data_processing.utils import get_in_episode, total_reward, success, path_length
+from data_processing.utils import get_in_episode, total_reward, success, path_length, get_overlap_dicts_model, get_overlap_dicts_human
 
 from tqdm.auto import tqdm
 
+manipulation_int_to_str = {
+  1: 'shortcut',
+  2: 'start',
+  3: 'paths',
+  4: 'juncture',
+}
+manipulation_str_to_int = {v: k for k, v in manipulation_int_to_str.items()}
 
 ################################################
 # Human Data
@@ -240,107 +247,47 @@ def compute_overlap(map1: np.ndarray, map2: np.ndarray):
 def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
   """Add a 'reuse' column to the DataFrame indicating whether each episode reused paths.
 
-  TODO: move this function into make_episode_data at end. just once per user. then saved.c
   Args:
       df (DataFrame): Input DataFrame
-      manipulation (int, optional): Manipulation number. Defaults to 3.
-      mazes (List[str], optional): List of maze names. Defaults to None.
-      overlap_threshold (float, optional): Threshold for path reuse. Defaults to 0.15.
 
   Returns:
       tuple[dict, dict]: Dictionaries for reuse and overlap values.
   """
 
   # Create a dictionary to store reuse values
-  reuse_dict = {}
-  overlap_dict = {}
+  all_reuse_dict = {}
+  all_overlap_dict = {}
 
-  def update_reuse_dict_with_overlap(
-    train_mazes, test_mazes, start_overlap=0, overlap_threshold=0.15
-  ):
-    # Get unique users
+  reuse_dict, overlap_dict = get_overlap_dicts_human(
+    df,
+    train_maze="big_m3_maze1",
+    test_maze="big_m3_maze1",
+    overlap_threshold=0.5,
+  )
+  all_reuse_dict.update(reuse_dict)
+  all_overlap_dict.update(overlap_dict)
+  reuse_dict, overlap_dict = get_overlap_dicts_human(
+    df,
+    train_maze='big_m1_maze3',
+    test_maze='big_m1_maze3_shortcut',
+    overlap_threshold=0.7)
+  all_reuse_dict.update(reuse_dict)
+  all_overlap_dict.update(overlap_dict)
 
-    for train_maze, test_maze in zip(train_mazes, test_mazes):
-      # Get test episodes
-      test = df.filter(maze=test_maze, eval=True)
-      if len(test) == 0:
-        # print(f"No test episodes for {(train_maze, test_maze)}")
-        continue
-      start_pos = test["start_pos"].to_list()[0]
-
-      # Get train episodes
-      train = df.filter(
-        maze=train_maze, room=0, eval=False, success=1, start_pos=start_pos
-      )
-
-      if len(train.episodes) == 0:
-        # print(f"No successful training episodes for {(train_maze, test_maze)}")
-        continue
-
-      # Create map for training episodes
-      train_map = create_maps(train.episodes, start_pos=start_overlap).sum(0)
-
-      # Process each test episode
-      for idx, row in enumerate(test._df.iter_rows(named=True)):
-        global_index = row["global_episode_idx"]
-        episode = test.episodes[idx]
-        # Create map for single test episode
-        test_map = create_maps([episode], start_pos=start_overlap).sum(0)
-        overlap = compute_overlap(train_map, test_map)
-        overlap_mean = overlap.mean()
-
-        # Store the reuse value
-        episode_id = (test_maze, global_index)
-        overlap_dict[episode_id] = overlap_mean
-        reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
-
-  # -----------------
-  # paths manipulation (3)
-  # -----------------
-  # Define mazes if not provided
-  # manipulation = 3
-  train_mazes = test_mazes = [
-    "big_m3_maze1_(F,F)",
-    "big_m3_maze1_(F,T)",
-    "big_m3_maze1_(T,F)",
-    "big_m3_maze1_(T,T)",
-  ]
-  update_reuse_dict_with_overlap(train_mazes, test_mazes, overlap_threshold=0.15)
-  # -----------------
-  # shortcut manipulation (1)
-  # -----------------
-  # Define mazes if not provided
-  # manipulation = 1
-  train_mazes = [
-    "big_m1_maze3_(F,F)",
-    "big_m1_maze3_(F,T)",
-    "big_m1_maze3_(T,F)",
-    "big_m1_maze3_(T,T)",
-  ]
-
-  test_mazes = [
-    "big_m1_maze3_shortcut_(F,F)",
-    "big_m1_maze3_shortcut_(F,T)",
-    "big_m1_maze3_shortcut_(T,F)",
-    "big_m1_maze3_shortcut_(T,T)",
-  ]
-  update_reuse_dict_with_overlap(train_mazes, test_mazes, overlap_threshold=0.7)
-
-  return reuse_dict, overlap_dict
+  return all_reuse_dict, all_overlap_dict
 
 
 def compute_if_block_passed(block_success_counts):
   min_success_needed = {
-    1: 16,  # shortcut,
-    2: 16,  # start,
-    3: 16,  # paths,
-    4: 8,  # plan/juncture,
+    "shortcut": 16,  # shortcut, 1
+    "start": 16,  # start, 2
+    "paths": 16,  # paths, 3
+    "juncture": 8,  # plan/juncture, 4
   }
 
   # First add a column with the minimum success needed for each manipulation
   df_with_min = block_success_counts.with_columns(
     pl.col("manipulation")
-    .cast(pl.Int64)
     .map_elements(lambda x: min_success_needed.get(x), return_dtype=pl.Int64)
     .alias("min_success_needed")
   )
@@ -550,96 +497,34 @@ def fix_row(row):
 
 
 def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
-  """Calculate reuse and overlap values for episodes in the DataFrame.
+  """Add a 'reuse' column to the DataFrame indicating whether each episode reused paths.
 
   Args:
       df (DataFrame): Input DataFrame
-      overlap_threshold (float, optional): Threshold for path reuse. Defaults to 0.15.
 
   Returns:
-      tuple: (reuse_dict, overlap_dict) dictionaries mapping (maze, global_episode_idx) to values
+      tuple[dict, dict]: Dictionaries for reuse and overlap values.
   """
 
   # Create a dictionary to store reuse values
-  reuse_dict = {}
-  overlap_dict = {}
+  all_reuse_dict = {}
+  all_overlap_dict = {}
 
-  def update_reuse_dict_with_overlap(
-    train_mazes, test_mazes, block_name, overlap_threshold
-  ):
-    # Get unique users
-    for train_maze, test_maze in zip(train_mazes, test_mazes):
-      # Get train episodes
-      train = df.filter(
-        world_seed=train_maze, block_name=block_name, room=0, eval=False, success=1
-      )
+  reuse_dict, overlap_dict = get_overlap_dicts_model(
+    df,
+    train_maze="big_m3_maze1",
+    test_maze="big_m3_maze1",
+    overlap_threshold=0.5,
+  )
+  all_reuse_dict.update(reuse_dict)
+  all_overlap_dict.update(overlap_dict)
+  reuse_dict, overlap_dict = get_overlap_dicts_model(
+    df,
+    train_maze='big_m1_maze3',
+    test_maze='big_m1_maze3_shortcut',
+    overlap_threshold=0.7)
+  all_reuse_dict.update(reuse_dict)
+  all_overlap_dict.update(overlap_dict)
 
-      if len(train.episodes) == 0:
-        continue
+  return all_reuse_dict, all_overlap_dict
 
-      # Create map for training episodes
-      train_map = create_maps(train.episodes).sum(0)
-
-      # Get test episodes
-      test = df.filter(world_seed=test_maze, block_name=block_name, eval=True)
-
-      # Process each test episode
-      for idx, row in enumerate(test._df.iter_rows(named=True)):
-        global_index = row["global_episode_idx"]
-        episode = test.episodes[idx]
-        # Create map for single test episode
-        test_map = create_maps([episode]).sum(0)
-        overlap = compute_overlap(train_map, test_map)
-        overlap_mean = overlap.mean()
-
-        # Store the reuse value
-        episode_id = (test_maze, global_index)
-        overlap_dict[episode_id] = overlap_mean
-        reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
-
-  # def update_reuse_dict_via_junction(test_mazes, junction):
-  #  # Get unique users
-  #  for test_maze in test_mazes:
-  #    # Get test episodes
-  #    test = df.filter(world_seed=test_maze, eval=True)
-
-  #    # Process each test episode
-  #    for idx, row in enumerate(test._df.iter_rows(named=True)):
-  #      global_index = row["global_episode_idx"]
-  #      episode = test.episodes[idx]
-
-  #      episode_id = (test_maze, global_index)
-  #      reuse_dict[episode_id] = int(went_to_junction(episode, junction))
-
-  block_names = df["block_name"].unique().to_list()
-  # -----------------
-  # paths manipulation (3)
-  # -----------------
-  # Define mazes if not provided
-  # manipulation = 3
-  train_mazes = test_mazes = [
-    "big_m3_maze1",
-  ]
-  for block_name in block_names:
-    update_reuse_dict_with_overlap(
-      train_mazes, test_mazes, block_name, overlap_threshold=0.5
-    )
-  # -----------------
-  # shortcut manipulation (1)
-  # -----------------
-  # Define mazes if not provided
-  # manipulation = 1
-  train_mazes = [
-    "big_m1_maze3",
-  ]
-
-  test_mazes = [
-    "big_m1_maze3_shortcut",
-  ]
-  for block_name in block_names:
-    update_reuse_dict_with_overlap(
-      train_mazes, test_mazes, block_name, overlap_threshold=0.7
-    )
-  # update_reuse_dict_via_junction(test_mazes, (2, 14))
-  # Return the dictionaries directly
-  return reuse_dict, overlap_dict

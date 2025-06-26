@@ -12,6 +12,8 @@ import polars as pl
 import os.path
 
 from housemaze.human_dyna import utils
+from data_processing.utils_jaxmaze import manipulation_int_to_str
+
 
 from analysis import analysis_utils
 from nicewebrl.dataframe import DataFrame
@@ -269,16 +271,18 @@ def path_reuse_results(
   ##################
   # Get relevant simulations
   ##################
-  mdf = model_df.filter(maze="big_m3_maze1", eval=True)
+  mdf = model_df.filter(world="big_m3_maze1", manipulation="paths", eval=True)
 
   ##################
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
     user_df.filter(
-      manipulation=3,
+      manipulation="paths",
+      world="big_m3_maze1",
       tell_reuse=tell_reuse,
       eval_shares_start_pos=True,
+      eval=True,
     ),
     analysis_name="path_reuse_results",
   )
@@ -306,7 +310,6 @@ def path_reuse_results(
   # if display_figs:
   #  from IPython.display import display
   #  display(fig)
-
   ######################
   # Plot Response times when using new path vs. partial reuse
   ######################
@@ -334,7 +337,6 @@ def path_reuse_results(
     for use_box_plot in [False]:
       fig, ax = plt.subplots(figsize=(4, 4))
       analysis_utils.plot_bar_rt_comparison(
-        # sub_df.filter(success=1),
         sub_df,
         measure,
         n_simulations=n_simulations if do_analysis[idx] else 1,
@@ -357,9 +359,6 @@ def path_reuse_results(
 
   # Close stats file at the end
   stats_file.close()
-  # if verbosity > 0:
-  #  with open(stats_file_, "r") as f:
-  #    print(f.read())
 
 
 def sf_analysis_results(
@@ -369,7 +368,7 @@ def sf_analysis_results(
   save_figs: bool = True,
 ):
   save_dir = save_dir or data_configs.JAXMAZE_RESULTS_DIR
-  sf_episodes = model_df.filter(maze="big_m3_maze1", eval=False, algo="usfa")
+  sf_episodes = model_df.filter(world="big_m3_maze1", eval=False, algo="usfa")
   fig, ax = plot_sf_values(
     sf_episodes.episodes[0], plot_q_values=False, figsize=(5, 4), idxs=[0]
   )
@@ -422,7 +421,7 @@ def juncture_results(
   stats_file.write("Juncture Manipulation Statistical Analysis\n\n")
 
   user_df, _ = filter_users_by_success(
-    user_df.filter(manipulation=4), analysis_name="juncture_results"
+    user_df.filter(manipulation="juncture"), analysis_name="juncture_results"
   )
   first_100_users = []
   for tell_reuse in [1, 0]:
@@ -438,7 +437,7 @@ def juncture_results(
   # Add setting column based on maze name
   ##################
   user_df = analysis_utils.get_polars_df(user_df)  # fancy merging will use regular df
-  user_df = user_df.filter(manipulation=4)
+  user_df = user_df.filter(manipulation="juncture")
 
   def get_maze_setting(maze_str: str) -> str:
     if "short" in maze_str.lower():
@@ -612,10 +611,10 @@ def shortcut_results(
   stats_file = open(os.path.join(save_dir, "2.shortcut_stats.txt"), "w")
   stats_file.write("Shortcut Manipulation Statistical Analysis\n")
 
-  mdf = model_df.filter(maze="big_m1_maze3_shortcut", eval=True)
+  mdf = model_df.filter(world="big_m1_maze3_shortcut", eval=True)
 
   sub_df, _ = filter_users_by_success(
-    user_df.filter(manipulation=1, tell_reuse=tell_reuse, eval_shares_start_pos=True),
+    user_df.filter(manipulation="shortcut", tell_reuse=tell_reuse, eval_shares_start_pos=True),
     analysis_name="shortcut_results",
   )
 
@@ -684,7 +683,7 @@ def start_results(
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
-    user_df.filter(manipulation=2, tell_reuse=tell_reuse), analysis_name="start_results"
+    user_df.filter(manipulation="start", tell_reuse=tell_reuse), analysis_name="start_results"
   )
 
   ##################

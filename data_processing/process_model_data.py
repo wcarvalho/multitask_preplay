@@ -504,17 +504,14 @@ def load_dyna_jaxmaze_algorithm(
   num_episodes: int = 10,
   max_steps: int = 300,
 ):
-  from simulations import multitask_preplay_craftax_v2 as dyna
+  from simulations import dyna_craftax as dyna
 
   return load_algorithm(
     config=config,
     agent_params=agent_params,
     env=env,
     example_env_params=example_env_params,
-    make_agent=functools.partial(
-      dyna.make_jaxmaze_multigoal_agent,
-      ObsEncoderCls=get_jaxmaze_obs_encoder(config),
-    ),
+    make_agent=dyna.make_jaxmaze_agent,
     num_episodes=num_episodes,
     max_steps=max_steps,
     make_optimizer=dyna.make_optimizer,
@@ -523,37 +520,7 @@ def load_dyna_jaxmaze_algorithm(
     model_name="dyna",
   )
 
-
 def load_preplay_jaxmaze_algorithm(
-  config: dict,
-  agent_params: dict,
-  env: Callable,
-  example_env_params: struct.PyTreeNode,
-  path: str,
-  num_episodes: int = 10,
-  max_steps: int = 300,
-):
-  from simulations import multitask_preplay_housemaze as offtask_dyna
-
-  return load_algorithm(
-    config=config,
-    agent_params=agent_params,
-    env=env,
-    example_env_params=example_env_params,
-    make_agent=functools.partial(
-      offtask_dyna.make_agent,
-      ObsEncoderCls=get_jaxmaze_obs_encoder(config),
-    ),
-    num_episodes=num_episodes,
-    max_steps=max_steps,
-    make_optimizer=offtask_dyna.make_optimizer,
-    make_actor=make_epsilon_greedy_actor,
-    path=path,
-    model_name="dynaq_shared",
-  )
-
-
-def load_preplay_new_jaxmaze_algorithm(
   config: dict,
   agent_params: dict,
   env: Callable,
@@ -879,6 +846,9 @@ def generate_model_data(
       load_algorithm_fn=load_algorithm_fn,
     )
     # Save using Flax serialization
+    if len(all_episode_data) == 0:
+      raise RuntimeError("No episode data found")
+
     with open(all_episodes_data_filename, "wb") as f:
       serialized_data = serialization.to_bytes(all_episode_data)
       f.write(serialized_data)
@@ -1015,10 +985,12 @@ def generate_all_episodes_df(all_episode_data, all_episode_metadata, env_name: s
   temp_df = nicewebrl.DataFrame(all_episode_df, all_episode_data)
 
   # Process each model and seed separately
+  if 'algo' not in all_episode_df.columns:
+    raise ValueError("algo column not found in all_episode_df")
   for model_name in all_episode_df["algo"].unique().to_list():
     model_df = temp_df.filter(algo=model_name)
-    for seed in model_df["seed"].unique().to_list():
-      seed_df = model_df.filter(seed=seed)
+    for user_id in model_df["user_id"].unique().to_list():
+      seed_df = model_df.filter(user_id=user_id)
       reuse_dict, overlap_dict = env_utils.add_model_reuse_columns(seed_df)
 
       # Add to our collection (we'll combine them later)
@@ -1129,8 +1101,7 @@ def get_jaxmaze_model_data(
     "qlearning",
     "dyna",
     "usfa",
-    #'preplay',
-    "preplay_new",
+    'preplay',
     "bfs",
     "dfs",
   ]
@@ -1140,8 +1111,7 @@ def get_jaxmaze_model_data(
     qlearning=f"{input_data_path}/qlearning/seed=*/",
     dyna=f"{input_data_path}/dyna/seed=*/",
     usfa=f"{input_data_path}/usfa/seed=*/",
-    preplay=f"{input_data_path}/preplay/seed=*/",
-    preplay_new=f"{input_data_path}/preplay-new/seed=*/",
+    preplay=f"{input_data_path}/preplay-new/seed=*/",
     bfs="",  # ignored
     dfs="",  # ignored
   )
@@ -1151,7 +1121,6 @@ def get_jaxmaze_model_data(
     dyna=(env, example_timestep, example_env_params),
     usfa=(sf_env, sf_example_timestep, sf_example_env_params),
     preplay=(env, example_timestep, example_env_params),
-    preplay_new=(env, example_timestep, example_env_params),
     bfs=(env, example_timestep, example_env_params),
     dfs=(env, example_timestep, example_env_params),
   )
@@ -1160,8 +1129,7 @@ def get_jaxmaze_model_data(
     qlearning=dict(task_runner=task_runner),
     dyna=dict(task_runner=task_runner),
     usfa=dict(task_runner=sf_task_runner),
-    preplay=dict(task_runner=task_runner, model_filename="dynaq_shared"),
-    preplay_new=dict(task_runner=task_runner, model_filename="preplay"),
+    preplay=dict(task_runner=task_runner, model_filename="preplay"),
     bfs=dict(task_runner=task_runner, search_algorithm=True),
     dfs=dict(task_runner=task_runner, search_algorithm=True),
   )
@@ -1171,7 +1139,6 @@ def get_jaxmaze_model_data(
     usfa=load_usfa_jaxmaze_algorithm,
     dyna=load_dyna_jaxmaze_algorithm,
     preplay=load_preplay_jaxmaze_algorithm,
-    preplay_new=load_preplay_new_jaxmaze_algorithm,
     bfs=functools.partial(
       load_jaxmaze_search_algorithm,
       algorithm="bfs",
