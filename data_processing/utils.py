@@ -29,6 +29,7 @@ def download_data(
 
   # Save each split as CSV
   for split_name, split_data in dataset.items():
+
     filename = os.path.join(data_dir, "final", f"{split_name}_episode_df.csv")
     if os.path.exists(filename):
       print(f"Skipping {split_name} data because it already exists")
@@ -40,16 +41,23 @@ def download_data(
 def download_jaxmaze_data():
   download_data(
     data_dir=data_configs.JAXMAZE_DATA_DIR,
-    dataset_name=data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME,
+    dataset_name=f"{data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME}_human",
+  )
+  download_data(
+    data_dir=data_configs.JAXMAZE_DATA_DIR,
+    dataset_name=f"{data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME}_models",
   )
 
 
 def download_craftax_data():
   download_data(
     data_dir=data_configs.CRAFTAX_DATA_DIR,
-    dataset_name=data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME,
+    dataset_name=f"{data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME}_human",
   )
-
+  download_data(
+    data_dir=data_configs.CRAFTAX_DATA_DIR,
+    dataset_name=f"{data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME}_models",
+  )
 
 class EpisodeData(NamedTuple):
   actions: jax.Array

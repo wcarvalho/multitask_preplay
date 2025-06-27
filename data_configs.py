@@ -11,7 +11,7 @@ CRAFTAX_HUMAN_DATA_PATTERN = "*final*v2*debug=0*.json"
 
 
 DIRECTORY = os.environ.get(
-  "MULTITASK_PREPLAY_DATA_DIR", "/Users/wilka/git/research/preplay_results"
+  "MULTITASK_PREPLAY_DATA_DIR", "../preplay_results"
 )
 
 CACHE_DIR = os.path.join(DIRECTORY, "cache")

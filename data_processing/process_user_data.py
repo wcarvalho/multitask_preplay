@@ -593,11 +593,14 @@ def get_human_data(
   )  # must redo df if data is overwritten
   if (
     not (overwrite_episode_data or overwrite_episode_df)
-    and data_file_exists
+    and (data_file_exists or load_df_only)
     and df_file_exists
   ):
     print(f"LOADING {all_episodes_df_filename}")
-    all_episodes_df = pl.read_csv(all_episodes_df_filename)
+    all_episodes_df = pl.read_csv(
+      all_episodes_df_filename,
+      null_values=["", "NaN", "nan"],
+      schema_overrides={"overlap": pl.Float64})
     if load_df_only:
       return all_episodes_df
     else:

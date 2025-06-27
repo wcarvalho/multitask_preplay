@@ -18,9 +18,13 @@ def save_df(human_df, models, model_path, dataset_name, commit_message="Saving d
   columns_to_remove = ["worker_id", "hit_id", "assignment_id"]
   human_df = human_df.drop(columns_to_remove)
   human_dataset = Dataset.from_dict(human_df.to_dict(as_series=False))
-  human_dataset.push_to_hub(
+  
+  # Create a DatasetDict with "human" as the key instead of pushing as a single dataset
+  human_dataset_dict = DatasetDict({"human_data": human_dataset})
+  human_dataset_dict.push_to_hub(
     f"wcarvalho/{dataset_name}_human", commit_message=commit_message
   )
+  
   datasets = {}
   for model in models:
     model_df = pl.read_csv(f"{model_path}/final/{model}_episode_df.csv")

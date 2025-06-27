@@ -770,14 +770,18 @@ def generate_model_data(
 
   if (
     not (overwrite_episode_data or overwrite_episode_df)
-    and data_file_exists
+    and (data_file_exists or load_df_only)
     and df_file_exists
   ):
+    all_episodes_df = pl.read_csv(
+      all_episodes_df_filename,
+      null_values=["", "NaN", "nan"],
+      schema_overrides={"overlap": pl.Float64}
+      )
     if load_df_only:
-      all_episodes_df = pl.read_csv(all_episodes_df_filename)
       return all_episodes_df
     else:
-      all_episodes_df = pl.read_csv(all_episodes_df_filename)
+
       all_episode_data = load_episode_data(
         filename=all_episodes_data_filename, example_timestep=example_timestep
       )
