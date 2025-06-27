@@ -97,6 +97,14 @@ def add_to_file(stats_file, algo, label, text):
   with open(yaml_file, "w") as f:
     yaml.dump(data, f, default_flow_style=False)
 
+def add_reuse_column(df, reuse_column, overlap_threshold):
+  df = df.filter(pl.col("overlap").is_not_null())
+  df = df.with_columns(
+    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
+  )
+  df = df.filter(pl.col(reuse_column) != -1)
+  df = df.filter(pl.col("success").is_not_null() & pl.col(reuse_column).is_not_null())
+  return df
 
 ######################################
 # Plotting functions
@@ -281,15 +289,10 @@ def plot_bar_rt_comparison(
     raise ValueError("Box plots can only be used when use_median=True")
 
   # Add boolean "reuse" column based on overlap threshold
-  df = df.with_columns(
-    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
-  )
-
   len_before = len(df)
-  # Filter rows where reuse is -1
-  df = df.filter(pl.col(reuse_column) != -1)
+  df = add_reuse_column(df, reuse_column, overlap_threshold)
+  print("Mean reuse: ", df[reuse_column].mean())
 
-  df = df.filter(pl.col("success").is_not_null() & pl.col(reuse_column).is_not_null())
 
   ylabel = ylabel or measure_to_ylabel[rt_column]
   title = title or measure_to_title[rt_column]
@@ -607,8 +610,8 @@ def compute_condition_difference_df(
   cond1_df = df.filter(condition=1)
   cond2_df = df.filter(condition=2)
 
-  # Join the dataframes on user_id and reversal to match pairs
-  diff_df = cond1_df.join(cond2_df, on=["user_id", "reversal"], suffix="_cond2")
+  # Join the dataframes on user_id and block_name to match pairs
+  diff_df = cond1_df.join(cond2_df, on=["user_id", "block_name"], suffix="_cond2")
 
   # Compute differences for each measure
   diff_exprs = [
@@ -616,11 +619,10 @@ def compute_condition_difference_df(
     for measure in measures
   ]
 
-  # Select user_id, reversal and all difference columns
-  diff_df = diff_df.select(["user_id", "reversal"] + diff_exprs)
+  # Select user_id, block_name and all difference columns
+  diff_df = diff_df.select(["user_id", "block_name"] + diff_exprs)
 
   return diff_df
-
 
 
 def get_human_success_rate_path_reuse_data(
@@ -631,16 +633,11 @@ def get_human_success_rate_path_reuse_data(
   label: str = "",
 ) -> dict:
   # Add boolean "reuse" column based on overlap threshold
-  df = df.with_columns(
-    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
-  )
-
-  # Filter rows where reuse is -1
-  df = df.filter(pl.col(reuse_column) != -1)
+  df = add_reuse_column(df, reuse_column, overlap_threshold)
 
   # Calculate human success statistics
   human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
-
+  
   # Calculate human reuse statistics
   human_reuse_stats = compute_binary_measure_statistics(df, "user_id", reuse_column)
 
@@ -706,12 +703,7 @@ def get_model_success_rate_path_reuse_data(
     return {}
 
   # Add boolean "reuse" column based on overlap threshold
-  model_df = model_df.with_columns(
-    (pl.col("overlap") > overlap_threshold).alias(reuse_column)
-  )
-
-  # Filter rows where reuse is -1
-  model_df = model_df.filter(pl.col(reuse_column) != -1)
+  model_df = add_reuse_column(model_df, reuse_column, overlap_threshold)
 
   model_data = {}
 
@@ -1104,6 +1096,7 @@ def compute_binary_measure_statistics(
   group_means = df.group_by(group_col).agg(
     rate=pl.col(measure).mean(), n_trials=pl.col(measure).count()
   )
+  #import pdb; pdb.set_trace()
 
   rates = group_means["rate"].to_numpy()
   n_groups = len(rates)

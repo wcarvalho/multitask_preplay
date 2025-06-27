@@ -43,7 +43,7 @@ from housemaze.human_dyna import web_env
 import data_configs
 from data_processing import utils_jaxmaze
 from data_processing import utils_craftax
-from data_processing.utils import get_in_episode
+from data_processing.utils import get_in_episode, reorder_columns
 from data_processing.utils import EpisodeData, load_episode_data
 from simulations.craftax_web_env import CraftaxMultiGoalSymbolicWebEnvNoAutoReset
 from simulations import craftax_simulation_configs
@@ -520,6 +520,7 @@ def load_dyna_jaxmaze_algorithm(
     model_name="dyna",
   )
 
+
 def load_preplay_jaxmaze_algorithm(
   config: dict,
   agent_params: dict,
@@ -980,27 +981,45 @@ def generate_all_episodes_df(all_episode_data, all_episode_metadata, env_name: s
   # Initialize empty dictionaries for reuse and overlap
   all_reuse_dicts = []
   all_overlap_dicts = []
+  all_corresponding_train_episode_idx = []
 
   # Create a DataFrame for processing
   temp_df = nicewebrl.DataFrame(all_episode_df, all_episode_data)
 
   # Process each model and seed separately
-  if 'algo' not in all_episode_df.columns:
+  if "algo" not in all_episode_df.columns:
     raise ValueError("algo column not found in all_episode_df")
+
   for model_name in all_episode_df["algo"].unique().to_list():
     model_df = temp_df.filter(algo=model_name)
     for user_id in model_df["user_id"].unique().to_list():
       seed_df = model_df.filter(user_id=user_id)
-      reuse_dict, overlap_dict = env_utils.add_model_reuse_columns(seed_df)
+      reuse_dict, overlap_dict, corresponding_train_episode_idx = env_utils.add_model_reuse_columns(seed_df)
 
       # Add to our collection (we'll combine them later)
       all_reuse_dicts.append(reuse_dict)
       all_overlap_dicts.append(overlap_dict)
+      all_corresponding_train_episode_idx.append(corresponding_train_episode_idx)
 
   # Use our utility function to add the columns
   all_episode_df = add_reuse_dicts_to_df(
-    all_episode_df, all_reuse_dicts, all_overlap_dicts
+    all_episode_df, all_reuse_dicts, all_overlap_dicts, all_corresponding_train_episode_idx
   )
+  all_episode_df = reorder_columns(
+    all_episode_df, front_cols=[
+      "domain",
+      "algo",
+      "user_id",
+      "manipulation",
+      "world",
+      "block_name",
+      "condition",
+      "task_set",
+      "global_episode_idx",
+      "corresponding_train_episode_idx",
+      "success",
+      "overlap",
+      ])
 
   return all_episode_df
 
@@ -1101,7 +1120,7 @@ def get_jaxmaze_model_data(
     "qlearning",
     "dyna",
     "usfa",
-    'preplay',
+    "preplay",
     "bfs",
     "dfs",
   ]

@@ -271,19 +271,21 @@ def path_reuse_results(
   ##################
   # Get relevant simulations
   ##################
-  mdf = model_df.filter(world="big_m3_maze1", manipulation="paths", eval=True)
+  eval_filter = dict(
+    manipulation="paths",
+    world="big_m3_maze1",
+    eval=True,
+  )
+  mdf = model_df.filter(**eval_filter)
 
   ##################
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
     user_df.filter(
-      manipulation="paths",
-      world="big_m3_maze1",
       tell_reuse=tell_reuse,
       eval_shares_start_pos=True,
-      eval=True,
-    ),
+      **eval_filter),
     analysis_name="path_reuse_results",
   )
 
@@ -307,9 +309,7 @@ def path_reuse_results(
       os.path.join(save_dir, "success_rate_path_reuse.pdf"), bbox_inches="tight"
     )
 
-  # if display_figs:
-  #  from IPython.display import display
-  #  display(fig)
+
   ######################
   # Plot Response times when using new path vs. partial reuse
   ######################
@@ -448,7 +448,7 @@ def juncture_results(
 
   # Add setting column based on maze name
   user_df = user_df.with_columns(
-    setting=pl.col("maze").map_elements(get_maze_setting, return_dtype=pl.String)
+    setting=pl.col("world").map_elements(get_maze_setting, return_dtype=pl.String)
   )
 
   ############################################
@@ -614,7 +614,13 @@ def shortcut_results(
   mdf = model_df.filter(world="big_m1_maze3_shortcut", eval=True)
 
   sub_df, _ = filter_users_by_success(
-    user_df.filter(manipulation="shortcut", tell_reuse=tell_reuse, eval_shares_start_pos=True),
+    user_df.filter(
+      manipulation="shortcut",
+      world="big_m1_maze3_shortcut",
+      tell_reuse=tell_reuse,
+      eval_shares_start_pos=True,
+      eval=True,
+    ),
     analysis_name="shortcut_results",
   )
 
@@ -683,7 +689,8 @@ def start_results(
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
-    user_df.filter(manipulation="start", tell_reuse=tell_reuse), analysis_name="start_results"
+    user_df.filter(manipulation="start", tell_reuse=tell_reuse),
+    analysis_name="start_results",
   )
 
   ##################

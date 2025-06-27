@@ -13,7 +13,11 @@ import polars as pl
 from simulations import craftax_experiment_configs  # human
 from simulations import craftax_simulation_configs  # model. derivative of human configs
 from data_processing.utils import get_in_episode, total_reward, success, path_length
-from simulations.craftax_web_env import EnvParams, CraftaxSymbolicWebEnvNoAutoReset, task_onehot
+from simulations.craftax_web_env import (
+  EnvParams,
+  CraftaxSymbolicWebEnvNoAutoReset,
+  task_onehot,
+)
 from simulations.craftax_utils import astar
 
 ################################################
@@ -128,10 +132,12 @@ def get_task_object(timesteps: nicewebrl.TimeStep):
   goal = int(timesteps.state.current_goal[0])
   return craftax_experiment_configs.GOAL_TO_BLOCK[goal]
 
+
 def make_task_vector(timesteps: nicewebrl.TimeStep):
   current_goal = timesteps.state.current_goal[0]
   task_w = task_onehot(current_goal)
   return task_w
+
 
 def get_step_number(timesteps: nicewebrl.TimeStep):
   return timesteps.state.timestep
@@ -247,33 +253,32 @@ def fix_row(row):
     new_row["world"] = f"world_{world_seed}"
 
   # same for this domain
-  new_row['block_name'] = new_row["world"]
+  new_row["block_name"] = new_row["world"]
 
-  if 'task' in new_row:
-    new_row['task_object_id'] = new_row['task']
+  if "task" in new_row:
+    new_row["task_object_id"] = new_row["task"]
 
-  new_row.pop('room', None)
+  new_row.pop("room", None)
 
-  if 'seed' in new_row:
-    new_row['user_id'] = new_row['seed']
+  if "seed" in new_row:
+    new_row["user_id"] = new_row["seed"]
 
-  if 'manipulation' in new_row:
-    if isinstance(new_row['manipulation'], int):
-      new_row['manipulation'] = {
-        1: 'shortcut',
-        2: 'start',
-        3: 'paths',
-        4: 'juncture',
-        5: 'paths',
-      }[new_row['manipulation']]
-    elif isinstance(new_row['manipulation'], str):
-      assert new_row['manipulation'] in ['paths']
+  if "manipulation" in new_row:
+    if isinstance(new_row["manipulation"], int):
+      new_row["manipulation"] = {
+        1: "shortcut",
+        2: "start",
+        3: "paths",
+        4: "juncture",
+        5: "paths",
+      }[new_row["manipulation"]]
+    elif isinstance(new_row["manipulation"], str):
+      assert new_row["manipulation"] in ["paths"]
     else:
       raise ValueError(f"Invalid manipulation: {new_row['manipulation']}")
 
-  new_row.pop('seed', None)
-  new_row.pop('maze', None)
-
+  new_row.pop("seed", None)
+  new_row.pop("maze", None)
 
   desired_types = dict(
     domain=str,
@@ -292,18 +297,18 @@ def fix_row(row):
     assert isinstance(new_row[k], v), f"Expected {k} to be {v}, got {type(new_row[k])}"
 
   keys_to_remove = [
-    'debug',
-    'git_version',
-    'name',
-    'seed',
-    'maze',
-    'reversal',
-    'user',
-    'world_seed',
-    'block',
-    'exp_name',
-    'version',
-    'task'
+    "debug",
+    "git_version",
+    "name",
+    "seed",
+    "maze",
+    "reversal",
+    "user",
+    "world_seed",
+    "block",
+    "exp_name",
+    "version",
+    "task",
   ]
   for k in keys_to_remove:
     new_row.pop(k, None)
@@ -599,5 +604,6 @@ def make_model_episode_row_data(episode, metadata):
   )
   row = fix_row(row)
   return row
+
 
 add_model_reuse_columns = add_reuse_columns  # same in this env for both

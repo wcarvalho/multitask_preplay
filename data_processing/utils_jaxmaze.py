@@ -17,17 +17,25 @@ from housemaze.human_dyna import web_env
 from housemaze.human_dyna import multitask_env
 from housemaze.human_dyna import experiments as housemaze_experiments
 
-from data_processing.utils import get_in_episode, total_reward, success, path_length, get_overlap_dicts_model, get_overlap_dicts_human
+from data_processing.utils import (
+  get_in_episode,
+  total_reward,
+  success,
+  path_length,
+  get_overlap_dicts_model,
+  get_overlap_dicts_human,
+)
 
 from tqdm.auto import tqdm
 
 manipulation_int_to_str = {
-  1: 'shortcut',
-  2: 'start',
-  3: 'paths',
-  4: 'juncture',
+  1: "shortcut",
+  2: "start",
+  3: "paths",
+  4: "juncture",
 }
 manipulation_str_to_int = {v: k for k, v in manipulation_int_to_str.items()}
+
 
 ################################################
 # Human Data
@@ -125,15 +133,16 @@ def make_human_episode_row_data(
   maze = metadata.get("maze")
   # Extract world_seed by removing the block identifier pattern
   world_seed = re.sub(r"_\([TF],[TF]\)", "", maze)
-
   block_name = tuple([int(i) for i in reversal])
+  condition = int(metadata.get("condition", 1 if metadata["eval"] else 0))
+
   row = dict(
     domain="jaxmaze",
-    algo='human',
+    algo="human",
     maze=maze,
     world_seed=world_seed,
     block_name=str(block_name),
-    condition=int(metadata.get("condition", 0)),
+    condition=condition,
     name=metadata["name"],
     block=metadata["block_metadata"]["desc"],
     manipulation=metadata["block_metadata"].get("manipulation", None),
@@ -166,30 +175,6 @@ def make_human_episode_row_data(
   # fix eval for condition 2
   if row["condition"] > 0:
     row["eval"] = True
-
-  ####################
-  # add version, tell_reuse, timer
-  ####################
-  # name = new_vals.get("exp_name")
-  # if name is not None:
-  #  # example 'exp4-v1-r1-t0-plan'
-  #  # split on '-' and take the first element
-  #  # if v--> version
-  #  # if r--> tell_reuse
-  #  # if t--> timer
-  #  # if there's a word at the end, it's the manipulation
-  #  # create a dictionary according to this legend
-  #  legend = dict(v="version", r="tell_reuse", t="timer")
-  #  name_info = dict()
-  #  for k, v in legend.items():
-  #    if k in name:
-  #      name_info[v] = name.split(k)[1].split("-")[0]
-  #  print(name_info)
-  #  row.update(name_info)
-  ## Convert all numeric strings to integers
-  # for key, value in row.items():
-  #  if isinstance(value, str) and value.isdigit():
-  #    row[key] = int(value)
 
   #####################
   ## add optimal path length
@@ -232,17 +217,6 @@ def compute_overlap(map1: np.ndarray, map2: np.ndarray):
   overlap = shared_length / map2_length
   return overlap
 
-  # import pdb; pdb.set_trace()
-  # nonzero_indices = np.argwhere(map2 > 0)
-  # values_map1 = (map1[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-  #  np.float32
-  # )
-  # values_map2 = (map2[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-  #  np.float32
-  # )
-  # overlap = (values_map1 + values_map2) > 1
-  # return overlap
-
 
 def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
   """Add a 'reuse' column to the DataFrame indicating whether each episode reused paths.
@@ -257,8 +231,9 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
   # Create a dictionary to store reuse values
   all_reuse_dict = {}
   all_overlap_dict = {}
+  all_corresponding_train_episode_idx = {}
 
-  reuse_dict, overlap_dict = get_overlap_dicts_human(
+  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_human(
     df,
     train_maze="big_m3_maze1",
     test_maze="big_m3_maze1",
@@ -266,15 +241,19 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
   )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
-  reuse_dict, overlap_dict = get_overlap_dicts_human(
+  all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+
+  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_human(
     df,
-    train_maze='big_m1_maze3',
-    test_maze='big_m1_maze3_shortcut',
-    overlap_threshold=0.7)
+    train_maze="big_m1_maze3",
+    test_maze="big_m1_maze3_shortcut",
+    overlap_threshold=0.7,
+  )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
+  all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
 
-  return all_reuse_dict, all_overlap_dict
+  return all_reuse_dict, all_overlap_dict, all_corresponding_train_episode_idx
 
 
 def compute_if_block_passed(block_success_counts):
@@ -412,6 +391,7 @@ def make_model_episode_row_data(episode, metadata):
     metadata["env_params"].reset_params.rotation
   ).squeeze()  # [2,1] --> 2
   block_name = tuple([int(i) for i in env_rotation])
+  condition = int(metadata.get("condition", 1 if metadata["eval"] else 0))
 
   row = dict(
     # shared across {human, model}, {craftax, jaxmaze}
@@ -419,7 +399,7 @@ def make_model_episode_row_data(episode, metadata):
     algo=algo,
     world_seed=maze_name,
     block_name=str(block_name),
-    condition=int(metadata.get("condition", 0)),
+    condition=condition,
     eval=metadata["eval"],
     start_pos=str(get_agent_position(episode.timesteps)[0]),
     manipulation=maze_to_manipulation.get(maze_name),
@@ -438,29 +418,30 @@ def make_model_episode_row_data(episode, metadata):
   row = fix_row(row)
   return row
 
+
 def fix_row(row):
   new_row = dict(row)
 
-  new_row["world"] = new_row.pop('world_seed')
-  reversal = ast.literal_eval(new_row['block_name'])
-  new_row['block_name'] = f'reverse(H={bool(reversal[0])},W={bool(reversal[1])})'
+  new_row["world"] = new_row.pop("world_seed")
+  reversal = ast.literal_eval(new_row["block_name"])
+  new_row["block_name"] = f"reverse(H={bool(reversal[0])},W={bool(reversal[1])})"
 
-  new_row['task_object_id'] = new_row.pop('task')
-  new_row['task_set'] = new_row.pop('room')
+  new_row["task_object_id"] = new_row.pop("task")
+  new_row["task_set"] = new_row.pop("room")
 
-  if 'seed' in new_row and new_row['algo'] != 'human':
-    new_row['user_id'] = new_row.pop('seed')
+  if "seed" in new_row and new_row["algo"] != "human":
+    new_row["user_id"] = new_row.pop("seed")
 
-  if 'manipulation' in new_row:
-    if isinstance(new_row['manipulation'], int):
-      new_row['manipulation'] = {
-        1: 'shortcut',
-        2: 'start',
-        3: 'paths',
-        4: 'juncture',
-      }[new_row['manipulation']]
-    elif isinstance(new_row['manipulation'], str):
-      assert new_row['manipulation'] in ['shortcut', 'start', 'paths', 'juncture']
+  if "manipulation" in new_row:
+    if isinstance(new_row["manipulation"], int):
+      new_row["manipulation"] = {
+        1: "shortcut",
+        2: "start",
+        3: "paths",
+        4: "juncture",
+      }[new_row["manipulation"]]
+    elif isinstance(new_row["manipulation"], str):
+      assert new_row["manipulation"] in ["shortcut", "start", "paths", "juncture"]
     else:
       raise ValueError(f"Invalid manipulation: {new_row['manipulation']}")
 
@@ -481,16 +462,16 @@ def fix_row(row):
     assert isinstance(new_row[k], v), f"Expected {k} to be {v}, got {type(new_row[k])}"
 
   keys_to_remove = [
-    'debug',
-    'git_version',
-    'name',
-    'seed',
-    'maze',
-    'reversal',
-    'user',
-    'block',
+    "debug",
+    "git_version",
+    "name",
+    "seed",
+    "maze",
+    "reversal",
+    "user",
+    "block",
   ]
-  for k in keys_to_remove:  
+  for k in keys_to_remove:
     new_row.pop(k, None)
 
   return new_row
@@ -509,8 +490,9 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
   # Create a dictionary to store reuse values
   all_reuse_dict = {}
   all_overlap_dict = {}
+  all_corresponding_train_episode_idx = {}
 
-  reuse_dict, overlap_dict = get_overlap_dicts_model(
+  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_model(
     df,
     train_maze="big_m3_maze1",
     test_maze="big_m3_maze1",
@@ -518,13 +500,16 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
   )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
-  reuse_dict, overlap_dict = get_overlap_dicts_model(
+  all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+
+  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_model(
     df,
-    train_maze='big_m1_maze3',
-    test_maze='big_m1_maze3_shortcut',
-    overlap_threshold=0.7)
+    train_maze="big_m1_maze3",
+    test_maze="big_m1_maze3_shortcut",
+    overlap_threshold=0.7,
+  )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
+  all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
 
-  return all_reuse_dict, all_overlap_dict
-
+  return all_reuse_dict, all_overlap_dict, all_corresponding_train_episode_idx

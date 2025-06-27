@@ -87,7 +87,9 @@ def download_model_files(base_server_dir, base_local_dir, model_dirs, model_name
   hostname = "rcfas_login"  # Using the SSH config alias
 
   # Common rsync options
-  rsync_options = "-avz --progress --prune-empty-dirs --exclude='*wandb*' --exclude='*_*.safetensors'"
+  rsync_options = (
+    "-avz --progress --prune-empty-dirs --exclude='*wandb*' --exclude='*_*.safetensors'"
+  )
 
   for model, dir_path in model_dirs.items():
     print("=" * 50)

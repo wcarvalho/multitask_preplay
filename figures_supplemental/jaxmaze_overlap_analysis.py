@@ -22,6 +22,7 @@ def visualize_examples_by_reuse(
   manipulation_id: int,
   threshold: float,
   model: str,
+  n_search: int = 10,
   n_examples: int = 10,
   train_maze: str = None,
   test_maze: str = None,
@@ -56,117 +57,81 @@ def visualize_examples_by_reuse(
   # Different handling for human data vs model data
   samples = []
 
-  #if model == "human":
-  # For humans, we need to carefully match train and test examples
+  # if model == "human":
+    # For humans, we need to carefully match train and test examples
   user_ids = df["user_id"].unique().to_list()
-
+  block_names = df["block_name"].unique().to_list()
   for user_id in user_ids:
     # Get test examples for this user
-    test_initial = df.filter(
-      eval=True,
-      user_id=user_id,
-      manipulation=manipulation_id,
-      block_name='reverse(H=False,W=False)',  # easiest to visualize
-      world=test_maze,
-    ).sort("overlap", descending=True)
+    for block_name in block_names:
+      test_initial = df.filter(
+        eval=True,
+        user_id=user_id,
+        manipulation=manipulation_id,
+        block_name=block_name,  # easiest to visualize
+        world=test_maze,
+      ).sort("overlap", descending=True)
 
-    if len(test_initial.episodes) == 0:
-      continue
-    # Process each test episode one by one
-    #for episode_idx in range(len(test_initial.episodes)):
-    episode_idx=0
-    # Get values for filtering
-    start_pos_val = test_initial["start_pos"].to_list()[episode_idx]
-    block_name_val = test_initial["block_name"].to_list()[episode_idx]
-    task_set_val = test_initial["task_set"].to_list()[episode_idx]
+      if len(test_initial.episodes) == 0:
+        continue
+      # Process each test episode one by one
+      ntest = len(test_initial.episodes)
+      for test_episode_idx in range(min(n_search, ntest)):
+        # Get values for filtering
+        start_pos_val = test_initial["start_pos"].to_list()[test_episode_idx]
+        block_name_val = test_initial["block_name"].to_list()[test_episode_idx]
+        task_set_val = test_initial["task_set"].to_list()[test_episode_idx]
 
-    filters = dict(
-      start_pos=start_pos_val,
-      block_name=block_name_val,
-      user_id=user_id,
-      task_set=task_set_val,
-    )
+        filters = dict(
+          start_pos=start_pos_val,
+          block_name=block_name_val,
+          user_id=user_id,
+          task_set=task_set_val,
+        )
+        # Get properly filtered test and train
+        test = df.filter(
+          eval=True, manipulation=manipulation_id, world=test_maze, **filters
+        )
+        corresponding_train_episode_idx = test["corresponding_train_episode_idx"].to_list()[test_episode_idx]
 
-    # Get properly filtered test and train
-    test = df.filter(
-      eval=True,
-      manipulation=manipulation_id,
-      world=test_maze,
-      **filters
-    )
-    train = df.filter(
-      eval=False,
-      manipulation=manipulation_id,
-      success=1,
-      world=train_maze,
-      **filters
-    )
+        train = df.filter(
+          #eval=False,
+          #manipulation=manipulation_id,
+          #world=train_maze,
+          global_episode_idx=corresponding_train_episode_idx,
+        )
 
-    if len(train.episodes) == 0 or len(test.episodes) == 0:
-      continue
-    # Calculate overlap
-    train_map = create_maps(train.episodes[episode_idx]).sum(0)
-    test_map = create_maps([test.episodes[episode_idx]]).sum(0)
+        if len(train.episodes) == 0 or len(test.episodes) == 0:
+          continue
 
-    overlap_value = compute_overlap(train_map, test_map).mean()
-    df_overlap_value = test["overlap"].to_list()[0]
-    reuse = int(overlap_value >= threshold)
+        # Calculate overlap
+        # just use 1 example
+        train_map = create_maps([train.episodes[0]]).sum(0)
+        test_map = create_maps([test.episodes[0]]).sum(0)
 
-    samples.append(
-      {
-        "key": user_id,
-        "train": train,
-        "test": test,
-        "overlap": overlap_value,
-        "df_overlap": df_overlap_value,
-        "reuse": reuse,
-        "filters": filters,  # Store filters for reference
-        "block_name": block_name_val,
-      }
-    )
-      #if len(samples) > 3:
-      #  import pdb; pdb.set_trace()
-  #else:
-  #  # For models, process as before - each seed has one train and one test
-  #  train = df.filter(eval=False, manipulation=manipulation_id, world=train_maze)
-  #  test = df.filter(eval=True, manipulation=manipulation_id, world=test_maze)
-  #  # Get available keys (seeds)
-  #  model_key = "user_id"
-  #  keys = train[model_key].unique().to_list()
+        overlap_value = compute_overlap(train_map, test_map).mean()
+        df_overlap_value = test["overlap"].to_list()[0]
+        reuse = int(overlap_value >= threshold)
 
-  #  block_names = train["block_name"].unique().to_list()
-  #  for block_name in block_names:
-  #    for k in keys:
-  #      train_filtered = train.filter(block_name=block_name, **{model_key: k})
-  #      test_filtered = test.filter(block_name=block_name, **{model_key: k})
-
-  #      if len(train_filtered.episodes) == 0 or len(test_filtered.episodes) == 0:
-  #        continue
-
-  #      # Calculate overlap
-  #      train_map = create_maps([train_filtered.episodes[0]]).sum(0)
-  #      test_map = create_maps([test_filtered.episodes[0]]).sum(0)
-
-  #      overlap_value = compute_overlap(train_map, test_map).mean()
-  #      df_overlap_value = test_filtered["overlap"].to_list()[0]
-
-  #      reuse = int(overlap_value >= threshold)
-
-  #      samples.append(
-  #        {
-  #          "key": k,
-  #          "block_name": block_name,
-  #          "train": train_filtered,
-  #          "test": test_filtered,
-  #          "overlap": overlap_value,
-  #          "df_overlap": df_overlap_value,
-  #          "reuse": reuse,
-  #        }
-  #      )
+        samples.append(
+          {
+            "key": user_id,
+            "train": train,
+            "test": test,
+            "overlap": overlap_value,
+            "df_overlap": df_overlap_value,
+            "reuse": reuse,
+            "filters": filters,  # Store filters for reference
+            "block_name": block_name_val,
+          }
+        )
 
   # Separate into above and below threshold examples (regardless of actual reuse classification)
   above_threshold_samples = [s for s in samples if s["overlap"] >= threshold]
   below_threshold_samples = [s for s in samples if s["overlap"] < threshold]
+
+  if len(above_threshold_samples) == 0 and len(below_threshold_samples) == 0:
+    raise RuntimeError("No examples found")
 
   # Sort by overlap for better visualization
   above_threshold_samples.sort(
@@ -273,15 +238,22 @@ if __name__ == "__main__":
   parser.add_argument(
     "--models",
     nargs="+",
-    default=["human", "preplay", "usfa", "dyna", "qlearning"],
+    default=["preplay", "dfs", "human"],
     choices=["human", "preplay", "usfa", "dyna", "qlearning", "bfs", "dfs"],
+    help="Models to analyze (can specify multiple). Use 'human' for human data.",
+  )
+  parser.add_argument(
+    "--manipulations",
+    nargs="+",
+    default=["two_paths", "shortcut"],
+    choices=["two_paths", "shortcut"],
     help="Models to analyze (can specify multiple). Use 'human' for human data.",
   )
   parser.add_argument(
     "--thresholds",
     nargs="+",
     type=float,
-    default=[0.5, 0.7],
+    default=[0.3, 0.5, 0.6, 0.7],
     help="Overlap thresholds to analyze (default: 0.25 0.5 0.7)",
   )
   parser.add_argument(
@@ -299,23 +271,26 @@ if __name__ == "__main__":
   # Define manipulations
   manipulations = [
     {
-      "name": "shortcut",
-      "manipulation_id": "shortcut",
-      "train_maze": "big_m1_maze3",
-      "test_maze": "big_m1_maze3_shortcut",
-    },
-    {
       "name": "two_paths",
       "manipulation_id": "paths",
       "train_maze": "big_m3_maze1",
       "test_maze": "big_m3_maze1",
     },
+    {
+      "name": "shortcut",
+      "manipulation_id": "shortcut",
+      "train_maze": "big_m1_maze3",
+      "test_maze": "big_m1_maze3_shortcut",
+    },
   ]
+  if args.manipulations:
+    manipulations = [m for m in manipulations if m["name"] in args.manipulations]
+
 
   # Define models available for JaxMaze (excluding human which is handled separately)
   available_models = ["preplay", "usfa", "dyna", "qlearning", "bfs", "dfs"]
   requested_models = [m for m in args.models if m != "human"]
-  
+
   model2algo = dict(
     preplay_new="preplay",
   )
@@ -327,7 +302,7 @@ if __name__ == "__main__":
       load_df_only=False,
       models=requested_models,
     )
-    
+
     # Process model data for each manipulation, threshold, and model
     for manipulation in manipulations:
       manip_name = manipulation["name"]

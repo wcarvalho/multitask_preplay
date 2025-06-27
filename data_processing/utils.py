@@ -130,18 +130,28 @@ def create_maps(episode_data_list, start_pos=0):
     maps.append(grid)
   return np.array(maps)
 
-def compute_overlap(train_map: np.ndarray, test_map: np.ndarray):
-  """train_map: HxW, test_map: HxW"""
+
+#def compute_overlap(train_map: np.ndarray, test_map: np.ndarray):
+#  """train_map: HxW, test_map: HxW"""
+#  """Calculate the overlap between two maps."""
+#  nonzero_indices = np.argwhere(test_map > 0)
+#  values_train_map = (
+#    train_map[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0
+#  ).astype(np.float32)
+#  values_test_map = (test_map[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
+#    np.float32
+#  )
+#  overlap = (values_train_map + values_test_map) > 1
+#  return overlap
+
+def compute_overlap(map1: np.ndarray, map2: np.ndarray):
+  """map1: HxW, map2: HxW"""
   """Calculate the overlap between two maps."""
-  nonzero_indices = np.argwhere(test_map > 0)
-  values_train_map = (train_map[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-    np.float32
-  )
-  values_test_map = (test_map[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-    np.float32
-  )
-  overlap = (values_train_map + values_test_map) > 1
+  shared_length = ((map2 + map1) * map2 > 1).sum()
+  map2_length = (map2 > 0).sum()
+  overlap = shared_length / map2_length
   return overlap
+
 
 def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
   """maps: NxHxW, test_map: HxW"""
@@ -172,20 +182,18 @@ def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
 
 def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold):
   """Get reuse and overlap dictionaries for a given DataFrame.
-  
+
   In human case, a block will have a single test episode but could have multiple corresponding train episodes.
   """
   overlap_dict = {}
   reuse_dict = {}
+  corresponding_train_episode_idx = {}
 
   # Get unique users
   block_names = df.filter(world=test_maze)["block_name"].unique().to_list()
   for block_name in block_names:
     # Get test episodes
-    test = df.filter(
-      world=test_maze,
-      block_name=block_name,
-      eval=True)
+    test = df.filter(world=test_maze, block_name=block_name, eval=True)
     if len(test) == 0:
       continue
     start_pos = test["start_pos"].to_list()[0]
@@ -197,7 +205,7 @@ def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold):
       task_set=0,
       eval=False,
       success=1,
-      start_pos=start_pos
+      start_pos=start_pos,
     )
 
     if len(train.episodes) == 0:
@@ -217,27 +225,26 @@ def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold):
 
       # Store the reuse value
       episode_id = (test_maze, global_index)
+      corresponding_train_episode_idx[episode_id] = train['global_episode_idx'].to_list()[best_idx]
       overlap_dict[episode_id] = overlap_mean
       reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
 
-  return reuse_dict, overlap_dict
+  return reuse_dict, overlap_dict, corresponding_train_episode_idx
+
 
 def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
   """Get reuse and overlap dictionaries for a given DataFrame.
-  
+
   In model case, a block will have a single test episode and a single corresponding train episode.
   """
   overlap_dict = {}
   reuse_dict = {}
-
+  corresponding_train_episode_idx = {}
   # Get unique users
   block_names = df.filter(world=test_maze)["block_name"].unique().to_list()
   for block_name in block_names:
     # Get test episodes
-    test = df.filter(
-      world=test_maze,
-      block_name=block_name,
-      eval=True)
+    test = df.filter(world=test_maze, block_name=block_name, eval=True)
     if len(test) == 0:
       continue
     start_pos = test["start_pos"].to_list()[0]
@@ -249,7 +256,7 @@ def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
       task_set=0,
       eval=False,
       success=1,
-      start_pos=start_pos
+      start_pos=start_pos,
     )
 
     if len(train.episodes) == 0:
@@ -262,6 +269,8 @@ def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
     # Process each test episode
     for idx, row in enumerate(test._df.iter_rows(named=True)):
       global_index = row["global_episode_idx"]
+      if not (idx < len(test_maps) and idx < len(train_maps)):
+        continue
       test_map = test_maps[idx]
       train_map = train_maps[idx]
       overlap = compute_overlap(train_map, test_map)
@@ -269,12 +278,14 @@ def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
 
       # Store the reuse value
       episode_id = (test_maze, global_index)
+      corresponding_train_episode_idx[episode_id] = train['global_episode_idx'].to_list()[idx]
       overlap_dict[episode_id] = overlap_mean
       reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
 
-  return reuse_dict, overlap_dict
+  return reuse_dict, overlap_dict, corresponding_train_episode_idx
 
-def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts):
+
+def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts, all_corresponding_train_episode_idx):
   """Add reuse and overlap columns to a DataFrame using the provided dictionaries.
 
   Args:
@@ -289,6 +300,7 @@ def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts):
   # Combine all dictionaries
   final_reuse_dict = {k: v for d in all_reuse_dicts for k, v in d.items()}
   final_overlap_dict = {k: v for d in all_overlap_dicts for k, v in d.items()}
+  final_corresponding_train_episode_idx = {k: v for d in all_corresponding_train_episode_idx for k, v in d.items()}
 
   return df.with_columns(
     [
@@ -308,5 +320,18 @@ def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts):
         return_dtype=pl.Float64,
       )
       .alias("overlap"),
+      # For corresponding train episode index column
+      pl.struct(["world", "global_episode_idx"])
+      .map_elements(
+        lambda s: final_corresponding_train_episode_idx.get(
+          (s["world"], s["global_episode_idx"]), -1
+        ),
+        return_dtype=pl.Int32,
+      )
+      .alias("corresponding_train_episode_idx"),
     ]
   )
+
+def reorder_columns(df, front_cols):
+   remaining_cols = [col for col in df.columns if col not in front_cols]
+   return df.select(front_cols + remaining_cols)

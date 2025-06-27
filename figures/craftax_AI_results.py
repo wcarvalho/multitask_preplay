@@ -591,12 +591,12 @@ def plot_training_envs_geometric_score(
 
 def get_best_scores_from_group(group_name, model_name="preplay", overwrite=False):
   """Extract the best score and compute geometric score from a group at the best eval timepoint.
-  
+
   Args:
       group_name (str): The W&B group name to download data from
       model_name (str): The model name to use in the dataframe
       overwrite (bool): Whether to overwrite cached data
-      
+
   Returns:
       dict: Dictionary with 'score' and 'geometric_score' keys, each containing
             'mean' and 'sem' values
@@ -604,56 +604,64 @@ def get_best_scores_from_group(group_name, model_name="preplay", overwrite=False
   # Download data using existing function - this already gets best timepoint data
   model_to_group = {model_name: group_name}
   df = get_metric_data_by_group(model_to_group=model_to_group, overwrite=overwrite)
-  
+
   # Filter for eval data only
   eval_df = df[df["setting"].str.contains("eval")]
-  
+
   # Get unique run IDs
   run_ids = eval_df["run_id"].unique()
-  
+
   scores = []
   geometric_scores = []
-  
+
   for run_id in run_ids:
     # Get data for this run
     run_data = eval_df[eval_df["run_id"] == run_id]
-    
+
     # Get the score
     score_data = run_data[run_data["metric"] == "0.score"]
     if len(score_data) > 0:
       scores.append(score_data["value"].iloc[0])
-    
+
     # Get all achievement values
     achievement_data = run_data[run_data["metric"].str.startswith("Achievements/")]
     if len(achievement_data) > 0:
       achievement_scores = achievement_data["value"].values
-      
+
       # Compute geometric score
       log_scores = np.log(1 + achievement_scores)
       geometric_mean = np.exp(np.mean(log_scores)) - 1
       geometric_scores.append(geometric_mean)
-  
+
   # Compute means and SEMs
   results = {
-    'score': {
-      'mean': np.mean(scores) if scores else 0,
-      'sem': np.std(scores) / np.sqrt(len(scores)) if scores else 0
+    "score": {
+      "mean": np.mean(scores) if scores else 0,
+      "sem": np.std(scores) / np.sqrt(len(scores)) if scores else 0,
     },
-    'geometric_score': {
-      'mean': np.mean(geometric_scores) if geometric_scores else 0,
-      'sem': np.std(geometric_scores) / np.sqrt(len(geometric_scores)) if geometric_scores else 0
-    }
+    "geometric_score": {
+      "mean": np.mean(geometric_scores) if geometric_scores else 0,
+      "sem": np.std(geometric_scores) / np.sqrt(len(geometric_scores))
+      if geometric_scores
+      else 0,
+    },
   }
-  
+
   return results
 
 
-def plot_baseline_craftax_comparison(group_name, baseline_scores, model_name="Multitask Preplay", 
-                                   xlabel_score="Score", xlabel_geometric="Geometric Score",
-                                   title="CraftAx Performance Comparison", figsize=(10, 5),
-                                   save_path=None):
+def plot_baseline_craftax_comparison(
+  group_name,
+  baseline_scores,
+  model_name="Multitask Preplay",
+  xlabel_score="Score",
+  xlabel_geometric="Geometric Score",
+  title="CraftAx Performance Comparison",
+  figsize=(10, 5),
+  save_path=None,
+):
   """Create a 2-panel bar graph comparing model performance with baselines.
-  
+
   Args:
       group_name (str): The W&B group name to download data from
       baseline_scores (dict): Dictionary of baseline scores with format:
@@ -671,99 +679,137 @@ def plot_baseline_craftax_comparison(group_name, baseline_scores, model_name="Mu
       title (str): Overall figure title
       figsize (tuple): Figure size
       save_path (str): Path to save the figure (optional)
-      
+
   Returns:
       fig, (ax1, ax2): Figure and axes objects
   """
   # Get scores from the group
   model_scores = get_best_scores_from_group(group_name)
-  
+
   # Create figure with 2 subplots
   fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
-  
+
   # Prepare data for plotting
   # Use custom names if provided, otherwise use keys
-  all_model_names = [model_name] + [baseline_scores[m].get('name', m) for m in baseline_scores]
-  scores_mean = [model_scores['score']['mean']] + [baseline_scores[m]['score']['mean'] for m in baseline_scores]
-  scores_sem = [model_scores['score']['sem']] + [baseline_scores[m]['score'].get('sem', 0) for m in baseline_scores]
-  
-  geometric_mean = [model_scores['geometric_score']['mean']]
-  geometric_sem = [model_scores['geometric_score']['sem']]
+  all_model_names = [model_name] + [
+    baseline_scores[m].get("name", m) for m in baseline_scores
+  ]
+  scores_mean = [model_scores["score"]["mean"]] + [
+    baseline_scores[m]["score"]["mean"] for m in baseline_scores
+  ]
+  scores_sem = [model_scores["score"]["sem"]] + [
+    baseline_scores[m]["score"].get("sem", 0) for m in baseline_scores
+  ]
+
+  geometric_mean = [model_scores["geometric_score"]["mean"]]
+  geometric_sem = [model_scores["geometric_score"]["sem"]]
   geometric_model_names = [model_name]
   geometric_unavailable = [False]  # Track which values are unavailable
-  
+
   for m in baseline_scores:
-    if baseline_scores[m]['geometric_score']['mean'] is not None:
-      geometric_mean.append(baseline_scores[m]['geometric_score']['mean'])
-      geometric_sem.append(baseline_scores[m]['geometric_score'].get('sem', 0))
+    if baseline_scores[m]["geometric_score"]["mean"] is not None:
+      geometric_mean.append(baseline_scores[m]["geometric_score"]["mean"])
+      geometric_sem.append(baseline_scores[m]["geometric_score"].get("sem", 0))
       geometric_unavailable.append(False)
     else:
       # Include models without geometric score but set to 0
       geometric_mean.append(0)
       geometric_sem.append(0)
       geometric_unavailable.append(True)
-    geometric_model_names.append(baseline_scores[m].get('name', m))
-  
+    geometric_model_names.append(baseline_scores[m].get("name", m))
+
   # Define colors - use custom colors if provided
-  colors = [model_colors.get('preplay', default_colors['nice purple'])]
+  colors = [model_colors.get("preplay", default_colors["nice purple"])]
   for m in baseline_scores:
-    colors.append(baseline_scores[m].get('color', default_colors['light gray']))
-  
-  geometric_colors = [model_colors.get('preplay', default_colors['nice purple'])]
+    colors.append(baseline_scores[m].get("color", default_colors["light gray"]))
+
+  geometric_colors = [model_colors.get("preplay", default_colors["nice purple"])]
   for m in baseline_scores:
-    geometric_colors.append(baseline_scores[m].get('color', default_colors['light gray']))
-  
+    geometric_colors.append(
+      baseline_scores[m].get("color", default_colors["light gray"])
+    )
+
   # Plot score panel
   x_pos = np.arange(len(all_model_names))
-  bars1 = ax1.bar(x_pos, scores_mean, yerr=scores_sem, capsize=5, color=colors, alpha=0.8)
+  bars1 = ax1.bar(
+    x_pos, scores_mean, yerr=scores_sem, capsize=5, color=colors, alpha=0.8
+  )
   ax1.set_xticks(x_pos)
-  ax1.set_xticklabels(all_model_names, rotation=45, ha='right')
-  ax1.set_title('(A) % Maximum Reward', fontsize=DEFAULT_YLABEL_SIZE)
-  #ax1.set_title(xlabel_score, fontsize=DEFAULT_TITLE_SIZE)
+  ax1.set_xticklabels(all_model_names, rotation=45, ha="right")
+  ax1.set_title("(A) % Maximum Reward", fontsize=DEFAULT_YLABEL_SIZE)
+  # ax1.set_title(xlabel_score, fontsize=DEFAULT_TITLE_SIZE)
   ax1.set_ylim(0, 8)
-  ax1.grid(True, alpha=0.3, axis='y')
-  
+  ax1.grid(True, alpha=0.3, axis="y")
+
   # Add value labels on top of bars
   for i, (bar, mean, sem) in enumerate(zip(bars1, scores_mean, scores_sem)):
     height = bar.get_height()
-    ax1.text(bar.get_x() + bar.get_width()/2., height + sem + 0.1,
-             f'{mean:.2f}', ha='center', va='bottom', fontsize=10)
-  
+    ax1.text(
+      bar.get_x() + bar.get_width() / 2.0,
+      height + sem + 0.1,
+      f"{mean:.2f}",
+      ha="center",
+      va="bottom",
+      fontsize=10,
+    )
+
   # Plot geometric score panel
   x_pos_geom = np.arange(len(geometric_model_names))
-  bars2 = ax2.bar(x_pos_geom, geometric_mean, yerr=geometric_sem, capsize=5, color=geometric_colors, alpha=0.8)
+  bars2 = ax2.bar(
+    x_pos_geom,
+    geometric_mean,
+    yerr=geometric_sem,
+    capsize=5,
+    color=geometric_colors,
+    alpha=0.8,
+  )
   ax2.set_xticks(x_pos_geom)
-  ax2.set_xticklabels(geometric_model_names, rotation=45, ha='right')
-  ax2.set_title('(B) Geometric Score', fontsize=DEFAULT_YLABEL_SIZE)
-  #ax2.set_title(xlabel_geometric, fontsize=DEFAULT_TITLE_SIZE)
+  ax2.set_xticklabels(geometric_model_names, rotation=45, ha="right")
+  ax2.set_title("(B) Geometric Score", fontsize=DEFAULT_YLABEL_SIZE)
+  # ax2.set_title(xlabel_geometric, fontsize=DEFAULT_TITLE_SIZE)
   ax2.set_ylim(0, 3)
-  ax2.grid(True, alpha=0.3, axis='y')
-  
+  ax2.grid(True, alpha=0.3, axis="y")
+
   # Add value labels on top of bars
-  for i, (bar, mean, sem, unavail) in enumerate(zip(bars2, geometric_mean, geometric_sem, geometric_unavailable)):
+  for i, (bar, mean, sem, unavail) in enumerate(
+    zip(bars2, geometric_mean, geometric_sem, geometric_unavailable)
+  ):
     height = bar.get_height()
     if unavail:
       # Show "unavailable" text for missing data
-      ax2.text(bar.get_x() + bar.get_width()/2., 0.05,
-               'unavailable', ha='center', va='bottom', fontsize=10, style='italic')
+      ax2.text(
+        bar.get_x() + bar.get_width() / 2.0,
+        0.05,
+        "unavailable",
+        ha="center",
+        va="bottom",
+        fontsize=10,
+        style="italic",
+      )
     else:
-      ax2.text(bar.get_x() + bar.get_width()/2., height + sem + 0.05,
-               f'{mean:.2f}', ha='center', va='bottom', fontsize=10)
-  
+      ax2.text(
+        bar.get_x() + bar.get_width() / 2.0,
+        height + sem + 0.05,
+        f"{mean:.2f}",
+        ha="center",
+        va="bottom",
+        fontsize=10,
+      )
+
   # Add overall title
   fig.suptitle(title, fontsize=DEFAULT_TITLE_SIZE + 2)
-  
+
   plt.tight_layout()
-  
+
   # Save if path provided
   if save_path:
     # Create directory if it doesn't exist
     save_dir = os.path.dirname(save_path)
     if save_dir:
       os.makedirs(save_dir, exist_ok=True)
-    plt.savefig(save_path, bbox_inches='tight', dpi=300)
+    plt.savefig(save_path, bbox_inches="tight", dpi=300)
     print(f"Saved figure to {save_path}")
-  
+
   return fig, (ax1, ax2)
 
 
@@ -871,25 +917,25 @@ if __name__ == "__main__":
   # Example usage of the new baseline comparison function
   # Define baseline scores
   baseline_scores = {
-    'TWM': {
-      'score': {'mean': 7.2, 'sem': 0.09},
-      'geometric_score': {'mean': 2.31, 'sem': 0.04},
-      'color': default_colors["google blue"],
-      'name': "Transformer World Model\n(Dedieu et al. 2025)",
+    "TWM": {
+      "score": {"mean": 7.2, "sem": 0.09},
+      "geometric_score": {"mean": 2.31, "sem": 0.04},
+      "color": default_colors["google blue"],
+      "name": "Transformer World Model\n(Dedieu et al. 2025)",
     },
-    'PPO-RNN': {
-      'score': {'mean': 2.3, 'sem': 0},
-      'geometric_score': {'mean': None, 'sem': None},  # Unavailable
-      'color': default_colors["bluish green"],
-      'name': "PPO-RNN\n(Matthews et al. 2024)",
-    }
+    "PPO-RNN": {
+      "score": {"mean": 2.3, "sem": 0},
+      "geometric_score": {"mean": None, "sem": None},  # Unavailable
+      "color": default_colors["bluish green"],
+      "name": "PPO-RNN\n(Matthews et al. 2024)",
+    },
   }
-  
+
   # Create baseline comparison plot
   fig, axes = plot_baseline_craftax_comparison(
     group_name="preplay-benchmark-10k-5",
     baseline_scores=baseline_scores,
     model_name="Multitask Preplay",
     title="CraftAx Performance: Multitask Preplay vs Baselines",
-    save_path=os.path.join(directory, "baseline_comparison.pdf")
+    save_path=os.path.join(directory, "baseline_comparison.pdf"),
   )

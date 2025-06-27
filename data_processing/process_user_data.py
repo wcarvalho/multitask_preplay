@@ -41,7 +41,7 @@ from housemaze.human_dyna import mazes
 from housemaze.human_dyna import web_env
 import data_configs
 
-from data_processing.utils import add_reuse_dicts_to_df
+from data_processing.utils import add_reuse_dicts_to_df, reorder_columns
 from data_processing import utils_jaxmaze
 from data_processing import utils_craftax
 from data_processing.utils import EpisodeData, load_episode_data
@@ -488,20 +488,37 @@ def generate_all_episodes_df(
 
   all_reuse_dicts = []
   all_overlap_dicts = []
+  all_corresponding_train_episode_idx = []
 
   for user_id in tqdm(
     all_episode_df["user_id"].unique().to_list(), desc="Processing reuse per user"
   ):
     user_df_nicewebrl = temp_df.filter(user_id=user_id)
-    reuse_dict, overlap_dict = env_utils.add_reuse_columns(user_df_nicewebrl)
+    reuse_dict, overlap_dict, corresponding_train_episode_idx = env_utils.add_reuse_columns(user_df_nicewebrl)
     all_reuse_dicts.append(reuse_dict)
     all_overlap_dicts.append(overlap_dict)
+    all_corresponding_train_episode_idx.append(corresponding_train_episode_idx)
 
   # Use our utility function to add the columns
   all_episode_df = add_reuse_dicts_to_df(
-    all_episode_df, all_reuse_dicts, all_overlap_dicts
+    all_episode_df, all_reuse_dicts, all_overlap_dicts, all_corresponding_train_episode_idx
   )
-
+  all_episode_df = reorder_columns(
+    all_episode_df, front_cols=[
+      "domain",
+      "algo",
+      "user_id",
+      "manipulation",
+      "world",
+      "eval",
+      "block_name",
+      "global_episode_idx",
+      "corresponding_train_episode_idx",
+      "success",
+      "overlap",
+      "condition",
+      "task_set",
+      ])
   if hasattr(env_utils, "finish_preparing_human_dataframe"):
     all_episode_df = env_utils.finish_preparing_human_dataframe(all_episode_df)
 
