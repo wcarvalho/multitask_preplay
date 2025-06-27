@@ -58,6 +58,7 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
     with open(cache_path, "rb") as f:
       print(f"Loading cached user IDs from {cache_path}")
       unique_user_ids = pickle.load(f)
+      print(unique_user_ids[:10])
 
     # Filter dataframe to only include rows with those user IDs
     df_filtered = df.filter(pl.col("user_id").is_in(unique_user_ids))
@@ -74,6 +75,7 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
   unique_user_ids = df["user_id"].unique(maintain_order=True).to_list()
   unique_user_ids = unique_user_ids[: min(100, len(unique_user_ids))]
   print(f"Adding {len(unique_user_ids)} users")
+  print(unique_user_ids[:10])
 
   # Save to cache
   os.makedirs(os.path.dirname(cache_path), exist_ok=True)

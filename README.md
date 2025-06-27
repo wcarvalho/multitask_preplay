@@ -73,7 +73,26 @@ The root directory for all results is set in `data_configs.py` with the `DIRECTO
 
 **Model and Participant Data**
 ```
-data_jaxmaze/
+# processed data
+data/jaxmaze/final/
+- bfs_episode_df.csv
+- dfs_episode_df.csv
+- dyna_episode_df.csv
+- human_data_episode_df.csv
+- preplay_episode_df.csv
+- qlearning_episode_df.csv
+- usfa_episode_df.csv
+
+data/craftax/final/
+- dyna_episode_df.csv
+- human_data_episode_df.csv
+- preplay_episode_df.csv
+- qlearning_episode_df.csv
+- usfa_episode_df.csv
+
+
+# raw data
+data/jaxmaze/
 - human_data/
 - human_data_episodes.safetensor
 - human_data_episode_information.csv
@@ -87,7 +106,7 @@ data_jaxmaze/
 - qlearning_episode_information.csv
 ...
 
-data_craftax/
+data/craftax/
 - human_data/
 - human_data_episodes.safetensor
 - human_data_episode_information.csv

@@ -567,7 +567,7 @@ def get_human_data(
       output_data_path, "debug", "human_data_episode_metadata.json"
     )
     all_episodes_df_filename = os.path.join(
-      output_data_path, "debug", "human_data_episode_df.csv"
+      output_data_path, "debug", "human_data_episode_df.parquet"
     )
   else:
     all_episodes_data_filename = os.path.join(
@@ -577,7 +577,7 @@ def get_human_data(
       output_data_path, "final", "human_data_episode_metadata.json"
     )
     all_episodes_df_filename = os.path.join(
-      output_data_path, "final", "human_data_episode_df.csv"
+      output_data_path, "final", "human_data_episode_df.parquet"
     )
 
   print(f"GENERATING {all_episodes_df_filename}")
@@ -597,14 +597,10 @@ def get_human_data(
     and df_file_exists
   ):
     print(f"LOADING {all_episodes_df_filename}")
-    all_episodes_df = pl.read_csv(
-      all_episodes_df_filename,
-      null_values=["", "NaN", "nan"],
-      schema_overrides={"overlap": pl.Float64})
+    all_episodes_df = pl.read_parquet(all_episodes_df_filename)
     if load_df_only:
       return all_episodes_df
     else:
-      print(f"LOADING {all_episodes_data_filename}")
       all_episode_data = load_episode_data(
         filename=all_episodes_data_filename, example_timestep=example_timestep
       )
@@ -631,7 +627,7 @@ def get_human_data(
       debug=debug,
     )
     # Save updated episode info
-    all_episodes_df.write_csv(all_episodes_df_filename)
+    all_episodes_df.write_parquet(all_episodes_df_filename)
 
     if load_df_only:
       return all_episodes_df
@@ -696,7 +692,7 @@ def get_human_data(
     )
 
     # Save episode dataframe
-    all_episodes_df.write_csv(all_episodes_df_filename)
+    all_episodes_df.write_parquet(all_episodes_df_filename)
 
     if load_df_only:
       return all_episodes_df

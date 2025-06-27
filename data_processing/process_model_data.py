@@ -745,7 +745,7 @@ def generate_model_data(
       output_data_path, "debug", f"{model_name}_episode_metadata.safetensor"
     )
     all_episodes_df_filename = os.path.join(
-      output_data_path, "debug", f"{model_name}_episode_df.csv"
+      output_data_path, "debug", f"{model_name}_episode_df.parquet"
     )
   else:
     all_episodes_data_filename = os.path.join(
@@ -755,7 +755,7 @@ def generate_model_data(
       output_data_path, "final", f"{model_name}_episode_metadata.safetensor"
     )
     all_episodes_df_filename = os.path.join(
-      output_data_path, "final", f"{model_name}_episode_df.csv"
+      output_data_path, "final", f"{model_name}_episode_df.parquet"
     )
 
   os.makedirs(os.path.dirname(all_episodes_data_filename), exist_ok=True)
@@ -773,15 +773,10 @@ def generate_model_data(
     and (data_file_exists or load_df_only)
     and df_file_exists
   ):
-    all_episodes_df = pl.read_csv(
-      all_episodes_df_filename,
-      null_values=["", "NaN", "nan"],
-      schema_overrides={"overlap": pl.Float64}
-      )
+    all_episodes_df = pl.read_parquet(all_episodes_df_filename)
     if load_df_only:
       return all_episodes_df
     else:
-
       all_episode_data = load_episode_data(
         filename=all_episodes_data_filename, example_timestep=example_timestep
       )
@@ -816,7 +811,7 @@ def generate_model_data(
     )
 
     # Save updated episode info
-    all_episodes_df.write_csv(all_episodes_df_filename)
+    all_episodes_df.write_parquet(all_episodes_df_filename)
 
     if load_df_only:
       return all_episodes_df
@@ -873,7 +868,7 @@ def generate_model_data(
     )
 
     # Save episode dataframe
-    all_episodes_df.write_csv(all_episodes_df_filename)
+    all_episodes_df.write_parquet(all_episodes_df_filename)
 
     if load_df_only:
       return all_episodes_df

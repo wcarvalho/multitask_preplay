@@ -30,11 +30,11 @@ def download_data(
   # Save each split as CSV
   for split_name, split_data in dataset.items():
 
-    filename = os.path.join(data_dir, "final", f"{split_name}_episode_df.csv")
+    filename = os.path.join(data_dir, "final", f"{split_name}_episode_df.parquet")
     if os.path.exists(filename):
       print(f"Skipping {split_name} data because it already exists")
       continue
-    split_data.to_pandas().to_csv(filename, index=False)
+    split_data.to_polars().write_parquet(filename)
     print(f"Saved {split_name} data to {filename}")
 
 

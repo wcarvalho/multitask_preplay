@@ -97,13 +97,21 @@ def add_to_file(stats_file, algo, label, text):
   with open(yaml_file, "w") as f:
     yaml.dump(data, f, default_flow_style=False)
 
+def filter_null(df, column):
+  return df.filter(~pl.col(column).is_nan()).filter(~pl.col(column).is_null())
+
 def add_reuse_column(df, reuse_column, overlap_threshold):
-  df = df.filter(pl.col("overlap").is_not_null())
+  global_episode_idx = df["global_episode_idx"].unique().to_list()
+  df = filter_null(df, "overlap")
   df = df.with_columns(
     (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
   )
   df = df.filter(pl.col(reuse_column) != -1)
-  df = df.filter(pl.col("success").is_not_null() & pl.col(reuse_column).is_not_null())
+  df = filter_null(df, "success")
+  df = filter_null(df, reuse_column)
+  new_global_episode_idx = df["global_episode_idx"].unique().to_list()
+  removed_global_episode_idx = set(global_episode_idx) - set(new_global_episode_idx)
+  print(f"Removed {len(removed_global_episode_idx)} global episode indices")
   return df
 
 ######################################

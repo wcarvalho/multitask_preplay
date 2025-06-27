@@ -27,7 +27,7 @@ def save_df(human_df, models, model_path, dataset_name, commit_message="Saving d
   
   datasets = {}
   for model in models:
-    model_df = pl.read_csv(f"{model_path}/final/{model}_episode_df.csv")
+    model_df = pl.read_parquet(f"{model_path}/final/{model}_episode_df.parquet")
     datasets[model] = Dataset.from_dict(model_df.to_dict(as_series=False))
 
   # Push to hub
