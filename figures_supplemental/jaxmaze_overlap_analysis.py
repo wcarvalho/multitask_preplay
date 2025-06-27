@@ -42,7 +42,7 @@ def visualize_examples_by_reuse(
   manipulation_name = manipulation_id
 
   # Create directory structure
-  output_dir = f"{data_configs.DIRECTORY}/figures/jaxmaze_overlap_analysis/{manipulation_name}_{threshold}/{model}"
+  output_dir = f"{data_configs.JAXMAZE_OVERLAP_ANALYSIS_DIR}/{manipulation_name}_{threshold}/{model}"
 
   # Delete existing directory to remove old data
   import shutil

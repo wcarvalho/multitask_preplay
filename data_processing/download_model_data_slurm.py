@@ -153,8 +153,7 @@ if __name__ == "__main__":
       model_dirs={
         # "qlearning": "ql-final/save_data/ql-final-rotations-2/exp=exp4",
         # "sf": "usfa-final/save_data/usfa-final-rotations-2/euxp=exp4",
-        "dyna": "dyna-final/save_data/dyna-final-rotations-4/alg=dyna,exp=exp4",
-        # # STOPPED "preplay": "preplay-old-final/save_data/preplay-old-final-rotations-4/alg=dynaq_shared,exp=exp4",
+        #"dyna": "dyna-final/save_data/dyna-final-rotations-4/alg=dyna,exp=exp4",
         # "preplay-new": "preplay-final/save_data/preplay-final-rotations-5/alg=preplay,simu=15,exp=exp4",
       },
       model_names=model_names,

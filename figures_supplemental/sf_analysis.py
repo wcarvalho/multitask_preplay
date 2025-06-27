@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import jax.numpy as jnp
 
-from configs import DIRECTORY
+from data_configs import DIRECTORY, JAXMAZE_SF_DIR
 from analysis.housemaze_model_data import get_usfa_data
 from nicewebrl.dataframe import concat_list
 from analysis import housemaze_utils
@@ -47,7 +47,7 @@ def get_sf_df(
   return sf_dfs
 
 
-directory = f"{DIRECTORY}/sf_analysis/plots"
+directory = f"{JAXMAZE_SF_DIR}/plots"
 
 
 def save_figure(fig, filename):

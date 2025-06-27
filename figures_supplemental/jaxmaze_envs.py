@@ -12,7 +12,8 @@ import os.path
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
-from configs import default_colors, DIRECTORY
+from data_configs import JAXMAZE_ENV_FIGURES_DIR
+from plot_configs import default_colors
 
 TRAIN_COLOR = "red"
 EVAL_COLOR = default_colors["sky blue"]
@@ -199,7 +200,7 @@ def plot_single_and_rotations(base_name, plot_fn, save_figure_fn):
 
 
 if __name__ == "__main__":
-  directory = f"{DIRECTORY}/jaxmaze_env_figures"
+  directory = JAXMAZE_ENV_FIGURES_DIR
   os.makedirs(directory, exist_ok=True)
   save_figure = partial(save_figure, directory=directory)
 

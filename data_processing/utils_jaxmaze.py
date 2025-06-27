@@ -136,6 +136,7 @@ def make_human_episode_row_data(
   block_name = tuple([int(i) for i in reversal])
   condition = int(metadata.get("condition", 1 if metadata["eval"] else 0))
 
+  user_storage = metadata["user_storage"]
   row = dict(
     domain="jaxmaze",
     algo="human",
@@ -155,9 +156,14 @@ def make_human_episode_row_data(
     tell_reuse=tell_reuse,
     reversal=str(reversal),
     task_vector=str(timesteps.state.task_w[0]),
+    # Human specific
+    session_start=user_storage['session_start'],
+    session_duration=user_storage['session_duration'],
+    timezone=user_storage['env_vars']['TIMEZONE'],
   )
   row.update(metadata["user_data"])
   row.update(user_storage["user_info"])
+
   ##########
   # get experiment name from file
   ##########

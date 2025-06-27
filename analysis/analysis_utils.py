@@ -71,7 +71,7 @@ def add_to_file(stats_file, algo, label, text):
   base_filename = get_base_filename(stats_file.name)
 
   # Path to the YAML file
-  yaml_file = data_configs.PAPER_STATS_MODEL_FILE
+  yaml_file = data_configs.PAPER_STATS_FILE
 
   # Load existing YAML if it exists
   data = {}

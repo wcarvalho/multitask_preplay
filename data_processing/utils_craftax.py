@@ -166,6 +166,7 @@ def make_human_episode_row_data(
     train_objects = metadata["block_metadata"]["train_objects"]
     task_set = train_objects.index(task_object)
 
+  user_storage = metadata["user_storage"]
   row = dict(
     # shared across {human, model}, {craftax, jaxmaze}
     domain="craftax",
@@ -186,6 +187,10 @@ def make_human_episode_row_data(
     block=metadata["block_metadata"]["desc"],
     episode_idx=metadata["nepisodes"],
     task_vector=str(make_task_vector(timesteps)),
+    # Human specific
+    session_start=user_storage['session_start'],
+    session_duration=user_storage['session_duration'],
+    timezone=user_storage['env_vars']['TIMEZONE'],
   )
   row.update(metadata["user_data"])
 

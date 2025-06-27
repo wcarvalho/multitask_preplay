@@ -24,7 +24,7 @@ import craftax_experiment_configs
 
 
 def save_figure(fig, filename):
-  directory = f"{data_configs.DIRECTORY}/craftax_env_figures"
+  directory = data_configs.CRAFTAX_ENV_FIGURES_DIR
   os.makedirs(directory, exist_ok=True)
   # plt.savefig(os.path.join(directory, f"{filename}.png"), bbox_inches='tight', dpi=300)
   plt.savefig(os.path.join(directory, f"{filename}.pdf"), bbox_inches="tight", dpi=300)

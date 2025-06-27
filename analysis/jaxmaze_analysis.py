@@ -12,7 +12,6 @@ import polars as pl
 import os.path
 
 from housemaze.human_dyna import utils
-from data_processing.utils_jaxmaze import manipulation_int_to_str
 
 
 from analysis import analysis_utils
@@ -50,6 +49,10 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
   # Create cache file path
   cache_path = os.path.join(data_configs.CACHE_DIR, f"{analysis_name}_user_ids.pkl")
 
+  # Compute user IDs if cache doesn't exist or failed to load
+  print("Num initial users: ", num_users(df))
+
+
   # Try to load cached user IDs
   if os.path.exists(cache_path):
     with open(cache_path, "rb") as f:
@@ -61,13 +64,14 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
     print("Num users after cache filter: ", num_users(df_filtered))
     return df_filtered, unique_user_ids
 
-  # Compute user IDs if cache doesn't exist or failed to load
-  print("Num initial users: ", num_users(df))
 
   df = df.filter(min_train_success=True, eval=True)
   print("Num initial users after success filter: ", num_users(df))
 
-  unique_user_ids = list(df["user_id"].unique())
+  # sort by 'session_start' column so earlier is first
+  # columns resemble "2025-03-04T21:37:47.918051"
+  df = df.sort("session_start")
+  unique_user_ids = df["user_id"].unique(maintain_order=True).to_list()
   unique_user_ids = unique_user_ids[: min(100, len(unique_user_ids))]
   print(f"Adding {len(unique_user_ids)} users")
 
@@ -359,25 +363,6 @@ def path_reuse_results(
 
   # Close stats file at the end
   stats_file.close()
-
-
-def sf_analysis_results(
-  model_df: DataFrame,
-  save_dir: str = None,
-  display_figs: bool = False,
-  save_figs: bool = True,
-):
-  save_dir = save_dir or data_configs.JAXMAZE_RESULTS_DIR
-  sf_episodes = model_df.filter(world="big_m3_maze1", eval=False, algo="usfa")
-  fig, ax = plot_sf_values(
-    sf_episodes.episodes[0], plot_q_values=False, figsize=(5, 4), idxs=[0]
-  )
-  if save_figs:
-    fig.savefig(os.path.join(save_dir, "sf_predictions_plots.pdf"), bbox_inches="tight")
-  if display_figs:
-    from IPython.display import display
-
-    display(fig)
 
 
 def juncture_results(
@@ -689,7 +674,10 @@ def start_results(
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
-    user_df.filter(manipulation="start", tell_reuse=tell_reuse),
+    user_df.filter(
+      manipulation="start",
+      eval=True,
+      tell_reuse=tell_reuse),
     analysis_name="start_results",
   )
 

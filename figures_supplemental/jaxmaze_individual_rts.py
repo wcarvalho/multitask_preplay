@@ -24,7 +24,7 @@ import data_configs
 
 
 def save_figure(fig, filename, directory=None):
-  directory = directory or f"{data_configs.DIRECTORY}/jaxmaze_individual_rts"
+  directory = directory or data_configs.JAXMAZE_INDIVIDUAL_RTS_DIR
   os.makedirs(directory, exist_ok=True)
   # plt.savefig(os.path.join(directory, f"{filename}.png"), bbox_inches='tight', dpi=300)
   plt.savefig(os.path.join(directory, f"{filename}.pdf"), bbox_inches="tight", dpi=300)
