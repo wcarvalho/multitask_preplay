@@ -75,7 +75,7 @@ python experiments/craftax/web_app.py SAY_REUSE=0
 
 ## Data Folder Structure
 
-The root directory for all results is set in `data_configs.py` with the `DIRECTORY` variable. Change this to somewhere on your local machine.
+The root directory for all results is set in `data_configs.py` with the `DIRECTORY` variable.
 
 **General structure**
 ```
