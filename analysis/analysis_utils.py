@@ -314,7 +314,7 @@ def plot_bar_rt_comparison(
 
     # Create a unique cache key based on the analysis parameters
     cache_key = f"{rt_column}_{reuse_column}_{n_simulations}_{overlap_threshold}"
-    cache_path = os.path.join(data_configs.CACHE_DIR, f"statsfile.{cache_key}.pkl")
+    cache_path = os.path.join(data_configs.ANALYSIS_CACHE_DIR, f"statsfile.{cache_key}.pkl")
 
     if os.path.exists(cache_path) and not rereun_analysis:
       print(f"Loading cached results from {cache_path}")

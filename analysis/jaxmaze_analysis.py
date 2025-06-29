@@ -47,7 +47,7 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
     analysis_name = inspect.currentframe().f_back.f_code.co_name
 
   # Create cache file path
-  cache_path = os.path.join(data_configs.CACHE_DIR, f"{analysis_name}_user_ids.pkl")
+  cache_path = os.path.join(data_configs.ANALYSIS_CACHE_DIR, f"{analysis_name}_user_ids.pkl")
 
   # Compute user IDs if cache doesn't exist or failed to load
   print("Num initial users: ", num_users(df))

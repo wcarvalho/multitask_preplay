@@ -14,7 +14,10 @@ DIRECTORY = os.environ.get(
   "MULTITASK_PREPLAY_DATA_DIR", "../preplay_results"
 )
 
+
 CACHE_DIR = os.path.join(DIRECTORY, "cache")
+current_directory = os.path.dirname(os.path.abspath(__file__))
+ANALYSIS_CACHE_DIR = os.path.join(current_directory, "analysis", "cache")
 
 # Data directories
 JAXMAZE_DATA_DIR = os.path.join(DIRECTORY, "data", "jaxmaze")
