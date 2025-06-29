@@ -28,9 +28,10 @@ source .venv/bin/activate
 ## Analysis on paper data
 
 **Settings directory for data**
-Either manually set the `DIRECTORY` variable in `data_configs.py` or set the environment variable `MULTITASK_PREPLAY_DATA_DIR`
+Either manually set the `DIRECTORY` variable in `data_configs.py` or set the environment variable `MULTITASK_PREPLAY_DATA_DIR`. Defaults to `../preplay_results`.
+
 ```bash
-export MULTITASK_PREPLAY_DATA_DIR="/path/to/their/data"
+export MULTITASK_PREPLAY_DATA_DIR="/path/to/data"
 ```
 
 Use the following notebooks for getting plots:
@@ -48,15 +49,16 @@ Note: before running a new experiment you want to delete `.nicegui`
 # Two Paths Manipulation (prediction 1)
 python experiments/jaxmaze/web_app.py MAN="paths"
 
-# Juncture Manipulation (prediction 2)
-python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=1  # known goals
-python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=0  # unknown goals
+# Shortcut Manipulation (prediction 2)
+python experiments/jaxmaze/web_app.py MAN="shortcut"
+
 
 # Start Manipulation (prediction 3)
 python experiments/jaxmaze/web_app.py MAN="start"
 
-# Shortcut Manipulation (prediction 4)
-python experiments/jaxmaze/web_app.py MAN="shortcut"
+# Juncture Manipulation (prediction 4)
+python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=1  # known goals
+python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=0  # unknown goals
 ```
 
 **Craftax experiment**
@@ -74,10 +76,28 @@ python experiments/craftax/web_app.py SAY_REUSE=0
 ## Data Folder Structure
 
 The root directory for all results is set in `data_configs.py` with the `DIRECTORY` variable. Change this to somewhere on your local machine.
-**Results**
 
+**General structure**
+```
+paper_stats.yaml                # yaml with stats from all run analyses
+data/
+├── jaxmaze/
+└── craftax/
+results/
+├── jaxmaze/                    # JaxMaze cog sci results
+├── craftax/                    # Craftax cog sci results
+└── craftax_ai/                 # Craftax AI simulations
+analysis_figures/
+├── craftax_overlap_analysis/
+├── jaxmaze_individual_rts/
+├── jaxmaze_overlap_analysis/
+└── jaxmaze_sf_analysis/
+env_figures/
+├── craftax/
+└── jaxmaze/
+```
 
-**Model and Participant Data**
+**Processed Model and Participant Data**
 ```
 # processed data
 data/jaxmaze/final/
@@ -95,8 +115,11 @@ data/craftax/final/
 - preplay_episode_df.csv
 - qlearning_episode_df.csv
 - usfa_episode_df.csv
+```
 
 
+**Raw Model and Participant Data**
+```
 # raw data
 data/jaxmaze/
 - human_data/
