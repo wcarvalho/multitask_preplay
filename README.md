@@ -9,7 +9,7 @@ This repository is the official implementation of [Preemptive Solving of Future 
 * [Running simulations](https://github.com/wcarvalho/preplay-AI/tree/main)
 * [Data folder structure](#data-folder-structure)
 
-<img src="assets/algo.png" alt="Comparison Image" style="width: 100%; max-width: 800px;">
+<img src="assets/algo.png" alt="Comparison Image" style="width: 50%; max-width: 800px;">
 
 
 ## Install
