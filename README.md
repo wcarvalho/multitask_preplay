@@ -6,6 +6,7 @@ This repository is the official implementation of [Preemptive Solving of Future 
 * [Install](#install)
 * [Running analysis on existing data](#analysis-on-paper-data)
 * [Running web experiments](#running-web-experiments)
+* [Running simulations](https://github.com/wcarvalho/preplay-AI/tree/main)
 * [Data folder structure](#data-folder-structure)
 
 
