@@ -34,7 +34,7 @@ def download_data(
     if os.path.exists(filename):
       print(f"Skipping {split_name} data because it already exists")
       continue
-    split_data.to_polars().write_parquet(filename)
+    split_data.to_pandas().to_parquet(filename)
     print(f"Saved {split_name} data to {filename}")
 
 

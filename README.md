@@ -11,11 +11,17 @@ This repository is the official implementation of [Preemptive Solving of Future 
 
 ## Install
 ```bash
+
+# clone with submodules (needed for simulation folder)
+git clone --recurse-submodules https://github.com/wcarvalho/multitask_preplay.git
+cd multitask_preplay
+
+
 # Install uv if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create environment and install dependencies with uv
-uv sync -e
+uv sync
 source .venv/bin/activate
 ```
 

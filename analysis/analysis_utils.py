@@ -1104,7 +1104,6 @@ def compute_binary_measure_statistics(
   group_means = df.group_by(group_col).agg(
     rate=pl.col(measure).mean(), n_trials=pl.col(measure).count()
   )
-  #import pdb; pdb.set_trace()
 
   rates = group_means["rate"].to_numpy()
   n_groups = len(rates)
@@ -1168,6 +1167,8 @@ def compute_binary_measure_statistics(
     d = (p_obs - mu) / (1e-5 + np.std(rates, ddof=1))
     effect_size = {"name": "Cohen's d", "value": d}
 
+    z_stat = 0
+    w_stat = 0
     test_name = "One-sample t-test"
     test_stat = t_stat
     df = n_groups - 1  # Degrees of freedom for one-sample t-test
@@ -1176,9 +1177,13 @@ def compute_binary_measure_statistics(
     # One-sided Wilcoxon signed-rank test
     w_stat, p_value = stats.wilcoxon(rates - mu, alternative="greater")
 
+    n = len(rates)
+    expected_w = n * (n + 1) / 4
+    variance_w = n * (n + 1) * (2 * n + 1) / 24
+    z_stat = (w_stat - expected_w) / np.sqrt(variance_w)
+
     # Calculate r effect size (correlation coefficient) for Wilcoxon test
-    z = stats.norm.ppf(1 - p_value)  # Convert p-value to Z score
-    r = z / np.sqrt(n_groups)  # Standardize by sample size
+    r = z_stat / np.sqrt(n)
     effect_size = {"name": "r", "value": r}
 
     test_name = "Wilcoxon signed-rank test"
@@ -1186,7 +1191,7 @@ def compute_binary_measure_statistics(
     df = n_groups - 1  # Using n-1 for consistency, though Wilcoxon doesn't use df
 
   # Prepare paper result text
-  paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], t({df})={test_stat:.2f}, p={p_value:.2g}"
+  paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], t({df})={test_stat:.2f}, Z={z_stat:.2f}, W={w_stat:.2f}, p={p_value:.2g}, is_normal={is_normal}"
 
   return {
     "n_groups": n_groups,
