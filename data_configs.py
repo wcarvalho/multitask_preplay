@@ -17,7 +17,7 @@ DIRECTORY = os.environ.get(
 
 CACHE_DIR = os.path.join(DIRECTORY, "cache")
 current_directory = os.path.dirname(os.path.abspath(__file__))
-ANALYSIS_CACHE_DIR = os.path.join(current_directory, "analysis", "cache")
+ANALYSIS_CACHE_DIR = os.path.join(current_directory, "analysis", "paper_results_cache")
 
 # Data directories
 JAXMAZE_DATA_DIR = os.path.join(DIRECTORY, "data", "jaxmaze")
