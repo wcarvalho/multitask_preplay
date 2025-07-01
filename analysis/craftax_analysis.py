@@ -65,58 +65,58 @@ def filter_to_str(filter: dict):
   return "".join([f"{k}={v}" for k, v in filter.items()])
 
 
-def get_path_reuse_df(
-  user_df: DataFrame,
-  tell_reuse: int = 1,
-  eval_map: bool = False,
-):
-  sub_df = user_df.filter_by_group(
-    input_episode_filter=analysis_utils.filter_train_by_min_success,
-    input_settings=dict(eval=False),
-    output_settings=dict(
-      manipulation="paths", tell_reuse=tell_reuse, eval_map=int(eval_map)
-    ),
-    group_key="user_id",
-  ).filter(eval=True)
-  sub_df = analysis_utils.fix_reuse_column(sub_df)
-  sub_df = sub_df.filter(
-    pl.col("success").is_not_null() & pl.col("reuse").is_not_null()
-  )
-  return sub_df
+#def get_path_reuse_df(
+#  user_df: DataFrame,
+#  tell_reuse: int = 1,
+#  eval_map: bool = False,
+#):
+#  sub_df = user_df.filter_by_group(
+#    input_episode_filter=analysis_utils.filter_train_by_min_success,
+#    input_settings=dict(eval=False),
+#    output_settings=dict(
+#      manipulation="paths", tell_reuse=tell_reuse, eval_map=int(eval_map)
+#    ),
+#    group_key="user_id",
+#  ).filter(eval=True)
+#  sub_df = analysis_utils.fix_reuse_column(sub_df)
+#  sub_df = sub_df.filter(
+#    pl.col("success").is_not_null() & pl.col("reuse").is_not_null()
+#  )
+#  return sub_df
 
 
-def path_similarity(path1, path2):
-  path1 = path1[-10:]
-  path2 = path2[-10:]
+#def path_similarity(path1, path2):
+#  path1 = path1[-10:]
+#  path2 = path2[-10:]
 
-  # Convert to direction vectors
-  def to_directions(path):
-    dirs = []
-    for i in range(len(path) - 1):
-      dx = path[i + 1][0] - path[i][0]
-      dy = path[i + 1][1] - path[i][1]
-      mag = (dx * dx + dy * dy) ** 0.5
-      if mag > 0:
-        dirs.append((dx / mag, dy / mag))
-    return dirs
+#  # Convert to direction vectors
+#  def to_directions(path):
+#    dirs = []
+#    for i in range(len(path) - 1):
+#      dx = path[i + 1][0] - path[i][0]
+#      dy = path[i + 1][1] - path[i][1]
+#      mag = (dx * dx + dy * dy) ** 0.5
+#      if mag > 0:
+#        dirs.append((dx / mag, dy / mag))
+#    return dirs
 
-  dirs1 = to_directions(path1)
-  dirs2 = to_directions(path2)
+#  dirs1 = to_directions(path1)
+#  dirs2 = to_directions(path2)
 
-  # Resample longer to match shorter
-  min_len = min(len(dirs1), len(dirs2))
-  if len(dirs1) > min_len:
-    step = len(dirs1) / min_len
-    dirs1 = [dirs1[int(i * step)] for i in range(min_len)]
-  elif len(dirs2) > min_len:
-    step = len(dirs2) / min_len
-    dirs2 = [dirs2[int(i * step)] for i in range(min_len)]
+#  # Resample longer to match shorter
+#  min_len = min(len(dirs1), len(dirs2))
+#  if len(dirs1) > min_len:
+#    step = len(dirs1) / min_len
+#    dirs1 = [dirs1[int(i * step)] for i in range(min_len)]
+#  elif len(dirs2) > min_len:
+#    step = len(dirs2) / min_len
+#    dirs2 = [dirs2[int(i * step)] for i in range(min_len)]
 
-  # Average dot product
-  dots = sum(d1[0] * d2[0] + d1[1] * d2[1] for d1, d2 in zip(dirs1, dirs2))
-  similarity = (dots / min_len + 1) / 2  # Map from [-1,1] to [0,1]
+#  # Average dot product
+#  dots = sum(d1[0] * d2[0] + d1[1] * d2[1] for d1, d2 in zip(dirs1, dirs2))
+#  similarity = (dots / min_len + 1) / 2  # Map from [-1,1] to [0,1]
 
-  return similarity
+#  return similarity
 
 
 def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
@@ -223,6 +223,7 @@ def plot_success_rate_path_reuse_metrics(
   legend_loc: str = "lower right",
   legend_ncol: int = 1,
   overlap_threshold: float = 0.15,
+  cosine_threshold: float = None,
 ) -> Tuple[plt.Figure, plt.Axes]:
   """Plot success rate vs path reuse as a 2D scatter plot with error bars.
 
@@ -261,13 +262,14 @@ def plot_success_rate_path_reuse_metrics(
     zip(tell_reuse_values, tell_reuse_labels, tell_reuse_markers)
   ):
     # Filter data for this tell_reuse value
-    filtered_df = df.filter(tell_reuse=tell_value, eval=True)
+    filtered_df = df.filter(tell_reuse=tell_value)
     human_data = analysis_utils.get_human_success_rate_path_reuse_data(
       df=filtered_df,
       overlap_threshold=overlap_threshold,
       reuse_column=reuse_column,
       stats_file=stats_file,
       label=label,
+      cosine_threshold=cosine_threshold,
     )
     all_data[label] = human_data["human"]
 
@@ -277,6 +279,7 @@ def plot_success_rate_path_reuse_metrics(
       overlap_threshold=overlap_threshold,
       reuse_column=reuse_column,
       stats_file=stats_file,
+      cosine_threshold=cosine_threshold,
     )
     all_data.update(model_data)
 
@@ -383,6 +386,340 @@ def plot_success_rate_path_reuse_metrics(
   return fig, ax
 
 
+def plot_success_rate_path_reuse_metrics_efficiency(
+  df: DataFrame,
+  model_df: DataFrame = None,
+  stats_file=None,
+  ax=None,
+  reuse_column: str = "reuse",
+  title="Success Rate and Path Reuse",
+  figsize=(8, 8),
+  legend_loc: str = "lower right",
+  legend_ncol: int = 1,
+  overlap_threshold: float = 0.15,
+  cosine_threshold: float = None,
+) -> Tuple[plt.Figure, plt.Axes]:
+  """Plot success rate vs path reuse as a 2D scatter plot with error bars, 
+  including suboptimal path splits.
+
+  Args:
+      df (DataFrame): DataFrame containing human data
+      model_df (DataFrame, optional): DataFrame containing model data. If None, only plots human data.
+      stats_file (file, optional): File to write statistics to
+      ax (plt.Axes, optional): Matplotlib axes to plot on. If None, creates new figure
+      reuse_column (str, optional): Column name for path reuse metric
+      title (str, optional): Plot title
+      figsize (tuple, optional): Figure size if creating new figure
+      legend_loc (str, optional): Location of the legend
+      legend_ncol (int, optional): Number of columns in the legend
+
+  Returns:
+      tuple: (fig, ax) containing the figure and axes object
+  """
+
+  # Create figure if needed
+  if ax is None:
+    fig, ax = plt.subplots(figsize=figsize)
+  else:
+    fig = ax.figure
+
+  # Prepare data for plotting
+  all_data = {}
+  
+  # Process human data for all combinations of tell_reuse and suboptimal_path
+  tell_reuse_values = [1, 0]
+  suboptimal_path_values = [False, True]
+  
+  # Define labels and markers for all 4 combinations
+  human_labels = []
+  human_filters = []
+  human_markers = []
+  human_colors_list = []
+  
+  # Define color scheme for human data
+  human_base_colors = {
+    1: plot_configs.default_colors["orange"],        # tell_reuse=1
+    0: plot_configs.default_colors["google blue"],   # tell_reuse=0
+  }
+  
+  # Define markers for suboptimal_path
+  suboptimal_markers = {
+    False: "o",  # circle for optimal
+    True: "s",   # square for suboptimal
+  }
+  
+  for tell_value in tell_reuse_values:
+    for suboptimal_value in suboptimal_path_values:
+      # Create label
+      goal_info = "known eval goal" if tell_value == 1 else "unknown eval goal"
+      path_info = "inefficient" if suboptimal_value else "efficient"
+      label = f"Human ({goal_info}, {path_info})"
+      
+      human_labels.append(label)
+      human_filters.append({"tell_reuse": tell_value, "suboptimal_path": suboptimal_value})
+      # Use "x" marker for efficient + unknown eval goal
+      if tell_value == 0 and not suboptimal_value:
+        human_markers.append("x")
+      else:
+        human_markers.append(suboptimal_markers[suboptimal_value])
+      
+      # Use lighter version of color for suboptimal paths
+      base_color = human_base_colors[tell_value]
+      if suboptimal_value:
+        # Make color lighter for suboptimal paths
+        import matplotlib.colors as mcolors
+        rgba = mcolors.to_rgba(base_color)
+        # Lighten by mixing with white
+        lightened = tuple(c * 0.7 + 0.3 for c in rgba[:3]) + (rgba[3],)
+        human_colors_list.append(lightened)
+      else:
+        human_colors_list.append(base_color)
+
+  # Process human data
+  for i, (label, filters, marker, color) in enumerate(
+    zip(human_labels, human_filters, human_markers, human_colors_list)
+  ):
+    # Filter data for this combination
+    filtered_df = df
+    for key, value in filters.items():
+      filtered_df = filtered_df.filter(**{key: value})
+    
+    human_data = analysis_utils.get_human_success_rate_path_reuse_data(
+      df=filtered_df,
+      overlap_threshold=overlap_threshold,
+      reuse_column=reuse_column,
+      stats_file=stats_file,
+      label=label,
+      cosine_threshold=cosine_threshold,
+    )
+    all_data[label] = human_data["human"]
+
+  # Process model data if provided
+  if model_df is not None:
+    model_data = analysis_utils.get_model_success_rate_path_reuse_data(
+      model_df=model_df.filter(eval=True),
+      overlap_threshold=overlap_threshold,
+      reuse_column=reuse_column,
+      stats_file=stats_file,
+      cosine_threshold=cosine_threshold,
+    )
+    all_data.update(model_data)
+
+  # Plot data points with error bars
+  marker_size = 100  # Default size for all scatter points
+
+  # First plot model data points if available
+  if model_df is not None:
+    ordered_keys = [k for k in analysis_utils.model_order if k in all_data]
+    for key in ordered_keys:
+      if any(label in key for label in human_labels):  # Skip if it's human data
+        continue
+
+      data = all_data[key]
+      color = model_colors[key]
+      xerr = analysis_utils.get_err(data, "reuse")
+      yerr = analysis_utils.get_err(data, "success")
+
+      ax.errorbar(
+        data["reuse"],
+        data["success"],
+        xerr=xerr,
+        yerr=yerr,
+        fmt="none",
+        color=color,
+        capsize=5,
+        capthick=2,
+        elinewidth=2,
+        zorder=2,
+      )
+
+      ax.scatter(
+        data["reuse"],
+        data["success"],
+        color=color,
+        s=marker_size,
+        label=analysis_utils.model_names[key],
+        zorder=3,
+      )
+
+  # Then plot human data points
+  for idx, (label, marker, color) in enumerate(
+    zip(human_labels, human_markers, human_colors_list)
+  ):
+    data = all_data[label]
+    xerr = analysis_utils.get_err(data, "reuse")
+    yerr = analysis_utils.get_err(data, "success")
+    
+    ax.errorbar(
+      data["reuse"],
+      data["success"],
+      xerr=xerr,
+      yerr=yerr,
+      fmt="none",
+      color=color,
+      capsize=5,
+      capthick=2,
+      elinewidth=2,
+      zorder=2,
+    )
+
+    ax.scatter(
+      data["reuse"],
+      data["success"],
+      color=color,
+      s=marker_size,
+      marker=marker,
+      label=label,
+      zorder=3,
+      linewidths=2,  # Make markers thicker for better visibility
+      edgecolors='black' if marker == 's' else color,  # Add black edge to squares for clarity
+      alpha=0.9,
+    )
+
+  # Customize axes
+  ax.set_xlabel("Path Reuse (%)", fontsize=analysis_utils.DEFAULT_LABEL_SIZE)
+  ax.set_ylabel("Success Rate (%)", fontsize=analysis_utils.DEFAULT_LABEL_SIZE)
+  ax.set_title(title, fontsize=analysis_utils.DEFAULT_TITLE_SIZE)
+
+  # Add chance level line for success rate
+  ax.axhline(y=50, color="r", linestyle="--", alpha=0.5, label="Chance level")
+  ax.axvline(x=50, color="r", linestyle="--", alpha=0.5)
+
+  # Set axis limits with some padding
+  ax.set_xlim(-5, 105)
+  ax.set_ylim(-5, 105)
+
+  # Add grid
+  ax.grid(True, linestyle="--", alpha=0.7)
+
+  # Add legend
+  ax.legend(
+    loc=legend_loc,
+    ncol=legend_ncol,
+    columnspacing=1,
+    handletextpad=0.5,
+    fontsize=analysis_utils.DEFAULT_LEGEND_SIZE,
+  )
+
+  return fig, ax
+
+
+def plot_efficiency(
+  df: DataFrame,
+  ax=None,
+  figsize=(10, 5),
+  title="Path Efficiency by Goal Knowledge",
+  bar_width=0.35,
+  ylabel="Proportion (%)",
+  show_values=True,
+) -> Tuple[plt.Figure, plt.Axes]:
+  """Plot bar graphs showing proportion of efficient vs inefficient paths.
+  
+  Creates 2 panels:
+  - Left: known eval goal (tell_reuse=1)
+  - Right: unknown eval goal (tell_reuse=0)
+  
+  Each panel shows bars for efficient and inefficient path proportions.
+  
+  Args:
+      df (DataFrame): DataFrame containing data with 'tell_reuse' and 'suboptimal_path' columns
+      ax (array of plt.Axes, optional): Array of 2 matplotlib axes. If None, creates new figure
+      figsize (tuple, optional): Figure size if creating new figure
+      title (str, optional): Overall figure title
+      stats_file (file, optional): File to write statistics to
+      bar_width (float, optional): Width of bars
+      ylabel (str, optional): Y-axis label
+      show_values (bool, optional): Whether to show percentage values on bars
+      
+  Returns:
+      tuple: (fig, axes) containing the figure and axes array
+  """
+  
+  # Create figure if needed
+  if ax is None:
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+  else:
+    axes = ax
+    fig = axes[0].figure
+  
+  # Define conditions and labels
+  tell_reuse_conditions = [1, 0]
+  panel_titles = ["Known Eval Goal", "Unknown Eval Goal"]
+  
+  # Process each tell_reuse condition
+  for idx, (tell_reuse_val, panel_title) in enumerate(zip(tell_reuse_conditions, panel_titles)):
+    ax = axes[idx]
+    
+    # Filter data for this condition
+    condition_df = df.filter(tell_reuse=tell_reuse_val, eval=True)
+    
+    # Calculate proportions
+    total_count = len(condition_df)
+    efficient_count = len(condition_df.filter(suboptimal_path=False))
+    inefficient_count = len(condition_df.filter(suboptimal_path=True))
+    
+    # Calculate percentages
+    if total_count > 0:
+      efficient_pct = (efficient_count / total_count) * 100
+      inefficient_pct = (inefficient_count / total_count) * 100
+    else:
+      efficient_pct = 0
+      inefficient_pct = 0
+
+    # Create bars
+    x_pos = np.arange(2)
+    bars = ax.bar(
+      x_pos,
+      [efficient_pct, inefficient_pct],
+      bar_width,
+      color=[
+        plot_configs.default_colors["bluish green"],  # Efficient
+        plot_configs.default_colors["nice purple"],   # Inefficient
+      ],
+      edgecolor='black',
+      linewidth=1.5,
+    )
+    
+    # Add value labels on bars if requested
+    if show_values:
+      for bar, value in zip(bars, [efficient_pct, inefficient_pct]):
+        height = bar.get_height()
+        ax.text(
+          bar.get_x() + bar.get_width() / 2.,
+          height,
+          f'{value:.1f}%',
+          ha='center',
+          va='bottom',
+          fontsize=10,
+        )
+    
+    # Customize subplot
+    ax.set_ylabel(ylabel, fontsize=analysis_utils.DEFAULT_LABEL_SIZE)
+    ax.set_title(panel_title, fontsize=analysis_utils.DEFAULT_TITLE_SIZE)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(['Efficient', 'Inefficient'], fontsize=analysis_utils.DEFAULT_LABEL_SIZE)
+    ax.set_ylim(0, 110)  # Add some space for value labels
+    ax.grid(True, axis='y', linestyle='--', alpha=0.3)
+    
+    # Add sample size annotation
+    ax.text(
+      0.5, 0.02,
+      f'n = {total_count}',
+      transform=ax.transAxes,
+      ha='center',
+      fontsize=10,
+      style='italic',
+    )
+  
+  # Add overall title
+  fig.suptitle(title, fontsize=analysis_utils.DEFAULT_TITLE_SIZE + 2)
+  
+  # Adjust layout
+  fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+  
+  return fig, axes
+
+
 def num_users(df):
   return len(df["user_id"].unique())
 
@@ -434,7 +771,7 @@ def filter_users_by_success_and_tell_reuse(df, analysis_name=None, **kwargs):
 
 
 def path_reuse_manipulation_analysis(
-  sub_df: DataFrame,
+  user_df: DataFrame,
   model_df: DataFrame,
   save_dir: str = None,
   save_figs: bool = True,
@@ -443,6 +780,7 @@ def path_reuse_manipulation_analysis(
   reuse_column: str = "reuse",
   legend_loc="upper left",
   overlap_threshold: float = 0.15,
+  cosine_threshold: float = None,
 ):
   ############################################################
   # Create stats file
@@ -450,15 +788,13 @@ def path_reuse_manipulation_analysis(
   save_dir = save_dir or data_configs.CRAFTAX_RESULTS_DIR
   save_dir = os.path.join(save_dir, "5.craftax_path_reuse_manipulation")
   os.makedirs(save_dir, exist_ok=True)
-  stats_file = os.path.join(save_dir, "5.craftax_path_reuse_stats.txt")
-  stats_file = open(stats_file, "w")
-  stats_file.write("Statistical Analysis\n\n")
+
 
   ############################################################
   # Plot success rate and path reuse
   ############################################################
   if reuse_column == "reuse":
-    title = "Path Reuse & Generalization Success Rate"
+    title = "Generalization Success & Path Reuse"
   else:
     title = "Efficient Path Reuse & Generalization Success Rate"
 
@@ -467,11 +803,17 @@ def path_reuse_manipulation_analysis(
   ############################################################
 
   # Filter dataframe to only include rows with those user IDs
-  sub_df, first_100_users = filter_users_by_success_and_tell_reuse(sub_df)
+  user_df, first_100_users = filter_users_by_success_and_tell_reuse(
+    user_df.filter(
+      eval_shares_start_pos=True,
+      eval=True,
+      )
+    )
 
-  # first plot when tell_reuse is 1
+  stats_file = os.path.join(save_dir, "5.craftax_path_reuse_stats.txt")
+  stats_file = open(stats_file, "w")
   fig, ax = plot_success_rate_path_reuse_metrics(
-    df=sub_df,
+    df=user_df,
     model_df=model_df,
     stats_file=stats_file,
     title=title,
@@ -479,42 +821,46 @@ def path_reuse_manipulation_analysis(
     figsize=(6, 4),
     legend_loc=legend_loc,
     overlap_threshold=overlap_threshold,
+    cosine_threshold=cosine_threshold,
   )
-  if reuse_column == "efficient_reuse":
-    ax.set_xlabel(
-      "Efficient Path Reuse (%)", fontsize=analysis_utils.DEFAULT_LABEL_SIZE
-    )
+  stats_file.close()
 
   if save_figs:
     fig.savefig(
       os.path.join(save_dir, "success_path_reuse.pdf"), bbox_inches="tight", dpi=300
     )
-    # fig.savefig(os.path.join(save_dir, "success_path_reuse.png"), bbox_inches="tight", dpi=300)
-  # if display_figs:
-  #  from IPython.display import display
-  #  display(fig)
 
-  #############################################################
-  ## Plot path length
-  #############################################################
-  # fig, ax = plt.subplots(figsize=(4, 4))
-  # experiment_analysis.plot_bar_rt_comparison(
-  # sub_df.filter(success=1),
-  # "path_length",
-  ##title="Path Length",
-  ##ylabel="Length",
-  ##xlabels=["New Path", "Partial Reuse"],
-  ##colors=[experiment_analysis.default_colors["nice purple"], experiment_analysis.default_colors["bluish green"]],
-  # n_simulations=n_simulations,
-  # stats_file=stats_file,
-  # ax=ax,
-  # )
-  # plt.show()
+  stats_file = os.path.join(save_dir, "5.craftax_path_reuse_stats_efficiency.txt")
+  stats_file = open(stats_file, "w")
 
+  fig, ax = plot_success_rate_path_reuse_metrics_efficiency(
+    df=user_df,
+    model_df=model_df,
+    stats_file=stats_file,
+    title=title,
+    reuse_column=reuse_column,
+    figsize=(6, 4),
+    legend_loc=legend_loc,
+    overlap_threshold=overlap_threshold,
+    cosine_threshold=cosine_threshold,
+  )
+
+  if save_figs:
+    fig.savefig(
+      os.path.join(save_dir, "success_path_reuse_efficiency.pdf"), bbox_inches="tight", dpi=300
+    )
   stats_file.close()
-  # if verbosity > 0:
-  #  with open(stats_filename, "r") as f:
-  #    print(f.read())
+
+  fig, ax = plot_efficiency(
+    df=user_df,
+    title=title,
+    figsize=(6, 4),
+  )
+  if save_figs:
+    fig.savefig(
+      os.path.join(save_dir, "efficiency.pdf"), bbox_inches="tight", dpi=300
+    )
+
 
 
 def plot_non_reuse_frequency_by_world_seed(

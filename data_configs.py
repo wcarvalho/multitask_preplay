@@ -37,7 +37,7 @@ JAXMAZE_ENV_FIGURES_DIR = os.path.join(ENV_FIGURES_DIR, "jaxmaze")
 CRAFTAX_ENV_FIGURES_DIR = os.path.join(ENV_FIGURES_DIR, "craftax")
 
 # Analysis figure directory
-ANALYSIS_FIGURES_DIR = os.path.join(DIRECTORY, "figures", "analysis_figures")
+ANALYSIS_FIGURES_DIR = os.path.join(DIRECTORY, "analysis_figures")
 JAXMAZE_INDIVIDUAL_RTS_DIR = os.path.join(ANALYSIS_FIGURES_DIR, "jaxmaze_individual_rts")
 JAXMAZE_SF_DIR = os.path.join(ANALYSIS_FIGURES_DIR, "jaxmaze_sf_analysis")
 JAXMAZE_OVERLAP_ANALYSIS_DIR = os.path.join(ANALYSIS_FIGURES_DIR, "jaxmaze_overlap_analysis")

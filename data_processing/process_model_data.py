@@ -981,6 +981,7 @@ def generate_all_episodes_df(all_episode_data, all_episode_metadata, env_name: s
   all_reuse_dicts = []
   all_overlap_dicts = []
   all_corresponding_train_episode_idx = []
+  all_cosine_dicts = []
 
   # Create a DataFrame for processing
   temp_df = nicewebrl.DataFrame(all_episode_df, all_episode_data)
@@ -993,16 +994,17 @@ def generate_all_episodes_df(all_episode_data, all_episode_metadata, env_name: s
     model_df = temp_df.filter(algo=model_name)
     for user_id in model_df["user_id"].unique().to_list():
       seed_df = model_df.filter(user_id=user_id)
-      reuse_dict, overlap_dict, corresponding_train_episode_idx = env_utils.add_model_reuse_columns(seed_df)
+      reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = env_utils.add_model_reuse_columns(seed_df)
 
       # Add to our collection (we'll combine them later)
       all_reuse_dicts.append(reuse_dict)
       all_overlap_dicts.append(overlap_dict)
       all_corresponding_train_episode_idx.append(corresponding_train_episode_idx)
+      all_cosine_dicts.append(cosine_dict)
 
   # Use our utility function to add the columns
   all_episode_df = add_reuse_dicts_to_df(
-    all_episode_df, all_reuse_dicts, all_overlap_dicts, all_corresponding_train_episode_idx
+    all_episode_df, all_reuse_dicts, all_overlap_dicts, all_corresponding_train_episode_idx, all_cosine_dicts
   )
   all_episode_df = reorder_columns(
     all_episode_df, front_cols=[

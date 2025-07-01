@@ -15,8 +15,8 @@ import itertools
 from data_configs import JAXMAZE_ENV_FIGURES_DIR
 from plot_configs import default_colors
 
-TRAIN_COLOR = "red"
-EVAL_COLOR = default_colors["sky blue"]
+TRAIN_COLOR = default_colors["sky blue"]
+EVAL_COLOR = "red"
 EVAL2_COLOR = "yellow"
 
 image_dict = utils.load_image_dict()

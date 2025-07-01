@@ -1,3 +1,4 @@
+from functools import partial
 import os
 import os.path
 import sys
@@ -12,7 +13,7 @@ from flax import serialization
 import polars as pl
 from simulations import craftax_experiment_configs  # human
 from simulations import craftax_simulation_configs  # model. derivative of human configs
-from data_processing.utils import get_in_episode, total_reward, success, path_length
+from data_processing.utils import get_in_episode, total_reward, success, path_length, get_overlap_dicts_model, get_overlap_dicts_human
 from simulations.craftax_web_env import (
   EnvParams,
   CraftaxSymbolicWebEnvNoAutoReset,
@@ -255,10 +256,10 @@ def fix_row(row):
   new_row = dict(row)
   if "world_seed" in row:
     world_seed = new_row["world_seed"]
-    new_row["world"] = f"world_{world_seed}"
+    new_row["world"] = str(world_seed)
 
   # same for this domain
-  new_row["block_name"] = new_row["world"]
+  new_row["block_name"] = str(new_row["world"])
 
   if "task" in new_row:
     new_row["task_object_id"] = new_row["task"]
@@ -331,45 +332,46 @@ def any_feature_achieved(episode_data):
   return achieved.any().astype(np.float32)
 
 
-def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
-  """maps: NxHxW, test_map: HxW"""
-  """Calculate the overlap between two maps."""
-  # Find the train episode with highest overlap
-  overlaps = []
-  for i, map in enumerate(maps):
-    if test_maps.ndim == 2:
-      overlap = compute_overlap(map, test_maps).mean()
-      overlaps.append(overlap)
-    else:
-      test_overlaps = []
-      for test_map in test_maps:
-        test_overlap = compute_overlap(map, test_map).mean()
-        test_overlaps.append(test_overlap)
-      min_overlap = np.min(test_overlaps)
-      if min_overlap < 0.15:
-        overlaps.append(0)
-      else:
-        overlaps.append(min_overlap)
+#def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
+#  """maps: NxHxW, test_map: HxW"""
+#  """Calculate the overlap between two maps."""
+#  # Find the train episode with highest overlap
+#  overlaps = []
+#  for i, map in enumerate(maps):
+#    if test_maps.ndim == 2:
+#      overlap = compute_overlap(map, test_maps).mean()
+#      overlaps.append(overlap)
+#    else:
+#      test_overlaps = []
+#      for test_map in test_maps:
+#        test_overlap = compute_overlap(map, test_map).mean()
+#        test_overlaps.append(test_overlap)
+#      min_overlap = np.min(test_overlaps)
+#      if min_overlap < 0.15:
+#        overlaps.append(0)
+#      else:
+#        overlaps.append(min_overlap)
 
-  # Select the train episode/map with highest overlap
-  best_idx = np.argmax(overlaps)
-  best_map = maps[best_idx]
-  best_overlap = overlaps[best_idx]
-  return best_idx, best_map, best_overlap
+#  # Select the train episode/map with highest overlap
+#  best_idx = np.argmax(overlaps)
+#  best_map = maps[best_idx]
+#  best_overlap = overlaps[best_idx]
+#  return best_idx, best_map, best_overlap
 
 
-def compute_overlap(map1: np.ndarray, map2: np.ndarray):
-  """map1: HxW, map2: HxW"""
-  """Calculate the overlap between two maps."""
+#def compute_overlap(map1: np.ndarray, map2: np.ndarray):
+#  """map1: HxW, map2: HxW"""
+#  """Calculate the overlap between two maps."""
 
-  shared_length = ((map2 + map1) * map2 > 1).sum()
-  map2_length = (map2 > 0).sum()
-  overlap = shared_length / map2_length
-  return overlap
+#  shared_length = ((map2 + map1) * map2 > 1).sum()
+#  map2_length = (map2 > 0).sum()
+#  overlap = shared_length / map2_length
+#  return overlap
 
 
 def create_maps(
-  episode_data_list, add_error=False, cut_middle=False, optimal_path=None
+  episode_data_list,
+  add_error=False,
 ):
   maps = []
 
@@ -395,19 +397,8 @@ def create_maps(
 
     # go through each position and set the corresponding index to 1
     positions = episode_data.positions[:-1]
-    if cut_middle:
-      if optimal_path is not None:
-        length = min(int(1.5 * len(optimal_path)), len(positions))
-        first_third = length // 3
-      else:
-        first_third = len(positions) // 3
-      grid = make_grid(positions[:first_third])
-      maps.append(grid)
-      grid = make_grid(positions[-first_third:])
-      maps.append(grid)
-    else:
-      grid = make_grid(positions)
-      maps.append(grid)
+    grid = make_grid(positions)
+    maps.append(grid)
 
   return np.array(maps)
 
@@ -423,60 +414,32 @@ def add_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> tuple:
       tuple: (reuse_dict, overlap_dict) dictionaries mapping (maze, global_episode_idx) to values
   """
   # Create dictionaries to store values
-  reuse_dict = {}
-  overlap_dict = {}
+  all_reuse_dict = {}
+  all_overlap_dict = {}
+  all_corresponding_train_episode_idx = {}
+  all_cosine_dict = {}
 
-  def update_reuse_dict(train_mazes, test_mazes):
-    for train_maze, test_maze in zip(train_mazes, test_mazes):
-      # Get train episodes
-      test = df.filter(maze=test_maze, eval=True)
-      if len(test) == 0:
-        print(f"No test episodes for {(train_maze, test_maze)}")
-        continue
-      start_pos = test["start_pos"].to_list()[0]
-
-      train = df.filter(
-        maze=train_maze, room=0, eval=False, success=1, start_pos=start_pos
-      )
-
-      if len(train.episodes) == 0:
-        print(f"No successful training episodes for {(train_maze, test_maze)}")
-        continue
-
-      # Create map for training episodes
-      train_maps = create_maps(train.episodes, add_error=True)
-
-      # Get test episodes
-
-      # Process each test episode
-      for idx, row in enumerate(test._df.iter_rows(named=True)):
-        global_index = row["global_episode_idx"]
-        episode = test.episodes[idx]
-        # Create map for single test episode
-        test_map = create_maps([episode], cut_middle=True)
-        best_idx, best_map, best_overlap = best_path_overlap(train_maps, test_map)
-
-        optimal_path = OPTIMAL_TEST_PATHS[row["world_seed"]]
-        ratio_optimal_test_path = len(episode.positions) / len(optimal_path)
-        above_ratio = ratio_optimal_test_path > 2.0
-        best_overlap = best_overlap * int(1 - above_ratio)
-        # Store both raw overlap and binary reuse values
-        episode_id = (test_maze, global_index)
-        overlap_dict[episode_id] = best_overlap
-        reuse_dict[episode_id] = int(best_overlap > overlap_threshold)
-
-  # all_mazes = df["name"].unique()
-  train_mazes = [f"paths_{i}_training" for i in range(4)]
-  test_mazes = [f"paths_{i}_eval1" for i in range(4)]
-  # train_mazes = sorted([m for m in all_mazes if "training" in m])
-  # test_mazes = sorted([m for m in all_mazes if "eval" in m])
-
-  # assert len(train_mazes) + len(test_mazes) == len(all_mazes)
-
-  update_reuse_dict(train_mazes, test_mazes)
+  for world in df["world"].unique():
+    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_human(
+      df,
+      train_maze=world,
+      test_maze=world,
+      overlap_threshold=0.15,
+      create_train_maps_fn=partial(create_maps, add_error=True),
+      create_test_maps_fn=partial(create_maps, add_error=False),
+    )
+    all_reuse_dict.update(reuse_dict)
+    all_overlap_dict.update(overlap_dict)
+    all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+    all_cosine_dict.update(cosine_dict) 
 
   # Return the dictionaries directly instead of converting to Series
-  return reuse_dict, overlap_dict
+  return (
+    all_reuse_dict,
+    all_overlap_dict,
+    all_corresponding_train_episode_idx,
+    all_cosine_dict,
+  )
 
 
 def compute_if_block_passed(block_success_counts):
@@ -611,4 +574,39 @@ def make_model_episode_row_data(episode, metadata):
   return row
 
 
-add_model_reuse_columns = add_reuse_columns  # same in this env for both
+def add_model_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> tuple:
+  """Add 'reuse' and 'overlap' columns to the DataFrame.
+
+  Args:
+      df (DataFrame): Input DataFrame
+      overlap_threshold (float, optional): Threshold for path reuse. Defaults to 0.15.
+
+  Returns:
+      tuple: (reuse_dict, overlap_dict) dictionaries mapping (maze, global_episode_idx) to values
+  """
+  # Create dictionaries to store values
+  all_reuse_dict = {}
+  all_overlap_dict = {}
+  all_corresponding_train_episode_idx = {}
+  all_cosine_dict = {}
+  
+  for world in df["world"].unique():
+    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_model(
+      df,
+      train_maze=world,
+      test_maze=world,
+      overlap_threshold=0.15,
+      create_train_maps_fn=partial(create_maps, add_error=True),
+      create_test_maps_fn=partial(create_maps, add_error=False),
+    )
+    all_reuse_dict.update(reuse_dict)
+    all_overlap_dict.update(overlap_dict)
+    all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+    all_cosine_dict.update(cosine_dict)
+
+  return (
+    all_reuse_dict,
+    all_overlap_dict,
+    all_corresponding_train_episode_idx,
+    all_cosine_dict,
+  )

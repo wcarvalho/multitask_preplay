@@ -119,39 +119,6 @@ def total_reward(e: EpisodeData):
   in_episode = get_in_episode(e.timesteps)
   return e.timesteps.reward[in_episode].sum()
 
-
-def create_maps(episode_data_list, start_pos=0):
-  maps = []
-  for episode_data in episode_data_list:
-    timesteps = episode_data.timesteps
-
-    # [T, H, W, 1]
-    # Assuming grid is 3D with time as first dimension
-    grid_shape = timesteps.state.grid.shape
-
-    # skip the time dimension and final channel dimension
-    grid = jnp.zeros(grid_shape[1:-1], dtype=jnp.int32)
-
-    # go through each position and set the corresponding index to 1
-    for pos in episode_data.positions[start_pos:]:
-      grid = grid.at[pos[0], pos[1]].set(1)
-    maps.append(grid)
-  return np.array(maps)
-
-
-#def compute_overlap(train_map: np.ndarray, test_map: np.ndarray):
-#  """train_map: HxW, test_map: HxW"""
-#  """Calculate the overlap between two maps."""
-#  nonzero_indices = np.argwhere(test_map > 0)
-#  values_train_map = (
-#    train_map[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0
-#  ).astype(np.float32)
-#  values_test_map = (test_map[nonzero_indices[:, 0], nonzero_indices[:, 1]] > 0).astype(
-#    np.float32
-#  )
-#  overlap = (values_train_map + values_test_map) > 1
-#  return overlap
-
 def compute_overlap(map1: np.ndarray, map2: np.ndarray):
   """map1: HxW, map2: HxW"""
   """Calculate the overlap between two maps."""
@@ -187,8 +154,47 @@ def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
   best_overlap = overlaps[best_idx]
   return best_idx, best_map, best_overlap
 
+def compute_average_vector_from_end(positions):
+  """Compute the average vector from the last half of the trajectory.
+  
+  Args:
+    positions: List of (x, y) positions
+    
+  Returns:
+    Tuple of (average_vector, vectors) where average_vector is (dx, dy)
+  """
 
-def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold):
+  
+  if len(positions) < 2:
+    return (0, 0), []
+  
+  # Calculate pairwise vectors from adjacent positions
+  vectors = []
+  for i in range(len(positions) - 1):
+    dy = -(positions[i + 1][0] - positions[i][0])
+    dx = positions[i + 1][1] - positions[i][1]
+    vectors.append((dx, dy))
+  
+  # Get the last half of vectors
+  vectors = np.array(vectors)
+
+  last_n = min(10, len(vectors)//3)
+  vector_end = vectors[-last_n:]
+
+  # Calculate average vector
+  avg_vector = np.mean(vector_end, axis=0)
+  avg_dx = avg_vector[0]
+  avg_dy = avg_vector[1]
+
+  return (avg_dx, avg_dy), vector_end
+
+def compute_cosine_similarity(train_positions, test_positions):
+  train_avg_vector, train_vectors = compute_average_vector_from_end(train_positions)
+  test_avg_vector, test_vectors = compute_average_vector_from_end(test_positions)
+  cosine = np.dot(train_avg_vector, test_avg_vector) / (np.linalg.norm(train_avg_vector) * np.linalg.norm(test_avg_vector) + 1e-5)
+  return cosine
+
+def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold, create_train_maps_fn=None, create_test_maps_fn=None):
   """Get reuse and overlap dictionaries for a given DataFrame.
 
   In human case, a block will have a single test episode but could have multiple corresponding train episodes.
@@ -196,6 +202,10 @@ def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold):
   overlap_dict = {}
   reuse_dict = {}
   corresponding_train_episode_idx = {}
+  cosine_dict = {}
+
+  if create_test_maps_fn is None:
+    create_test_maps_fn = create_train_maps_fn
 
   # Get unique users
   block_names = df.filter(world=test_maze)["block_name"].unique().to_list()
@@ -220,14 +230,14 @@ def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold):
       continue
 
     # Create map for training episodes
-    train_maps = create_maps(train.episodes)
+    train_maps = create_train_maps_fn(train.episodes)
 
     # Process each test episode
     for idx, row in enumerate(test._df.iter_rows(named=True)):
       global_index = row["global_episode_idx"]
       episode = test.episodes[idx]
       # Create map for single test episode
-      test_map = create_maps([episode]).sum(0)
+      test_map = create_test_maps_fn([episode]).sum(0)
       best_idx, best_map, best_overlap = best_path_overlap(train_maps, test_map)
       overlap_mean = best_overlap
 
@@ -236,11 +246,14 @@ def get_overlap_dicts_human(df, train_maze, test_maze, overlap_threshold):
       corresponding_train_episode_idx[episode_id] = train['global_episode_idx'].to_list()[best_idx]
       overlap_dict[episode_id] = overlap_mean
       reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
+      cosine_dict[episode_id] = compute_cosine_similarity(
+        train.episodes[best_idx].positions,
+        test.episodes[idx].positions)
 
-  return reuse_dict, overlap_dict, corresponding_train_episode_idx
+  return reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict
 
 
-def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
+def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold, create_train_maps_fn=None, create_test_maps_fn=None):
   """Get reuse and overlap dictionaries for a given DataFrame.
 
   In model case, a block will have a single test episode and a single corresponding train episode.
@@ -248,6 +261,10 @@ def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
   overlap_dict = {}
   reuse_dict = {}
   corresponding_train_episode_idx = {}
+  cosine_dict = {}
+
+  if create_test_maps_fn is None:
+    create_test_maps_fn = create_train_maps_fn
   # Get unique users
   block_names = df.filter(world=test_maze)["block_name"].unique().to_list()
   for block_name in block_names:
@@ -271,8 +288,8 @@ def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
       continue
 
     # Create map for training episodes
-    train_maps = create_maps(train.episodes)
-    test_maps = create_maps(test.episodes)
+    train_maps = create_train_maps_fn(train.episodes)
+    test_maps = create_test_maps_fn(test.episodes)
 
     # Process each test episode
     for idx, row in enumerate(test._df.iter_rows(named=True)):
@@ -289,11 +306,14 @@ def get_overlap_dicts_model(df, train_maze, test_maze, overlap_threshold):
       corresponding_train_episode_idx[episode_id] = train['global_episode_idx'].to_list()[idx]
       overlap_dict[episode_id] = overlap_mean
       reuse_dict[episode_id] = int(overlap_mean > overlap_threshold)
+      cosine_dict[episode_id] = compute_cosine_similarity(
+        train.episodes[idx].positions,
+        test.episodes[idx].positions)
 
-  return reuse_dict, overlap_dict, corresponding_train_episode_idx
+  return reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict
 
 
-def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts, all_corresponding_train_episode_idx):
+def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts, all_corresponding_train_episode_idx, all_cosine_dicts):
   """Add reuse and overlap columns to a DataFrame using the provided dictionaries.
 
   Args:
@@ -309,7 +329,7 @@ def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts, all_correspond
   final_reuse_dict = {k: v for d in all_reuse_dicts for k, v in d.items()}
   final_overlap_dict = {k: v for d in all_overlap_dicts for k, v in d.items()}
   final_corresponding_train_episode_idx = {k: v for d in all_corresponding_train_episode_idx for k, v in d.items()}
-
+  final_cosine_dict = {k: v for d in all_cosine_dicts for k, v in d.items()}
   return df.with_columns(
     [
       # For reuse column
@@ -337,6 +357,15 @@ def add_reuse_dicts_to_df(df, all_reuse_dicts, all_overlap_dicts, all_correspond
         return_dtype=pl.Int32,
       )
       .alias("corresponding_train_episode_idx"),
+      # For cosine similarity column
+      pl.struct(["world", "global_episode_idx"])
+      .map_elements(
+        lambda s: final_cosine_dict.get(
+          (s["world"], s["global_episode_idx"]), float("nan")
+        ),
+        return_dtype=pl.Float64,
+      )
+      .alias("train_test_cosine"),
     ]
   )
 

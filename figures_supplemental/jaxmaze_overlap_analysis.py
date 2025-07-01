@@ -1,3 +1,13 @@
+"""
+This script generates figures for the JaxMaze overlap analysis.
+
+Call from root directory with:
+python figures_supplemental/jaxmaze_overlap_analysis.py
+
+The figures are saved in the {data_configs.JAXMAZE_OVERLAP_ANALYSIS_DIR} directory.
+"""
+
+
 import sys
 import os
 

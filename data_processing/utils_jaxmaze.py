@@ -8,13 +8,8 @@ import numpy as np
 from flax import serialization
 from serialization import SerializationWrapper
 import polars as pl
-import functools
-from experiments.jaxmaze.experiment_utils import SuccessTrackingAutoResetWrapper
 
-from housemaze.human_dyna import utils
 from housemaze.human_dyna import mazes
-from housemaze.human_dyna import web_env
-from housemaze.human_dyna import multitask_env
 from housemaze.human_dyna import experiments as housemaze_experiments
 
 from data_processing.utils import (
@@ -238,28 +233,38 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
   all_reuse_dict = {}
   all_overlap_dict = {}
   all_corresponding_train_episode_idx = {}
+  all_cosine_dict = {}
 
-  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_human(
+  reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_human(
     df,
     train_maze="big_m3_maze1",
     test_maze="big_m3_maze1",
+    create_train_maps_fn=create_maps,
     overlap_threshold=0.5,
   )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
   all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+  all_cosine_dict.update(cosine_dict)
 
-  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_human(
+  reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_human(
     df,
     train_maze="big_m1_maze3",
     test_maze="big_m1_maze3_shortcut",
+    create_train_maps_fn=create_maps,
     overlap_threshold=0.7,
   )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
   all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+  all_cosine_dict.update(cosine_dict)
 
-  return all_reuse_dict, all_overlap_dict, all_corresponding_train_episode_idx
+  return (
+    all_reuse_dict,
+    all_overlap_dict,
+    all_corresponding_train_episode_idx,
+    all_cosine_dict,
+  )
 
 
 def compute_if_block_passed(block_success_counts):
@@ -497,25 +502,35 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
   all_reuse_dict = {}
   all_overlap_dict = {}
   all_corresponding_train_episode_idx = {}
+  all_cosine_dict = {}
 
-  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_model(
+  reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_model(
     df,
     train_maze="big_m3_maze1",
     test_maze="big_m3_maze1",
     overlap_threshold=0.5,
+    create_maps_fn=create_maps,
   )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
   all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+  all_cosine_dict.update(cosine_dict)
 
-  reuse_dict, overlap_dict, corresponding_train_episode_idx = get_overlap_dicts_model(
+  reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_model(
     df,
     train_maze="big_m1_maze3",
     test_maze="big_m1_maze3_shortcut",
     overlap_threshold=0.7,
-  )
+    create_maps_fn=create_maps,
+    )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
   all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
+  all_cosine_dict.update(cosine_dict)
 
-  return all_reuse_dict, all_overlap_dict, all_corresponding_train_episode_idx
+  return (
+    all_reuse_dict,
+    all_overlap_dict,
+    all_corresponding_train_episode_idx,
+    all_cosine_dict,
+  )

@@ -100,12 +100,33 @@ def add_to_file(stats_file, algo, label, text):
 def filter_null(df, column):
   return df.filter(~pl.col(column).is_nan()).filter(~pl.col(column).is_null())
 
-def add_reuse_column(df, reuse_column, overlap_threshold):
+def add_reuse_column(
+  df: pl.DataFrame,
+  reuse_column: str,
+  overlap_threshold: float,
+  cosine_threshold: float = None,
+):
   global_episode_idx = df["global_episode_idx"].unique().to_list()
   df = filter_null(df, "overlap")
-  df = df.with_columns(
-    (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
-  )
+  if cosine_threshold is not None:
+    df = filter_null(df, "train_test_cosine")
+    # overlap > threshold and train_test_cosine > threshold
+    df = df.with_columns(
+      (
+        (pl.col("overlap") > 2*overlap_threshold) |
+        (
+          (pl.col("overlap") > overlap_threshold) &
+          (pl.col("train_test_cosine") > cosine_threshold)
+        )
+      ).cast(pl.Float64).alias(reuse_column)
+    )
+  else:
+    # overlap > threshold
+    df = df.with_columns(
+      (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias(reuse_column)
+    )
+  df = df.filter(pl.col(reuse_column) != -1)
+
   df = df.filter(pl.col(reuse_column) != -1)
   df = filter_null(df, "success")
   df = filter_null(df, reuse_column)
@@ -639,9 +660,10 @@ def get_human_success_rate_path_reuse_data(
   reuse_column: str = "reuse",
   stats_file: str = None,
   label: str = "",
+  cosine_threshold: float = None,
 ) -> dict:
   # Add boolean "reuse" column based on overlap threshold
-  df = add_reuse_column(df, reuse_column, overlap_threshold)
+  df = add_reuse_column(df, reuse_column, overlap_threshold, cosine_threshold)
 
   # Calculate human success statistics
   human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
@@ -706,12 +728,13 @@ def get_model_success_rate_path_reuse_data(
   overlap_threshold: float,
   reuse_column: str = "reuse",
   stats_file: str = None,
+  cosine_threshold: float = None,
 ) -> dict:
   if model_df is None:
     return {}
 
   # Add boolean "reuse" column based on overlap threshold
-  model_df = add_reuse_column(model_df, reuse_column, overlap_threshold)
+  model_df = add_reuse_column(model_df, reuse_column, overlap_threshold, cosine_threshold)
 
   model_data = {}
 
@@ -1172,7 +1195,8 @@ def compute_binary_measure_statistics(
     test_name = "One-sample t-test"
     test_stat = t_stat
     df = n_groups - 1  # Degrees of freedom for one-sample t-test
-
+    # Prepare paper result text
+    paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], t({df})={test_stat:.2f}, p={p_value:.2g}, is_normal={is_normal}"
   else:
     # One-sided Wilcoxon signed-rank test
     w_stat, p_value = stats.wilcoxon(rates - mu, alternative="greater")
@@ -1189,9 +1213,9 @@ def compute_binary_measure_statistics(
     test_name = "Wilcoxon signed-rank test"
     test_stat = w_stat
     df = n_groups - 1  # Using n-1 for consistency, though Wilcoxon doesn't use df
+    # Prepare paper result text
+    paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], Z={z_stat:.2f}, r={r:.2f}, p={p_value:.2g}, is_normal={is_normal}"
 
-  # Prepare paper result text
-  paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], t({df})={test_stat:.2f}, Z={z_stat:.2f}, W={w_stat:.2f}, p={p_value:.2g}, is_normal={is_normal}"
 
   return {
     "n_groups": n_groups,
