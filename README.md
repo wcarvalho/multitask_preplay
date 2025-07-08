@@ -24,24 +24,26 @@ cd multitask_preplay
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create environment and install dependencies with uv
-uv sync
+uv sync --python 3.11
 source .venv/bin/activate
 ```
 
 ## Analysis on paper data
 
-**Settings directory for data**
-Either manually set the `DIRECTORY` variable in `data_configs.py` or set the environment variable `MULTITASK_PREPLAY_DATA_DIR`. Defaults to `../preplay_results`.
+Open `jupyter lab` from the root directory.
+
+Use the following notebooks for getting plots:
+* **JaxMaze analysis**: `figures/jaxmaze_results.ipynb`
+* **Craftax analysis**: `figures/craftax_cogsci_results.ipynb`
+
+Running these notebooks will automatically download any necessary data. You can also view this data and the preregistration for the JaxMaze experiments at Open Science Foundation repository https://doi.org/10.17605/OSF.IO/M53QH; and for the Craftax experiments at https://doi.org/10.17605/OSF.IO/B2EVM.
+
+**Settings directory for data**.
+Defaults to `../preplay_results`. If you want to change it, either manually set the `DIRECTORY` variable in `data_configs.py` or set the environment variable `MULTITASK_PREPLAY_DATA_DIR`. 
 
 ```bash
 export MULTITASK_PREPLAY_DATA_DIR="/path/to/data"
 ```
-
-Use the following notebooks for getting plots:
-
-* **JaxMaze analysis**: `figures/jaxmaze_results.ipynb`
-* **Craftax analysis**: `figures/craftax_cogsci_results.ipynb`
-
 
 ## Running web experiments
 

@@ -170,9 +170,9 @@ if __name__ == "__main__":
       base_server_dir=server_dir,
       base_local_dir=data_configs.CRAFTAX_DATA_DIR,
       model_dirs={
-        "qlearning": "ql-final/save_data/ql-final-1/alg=qlearning",
+        #"qlearning": "ql-final/save_data/ql-final-1/alg=qlearning",
         "sf": "usfa-final/save_data/usfa-final-5/alg=usfa",
-        "dyna": "dyna-final/save_data/dyna-final-2/alg=dyna",
+        #"dyna": "dyna-final/save_data/dyna-final-2/alg=dyna",
         "preplay": "preplay-final/save_data/preplay-final-1/alg=preplay",
       },
       model_names=model_names,

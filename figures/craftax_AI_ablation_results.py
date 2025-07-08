@@ -1,3 +1,7 @@
+"""
+python figures/craftax_AI_ablation_results.py
+"""
+
 import wandb
 import pandas as pd
 import numpy as np
@@ -28,6 +32,7 @@ model_colors = {
   "preplay-q-ablation": default_colors["google blue"],
   "preplay-precondition-ablation": default_colors["reddish purple"],
   "dyna-precondition-ablation": default_colors["dark gray"],
+  "preplay-randomization-ablation": default_colors["black"],
 }
 
 model_names = {
@@ -36,6 +41,7 @@ model_names = {
   "preplay-q-ablation": "Sim policy ablation $\\alpha_{g}=0$",
   "preplay-precondition-ablation": "Multitask Preplay + No precondition",
   "dyna-precondition-ablation": "Dyna + No precondition",
+  "preplay-randomization-ablation": "Randomized object locations",
 }
 
 
@@ -221,6 +227,107 @@ def plot_performance_curves(
   return ax  # Return the modified Axes object
 
 
+def plot_performance_max_bars(
+  data,
+  ax,
+  key="evaluator_performance-512/0.score",
+  xlabel="Model",
+  ylabel="Score",
+  title=None,
+  model_to_bar=None,
+  y_axis=None,
+):
+  """
+  Plot bar chart showing maximum performance values for multiple models.
+
+  Args:
+      data: Dictionary with model names as keys and DataFrames of time-series data as values
+      ax: The matplotlib Axes object to plot on
+      key: The metric key being plotted
+      xlabel: Label for x-axis
+      ylabel: Label for y-axis
+      title: Plot title (if None, derives from key)
+      model_to_bar: Optional dictionary mapping model names to bar styles (e.g., {'model': {'alpha': 0.8, 'label': 'Custom Label'}})
+      
+  Note:
+      If model_to_bar contains a 'label' key for a model, it will be used for that bar's label.
+      Otherwise, falls back to model_names dictionary or the model key.
+  """
+  # Auto-generate title from key if not provided
+  if title is None:
+    title = key.replace("/", " - ")
+
+  # Extract maximum values for each model
+  model_names_list = []
+  max_means = []
+  max_sems = []
+  colors = []
+
+  for model, df in data.items():
+    if df.empty:
+      continue
+
+    # For each run, find the maximum value
+    run_maxes = []
+    for run_id in df["run_id"].unique():
+      run_data = df[df["run_id"] == run_id]
+      if len(run_data) > 0:
+        run_maxes.append(run_data[key].max())
+    
+    if len(run_maxes) > 0:
+      # Calculate mean and standard error of maximum values across runs
+      max_mean = np.mean(run_maxes)
+      max_sem = np.std(run_maxes) / np.sqrt(len(run_maxes))
+      
+      # Check if model_to_bar has a 'label' key for this model
+      if model_to_bar and model in model_to_bar and 'label' in model_to_bar[model]:
+        label = model_to_bar[model]['label']
+      else:
+        label = model_names.get(model, model)  # Fall back to existing behavior
+      
+      model_names_list.append(label)
+      max_means.append(max_mean)
+      max_sems.append(max_sem)
+      colors.append(model_colors.get(model, "gray"))
+
+  # Create bar plot
+  x_pos = np.arange(len(model_names_list))
+  bar_props = {"alpha": 0.8, "capsize": 5}
+  
+  # Apply custom bar properties if provided
+  if model_to_bar:
+    for i, model in enumerate(data.keys()):
+      if model in model_to_bar:
+        # Create a copy to avoid modifying the original and exclude 'label' from bar properties
+        bar_style = {k: v for k, v in model_to_bar[model].items() if k != 'label'}
+        bar_props.update(bar_style)
+
+  bars = ax.bar(x_pos, max_means, yerr=max_sems, color=colors, **bar_props)
+
+  # Add value labels on top of bars
+  for i, (bar, mean, sem) in enumerate(zip(bars, max_means, max_sems)):
+    height = bar.get_height()
+    ax.text(
+      bar.get_x() + bar.get_width() / 2.0,
+      height + sem + 0.05,
+      f"{mean:.2f}",
+      ha="center",
+      va="bottom",
+      fontsize=10,
+    )
+
+  # Customize plot
+  ax.set_xticks(x_pos)
+  ax.set_xticklabels(model_names_list, rotation=0, ha="center")
+  ax.set_xlabel(xlabel, fontsize=DEFAULT_XLABEL_SIZE)
+  ax.set_ylabel(ylabel, fontsize=DEFAULT_YLABEL_SIZE)
+  ax.set_title(title, fontsize=DEFAULT_TITLE_SIZE)
+  ax.grid(True, alpha=0.3, axis="y")
+  if y_axis is not None:
+    ax.set_ylim(y_axis)
+  return ax
+
+
 def save_figure(fig, filename, directory=DIRECTORY):
   """Save figure in multiple formats."""
   os.makedirs(directory, exist_ok=True)
@@ -299,3 +406,36 @@ if __name__ == "__main__":
   # Adjust layout and save the combined figure
   fig.tight_layout()
   save_figure(fig, "preplay_ablation")  # Save the combined figure
+
+  # --- Plot 3: Precondition Ablation ---
+  fig, ax = plt.subplots(1, 1, figsize=(8, 6))  # Adjust figsize as needed
+  model_to_group_3 = {
+    "preplay": "preplay-final-5",
+    "preplay-randomization-ablation": "preplay-randomize-2",
+  }
+
+  data_3 = get_run_history(
+    model_to_group=model_to_group_3,
+    key="evaluator_performance-512/0.score",
+    window_size=10,
+    debug=False,
+  )
+
+  model_to_line_3 = {
+    "preplay": {"linestyle": "-", "linewidth": 3, "label": "Structured object locations"},
+    "preplay-randomization-ablation": {"linestyle": "-.", "linewidth": 2.5, "label": "Randomized object locations"},
+  }
+
+  plot_performance_max_bars(
+    data_3,
+    ax=ax,  # Pass the second Axes object
+    key="evaluator_performance-512/0.score",
+    xlabel="",
+    ylabel="Score",
+    title="Performance of Multitask Preplay\nwhen object locations are randomized",
+    y_axis=(0, 7),
+  )
+
+  # Adjust layout and save the combined figure
+  fig.tight_layout()
+  save_figure(fig, "preplay_randomization_ablation")  # Save the combined figure

@@ -27,18 +27,10 @@ DEFAULT_LEGEND_SIZE = 10.5
 image_dict = utils.load_image_dict()
 
 
-def add_to_file(stats_file, text):
-  with open(data_configs.PAPER_STATS_FILE, "a") as f:
-    try:
-      f.write(f"{os.path.basename(stats_file.name)}\n")
-    except Exception:
-      pass
-    f.write(f"{text}\n")
-    f.write("\n")
-
 
 def num_users(df):
   return len(df["user_id"].unique())
+
 
 
 def filter_users_by_success(df, analysis_name=None, **kwargs):
@@ -363,211 +355,8 @@ def path_reuse_results(
         plt.show()
 
   # Close stats file at the end
+  #analysis_utils.print_relevant_stats(stats_file)
   stats_file.close()
-
-
-def juncture_results(
-  user_df: DataFrame,
-  # model_df: DataFrame,
-  save_dir: str = None,
-  filter_columns: List[str] = None,
-  display_figs: bool = False,
-  save_figs: bool = True,
-  verbosity: int = 0,
-  tell_reuse_options=[1, 0],
-  figsize=(5.5, 4),
-  include_raw_data: bool = False,
-  show_legend: bool = True,
-  options: List[Tuple[str, int]] = None,
-  measure="first_log_rt",
-  use_median: bool = False,
-  ylim=None,
-):
-  """Analyze results from experiment 4.
-
-  Args:
-      user_df (DataFrame): DataFrame containing user data
-      model_df (DataFrame): DataFrame containing model data
-      save_dir (str): Directory to save figures
-      filter_columns (List[str], optional): Columns to use for outlier filtering in RT analysis.
-          Defaults to ['avg_rt'].
-      display_figs (bool, optional): Whether to display figures. Defaults to False.
-      save_figs (bool, optional): Whether to save figures. Defaults to True.
-  """
-  save_dir = save_dir or data_configs.JAXMAZE_RESULTS_DIR
-
-  save_dir = os.path.join(save_dir, "2.juncture")
-  os.makedirs(save_dir, exist_ok=True)
-  # Default to ['avg_rt'] if no filter columns specified
-  filter_columns = filter_columns or []
-
-  # Open stats file
-  stats_filename = os.path.join(save_dir, "4.juncture_stats.txt")
-  stats_file = open(stats_filename, "w")
-  stats_file.write("Juncture Manipulation Statistical Analysis\n\n")
-
-  user_df, _ = filter_users_by_success(
-    user_df.filter(manipulation="juncture"), analysis_name="juncture_results"
-  )
-  first_100_users = []
-  for tell_reuse in [1, 0]:
-    unique_user_ids = user_df.filter(tell_reuse=tell_reuse)["user_id"].unique()
-    unique_user_ids = unique_user_ids[: min(100, len(unique_user_ids))]
-    print(f"Adding {len(unique_user_ids)} users for tell_reuse={tell_reuse}")
-    first_100_users.extend(unique_user_ids)
-
-  # Filter dataframe to only include rows with those user IDs
-  user_df = user_df.filter(pl.col("user_id").is_in(first_100_users))
-
-  ##################
-  # Add setting column based on maze name
-  ##################
-  user_df = analysis_utils.get_polars_df(user_df)  # fancy merging will use regular df
-  user_df = user_df.filter(manipulation="juncture")
-
-  def get_maze_setting(maze_str: str) -> str:
-    if "short" in maze_str.lower():
-      return "short"
-    elif "long" in maze_str.lower():
-      return "long"
-    raise ValueError(f"Could not determine setting from maze string: {maze_str}")
-
-  # Add setting column based on maze name
-  user_df = user_df.with_columns(
-    setting=pl.col("world").map_elements(get_maze_setting, return_dtype=pl.String)
-  )
-
-  ############################################
-  # Create combined figure with all conditions on one plot
-  ############################################
-  fig, ax = plt.subplots(figsize=figsize)
-
-  # We'll focus only on first RT
-
-  # Define colors and labels for each condition
-  condition_colors = {
-    ("short", 1): plot_configs.default_colors["sky blue"],  # Near x Known
-    ("long", 1): plot_configs.default_colors["vermillion"],  # Far x Known
-    ("short", 0): plot_configs.default_colors["bluish green"],  # Near x Unknown
-  }
-
-  condition_labels = {
-    ("short", 1): "Near, Known Test goal",
-    ("long", 1): "Far, Known Test goal",
-    ("short", 0): "Near, Unknown Test goal",
-  }
-
-  # Store all data for combined plot
-  all_diffs = []
-  all_means = []
-  all_sems = []
-  all_labels = []
-  all_colors = []
-
-  options = options or [
-    ("short", 1),
-    ("short", 0),
-    ("long", 1),
-  ]
-
-  # Collect data for each condition
-  for setting, tell_reuse in options:
-    stats_file.write(f"\n\n=================={setting}===================\n")
-    difference_df = analysis_utils.compute_condition_difference_df(
-      user_df.filter(setting=setting, tell_reuse=tell_reuse),
-      measures=[measure],
-    )
-    stats_file.write(f"\n\nRT Analysis for tell_reuse={tell_reuse}\n")
-    stats_file.write("-----------------------------------------\n")
-
-    # Get statistics for this condition
-    results = analysis_utils.power_analysis_rt_differences(
-      difference_df, measure, stats_file=stats_file, setting=str((setting, tell_reuse))
-    )
-
-    # Store data for plotting
-    all_diffs.append(difference_df[measure].to_numpy())
-    all_means.append(results["median"])  # Use median instead of mean
-    all_sems.append(results["median_ci"])  # Use bootstrapped CI instead of SE
-    all_labels.append(condition_labels[(setting, tell_reuse)])
-    all_colors.append(condition_colors[(setting, tell_reuse)])
-
-  # Create bar plot with all conditions
-  x_pos = np.arange(len(all_means))
-
-  # Convert from CI to lower/upper error values needed by matplotlib
-  all_sems_array = np.array(all_sems)
-  all_means_array = np.array(all_means)
-
-  # Calculate asymmetric error bars (lower and upper offsets)
-  lower_errors = all_means_array - all_sems_array[:, 0]
-  upper_errors = all_sems_array[:, 1] - all_means_array
-
-  ax.bar(
-    x_pos,
-    all_means,
-    yerr=[
-      lower_errors,
-      upper_errors,
-    ],  # Format for asymmetric error bars: [lower_errors, upper_errors]
-    capsize=5,
-    color=all_colors,
-  )
-
-  # Add individual points with jitter
-  if include_raw_data:
-    for i, diffs in enumerate(all_diffs):
-      x_jitter = np.random.normal(i, 0.125, size=len(diffs))
-      ax.scatter(x_jitter, diffs, alpha=0.3, color="black", s=20)
-
-  # Add zero line
-  ax.axhline(y=0, color="black", linestyle="--", alpha=0.5)
-
-  # Customize plot
-  ax.set_xticks(x_pos)
-  ax.set_xticklabels([])
-  ax.set_ylabel("$\Delta$ Log RT", fontsize=DEFAULT_LABEL_SIZE)
-  ax.set_title(
-    "Juncture Manipulation\nFirst Response Time Difference", fontsize=DEFAULT_TITLE_SIZE
-  )
-  ax.tick_params(axis="both", which="major", labelsize=DEFAULT_LABEL_SIZE)
-  ax.grid(True, linestyle="--", alpha=0.7)
-
-  # Create legend with colored patches
-  legend_elements = [
-    mpatches.Patch(color=all_colors[i], label=all_labels[i])
-    for i in range(len(all_labels))
-  ]
-  if show_legend:
-    ax.legend(handles=legend_elements, loc="lower right", fontsize=DEFAULT_LEGEND_SIZE)
-
-  # Set y-axis limits based on all data points
-  if ylim is None:
-    all_data = np.concatenate(all_diffs)
-    y_min, y_max = np.percentile(all_data, [1, 99])
-  else:
-    y_min, y_max = ylim
-  y_range = y_max - y_min
-  ax.set_ylim(y_min - 0.1 * y_range, y_max + 0.1 * y_range)
-
-  # Adjust layout
-  plt.tight_layout()
-
-  # Save combined figure in multiple formats
-  if save_figs:
-    base_path = os.path.join(save_dir, "exp4_2_rt_diff_combined")
-    fig.savefig(f"{base_path}_{measure}.pdf", bbox_inches="tight")
-    # fig.savefig(f"{base_path}_{measure}.png", bbox_inches="tight", dpi=300)
-  if display_figs:
-    from IPython.display import display
-
-    display(fig)
-
-  # Close stats file at the end
-  stats_file.close()
-  if verbosity > 0:
-    with open(stats_filename, "r") as f:
-      print(f.read())
 
 
 def shortcut_results(
@@ -633,6 +422,7 @@ def shortcut_results(
     display(fig)
 
   # Close stats file at the end
+  #analysis_utils.print_relevant_stats(stats_file)
   stats_file.close()
   if verbosity > 0:
     with open(os.path.join(save_dir, "stats.txt"), "r") as f:
@@ -648,7 +438,7 @@ def start_results(
   save_figs: bool = True,
   verbosity: int = 0,
   ylim: Tuple[float, float] = None,
-  median: bool = False,
+  median: bool = True,
 ):
   """_summary_
 
@@ -734,9 +524,203 @@ def start_results(
     from IPython.display import display
 
     display(fig)
+  #analysis_utils.print_relevant_stats(stats_file)
+  stats_file.close()
+
+
+def juncture_results(
+  user_df: DataFrame,
+  # model_df: DataFrame,
+  save_dir: str = None,
+  filter_columns: List[str] = None,
+  display_figs: bool = False,
+  save_figs: bool = True,
+  verbosity: int = 0,
+  tell_reuse_options=[1, 0],
+  figsize=(5.5, 4),
+  include_raw_data: bool = False,
+  show_legend: bool = True,
+  options: List[Tuple[str, int]] = None,
+  measure="first_log_rt",
+  ylim=None,
+):
+  """Analyze results from experiment 4.
+
+  Args:
+      user_df (DataFrame): DataFrame containing user data
+      model_df (DataFrame): DataFrame containing model data
+      save_dir (str): Directory to save figures
+      filter_columns (List[str], optional): Columns to use for outlier filtering in RT analysis.
+          Defaults to ['avg_rt'].
+      display_figs (bool, optional): Whether to display figures. Defaults to False.
+      save_figs (bool, optional): Whether to save figures. Defaults to True.
+  """
+  save_dir = save_dir or data_configs.JAXMAZE_RESULTS_DIR
+
+  save_dir = os.path.join(save_dir, "2.juncture")
+  os.makedirs(save_dir, exist_ok=True)
+  # Default to ['avg_rt'] if no filter columns specified
+  filter_columns = filter_columns or []
+
+  # Open stats file
+  stats_filename = os.path.join(save_dir, "4.juncture_stats.txt")
+  stats_file = open(stats_filename, "w")
+  stats_file.write("Juncture Manipulation Statistical Analysis\n\n")
+
+  user_df, first_100_users = analysis_utils.filter_users_by_success_by_tell_reuse(
+    user_df.filter(manipulation="juncture"),
+    analysis_name="juncture_results",
+    )
+
+  ##################
+  # Add setting column based on maze name
+  ##################
+  user_df = analysis_utils.get_polars_df(user_df)  # fancy merging will use regular df
+  user_df = user_df.filter(manipulation="juncture")
+
+  def get_maze_setting(maze_str: str) -> str:
+    if "short" in maze_str.lower():
+      return "short"
+    elif "long" in maze_str.lower():
+      return "long"
+    raise ValueError(f"Could not determine setting from maze string: {maze_str}")
+
+  # Add setting column based on maze name
+  user_df = user_df.with_columns(
+    setting=pl.col("world").map_elements(get_maze_setting, return_dtype=pl.String)
+  )
+
+  ############################################
+  # Create combined figure with all conditions on one plot
+  ############################################
+  fig, ax = plt.subplots(figsize=figsize)
+
+  # We'll focus only on first RT
+
+  # Define colors and labels for each condition
+  condition_colors = {
+    ("short", 1): plot_configs.default_colors["sky blue"],  # Near x Known
+    ("long", 1): plot_configs.default_colors["vermillion"],  # Far x Known
+    ("short", 0): plot_configs.default_colors["bluish green"],  # Near x Unknown
+  }
+
+  condition_labels = {
+    ("short", 1): "Near, Known Test goal",
+    ("long", 1): "Far, Known Test goal",
+    ("short", 0): "Near, Unknown Test goal",
+  }
+
+  # Store all data for combined plot
+  all_diffs = []
+  all_means = []
+  all_sems = []
+  all_labels = []
+  all_colors = []
+
+  options = options or [
+    ("short", 1),
+    ("short", 0),
+    ("long", 1),
+  ]
+
+  # Collect data for each condition
+  for idx, (setting, tell_reuse) in enumerate(options):
+    stats_file.write(f"\n\n=================={setting}===================\n")
+    difference_df = analysis_utils.compute_condition_difference_df(
+      user_df.filter(setting=setting, tell_reuse=tell_reuse),
+      measures=[measure],
+    )
+    stats_file.write(f"\n\nRT Analysis for tell_reuse={tell_reuse}\n")
+    stats_file.write("-----------------------------------------\n")
+
+    # Get statistics for this condition
+    results = analysis_utils.power_analysis_rt_differences(
+      difference_df, measure, stats_file=stats_file, setting=str((idx, setting, tell_reuse))
+    )
+
+    # Store data for plotting - always use median + bootstrapped CI
+    all_diffs.append(difference_df[measure].to_numpy())
+    all_means.append(results["median"])
+    all_sems.append(results["median_ci"])  # Bootstrapped CI (asymmetric)
+    all_labels.append(condition_labels[(setting, tell_reuse)])
+    all_colors.append(condition_colors[(setting, tell_reuse)])
+
+  # Create bar plot with all conditions
+  x_pos = np.arange(len(all_means))
+
+  # Convert from CI to lower/upper error values needed by matplotlib
+  all_sems_array = np.array(all_sems)
+  all_means_array = np.array(all_means)
+
+  # Calculate asymmetric error bars (lower and upper offsets)
+  lower_errors = all_means_array - all_sems_array[:, 0]
+  upper_errors = all_sems_array[:, 1] - all_means_array
+
+  ax.bar(
+    x_pos,
+    all_means,
+    yerr=[
+      lower_errors,
+      upper_errors,
+    ],  # Format for asymmetric error bars: [lower_errors, upper_errors]
+    capsize=5,
+    color=all_colors,
+  )
+
+  # Add individual points with jitter
+  if include_raw_data:
+    for i, diffs in enumerate(all_diffs):
+      x_jitter = np.random.normal(i, 0.125, size=len(diffs))
+      ax.scatter(x_jitter, diffs, alpha=0.3, color="black", s=20)
+
+  # Add zero line
+  ax.axhline(y=0, color="black", linestyle="--", alpha=0.5)
+
+  # Customize plot
+  ax.set_xticks(x_pos)
+  ax.set_xticklabels([])
+  ax.set_ylabel("$\Delta$ Log RT", fontsize=DEFAULT_LABEL_SIZE)
+  ax.set_title(
+    "Juncture Manipulation\nFirst Response Time Difference", fontsize=DEFAULT_TITLE_SIZE
+  )
+  ax.tick_params(axis="both", which="major", labelsize=DEFAULT_LABEL_SIZE)
+  ax.grid(True, linestyle="--", alpha=0.7)
+
+  # Create legend with colored patches
+  legend_elements = [
+    mpatches.Patch(color=all_colors[i], label=all_labels[i])
+    for i in range(len(all_labels))
+  ]
+  if show_legend:
+    ax.legend(handles=legend_elements, loc="lower right", fontsize=DEFAULT_LEGEND_SIZE)
+
+  # Set y-axis limits based on all data points
+  if ylim is None:
+    all_data = np.concatenate(all_diffs)
+    y_min, y_max = np.percentile(all_data, [1, 99])
+  else:
+    y_min, y_max = ylim
+  y_range = y_max - y_min
+  ax.set_ylim(y_min - 0.1 * y_range, y_max + 0.1 * y_range)
+
+  # Adjust layout
+  plt.tight_layout()
+
+  # Save combined figure in multiple formats
+  if save_figs:
+    base_path = os.path.join(save_dir, "exp4_2_rt_diff_combined")
+    fig.savefig(f"{base_path}_{measure}.pdf", bbox_inches="tight")
+    # fig.savefig(f"{base_path}_{measure}.png", bbox_inches="tight", dpi=300)
+  if display_figs:
+    from IPython.display import display
+
+    display(fig)
+
+  # Close stats file at the end
+  #analysis_utils.print_relevant_stats(stats_file)
   stats_file.close()
   if verbosity > 0:
-    with open(os.path.join(save_dir, "stats.txt"), "r") as f:
+    with open(stats_filename, "r") as f:
       print(f.read())
 
 
@@ -751,6 +735,6 @@ if __name__ == "__main__":
   os.makedirs(save_dir, exist_ok=True)
 
   path_reuse_results(user_df, model_df, save_dir=save_dir)
-  juncture_results(user_df, model_df, save_dir=save_dir)
-  start_results(user_df, model_df, save_dir=save_dir)
   shortcut_results(user_df, model_df, save_dir=save_dir)
+  start_results(user_df, model_df, save_dir=save_dir)
+  juncture_results(user_df, model_df, save_dir=save_dir)

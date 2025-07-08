@@ -720,54 +720,7 @@ def plot_efficiency(
   return fig, axes
 
 
-def num_users(df):
-  return len(df["user_id"].unique())
 
-
-def filter_users_by_success_and_tell_reuse(df, analysis_name=None, **kwargs):
-  # Get the calling function name if not provided
-  if analysis_name is None:
-    analysis_name = inspect.currentframe().f_back.f_code.co_name
-
-  # Create cache file path
-  cache_path = os.path.join(
-    data_configs.CACHE_DIR, f"{analysis_name}_tell_reuse_user_ids.pkl"
-  )
-
-  # Try to load cached user IDs
-  if os.path.exists(cache_path):
-    with open(cache_path, "rb") as f:
-      print(f"Loading cached user IDs from {cache_path}")
-      first_100_users = pickle.load(f)
-
-    # Filter dataframe to only include rows with those user IDs
-    df_filtered = df.filter(pl.col("user_id").is_in(first_100_users))
-    print("Num users after cache filter: ", num_users(df_filtered))
-    return df_filtered, first_100_users
-
-  # Compute user IDs if cache doesn't exist or failed to load
-  print("Num initial users: ", num_users(df))
-
-  df = df.filter(min_train_success=True, eval=True)
-  print("Num initial users after success filter: ", num_users(df))
-
-  first_100_users = []
-  for tell_reuse in [1, 0]:
-    unique_user_ids = df.filter(tell_reuse=tell_reuse)["user_id"].unique()
-    unique_user_ids = unique_user_ids[: min(100, len(unique_user_ids))]
-    print(f"Adding {len(unique_user_ids)} users for tell_reuse={tell_reuse}")
-    first_100_users.extend(unique_user_ids)
-
-  # Save to cache
-  os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-  with open(cache_path, "wb") as f:
-    pickle.dump(first_100_users, f)
-  print(f"Saved user IDs to cache: {cache_path}")
-
-  # Filter dataframe to only include rows with those user IDs
-  df = df.filter(pl.col("user_id").is_in(first_100_users))
-  print("Num initial users after first 100 filter: ", num_users(df))
-  return df, first_100_users
 
 
 def path_reuse_manipulation_analysis(
@@ -803,7 +756,7 @@ def path_reuse_manipulation_analysis(
   ############################################################
 
   # Filter dataframe to only include rows with those user IDs
-  user_df, first_100_users = filter_users_by_success_and_tell_reuse(
+  user_df, first_100_users = analysis_utils.filter_users_by_success_by_tell_reuse(
     user_df.filter(
       eval_shares_start_pos=True,
       eval=True,

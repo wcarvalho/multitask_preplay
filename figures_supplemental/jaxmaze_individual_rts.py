@@ -8,19 +8,14 @@ sys.path.append(os.path.join(parent_dir, "simulations"))
 
 
 import polars as pl
-import jax
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 import numpy as np
-from analysis import housemaze_model_data
-from analysis import housemaze_user_data
-
-from analysis import housemaze_utils
-from analysis import experiment_analysis
-from analysis import housemaze_analysis
+from analysis.jaxmaze_analysis import filter_users_by_success
+from analysis import analysis_utils
 from nicewebrl import dataframe
 
 import data_configs
+import plot_configs
 
 
 def save_figure(fig, filename, directory=None):
@@ -42,12 +37,21 @@ def create_two_paths_diff_rt_df(df: dataframe.DataFrame):
   Returns:
       DataFrame with one row per user, containing min max RT episodes and RT metrics
   """
-  df = df.filter_by_group(
-    input_episode_filter=experiment_analysis.filter_train_by_min_success,
-    input_settings=dict(eval=False),
-    output_settings=dict(manipulation=3, tell_reuse=1),
-    group_key="user_id",
-  ).filter(eval=True)
+
+  path_reuse_df, _ = filter_users_by_success(
+    user_df.filter(
+      tell_reuse=1,
+      eval_shares_start_pos=True,
+      manipulation="paths",
+      world="big_m3_maze1",
+      eval=True),
+    analysis_name="path_reuse_results",
+  )
+  path_reuse_df = analysis_utils.add_reuse_column(
+    path_reuse_df,
+    reuse_column='reuse',
+    overlap_threshold=data_configs.TWO_PATHS_OVERLAP_THRESHOLD,
+    cosine_threshold=data_configs.COSINE_THRESHOLD)
 
   # Get unique user IDs
   user_ids = df["user_id"].unique().to_list()
@@ -60,9 +64,9 @@ def create_two_paths_diff_rt_df(df: dataframe.DataFrame):
 
   for user_id in user_ids:
     # Filter episodes for this user with reuse=0
-    reuse0_df = df.filter(user_id=user_id, reuse="0")
+    reuse0_df = df.filter(user_id=user_id, reuse=0)
     # Filter episodes for this user with reuse=1
-    reuse1_df = df.filter(user_id=user_id, reuse="1")
+    reuse1_df = df.filter(user_id=user_id, reuse=1)
 
     # Skip if either condition is missing
     if len(reuse0_df) == 0 or len(reuse1_df) == 0:
@@ -98,6 +102,7 @@ def create_two_paths_diff_rt_df(df: dataframe.DataFrame):
     diff_first_log_rt = reuse0_first_log_rt - reuse1_first_log_rt
     diff_max_log_rt = reuse0_max_log_rt - reuse1_max_log_rt
 
+    # OUTLIERS not useful for visualization
     if max(reuse1_max_rt, reuse0_max_rt) > 5:
       continue
     # Create row data
@@ -142,8 +147,10 @@ def create_juncture_diff_rt_df(df: dataframe.DataFrame, **kwargs):
       maze with the highest difference in first reaction time between conditions
   """
   # Get unique user IDs
-  kwargs = kwargs or dict(manipulation=4, tell_reuse=0)
-  df = df.filter(**kwargs)
+  df, _ = filter_users_by_success(
+    df.filter(manipulation="juncture"),
+    analysis_name="juncture_results"
+  )
 
   def get_maze_setting(maze_str: str) -> str:
     if "short" in maze_str.lower():
@@ -154,11 +161,10 @@ def create_juncture_diff_rt_df(df: dataframe.DataFrame, **kwargs):
 
   # Add setting column based on maze name and clean maze names
   df = df.with_columns(
-    setting=pl.col("maze").map_elements(get_maze_setting, return_dtype=pl.String),
+    setting=pl.col("world").map_elements(get_maze_setting, return_dtype=pl.String),
   )
   df = df.filter(setting="short")
 
-  # maze_name=pl.col("maze").map_elements(lambda i: i.split("_eval")[0], return_dtype=pl.String)
   user_ids = df["user_id"].unique().to_list()
 
   rows = []
@@ -168,8 +174,8 @@ def create_juncture_diff_rt_df(df: dataframe.DataFrame, **kwargs):
     return e.reaction_times[:-1] if hasattr(e, "reaction_times") else e.reaction_times
 
   # Get unique maze names
-  cond1_mazes = sorted(df.filter(condition=1)["maze"].unique())
-  cond2_mazes = sorted(df.filter(condition=2)["maze"].unique())
+  cond1_mazes = sorted(df.filter(condition=1)["world"].unique())
+  cond2_mazes = sorted(df.filter(condition=2)["world"].unique())
   for user_id in user_ids:
     # Filter episodes for this user
     user_df = df.filter(user_id=user_id)
@@ -180,8 +186,8 @@ def create_juncture_diff_rt_df(df: dataframe.DataFrame, **kwargs):
     max_metrics = None
 
     for cond1_maze, cond2_maze in zip(cond1_mazes, cond2_mazes):
-      reuse1_df = user_df.filter(maze=cond1_maze)
-      reuse0_df = user_df.filter(maze=cond2_maze)
+      reuse1_df = user_df.filter(world=cond1_maze)
+      reuse0_df = user_df.filter(world=cond2_maze)
       if len(reuse0_df) == 0 or len(reuse1_df) == 0:
         print(f"len(cond1_df) = {len(reuse0_df)} or len(cond2_df) = {len(reuse1_df)}")
         continue
@@ -208,6 +214,7 @@ def create_juncture_diff_rt_df(df: dataframe.DataFrame, **kwargs):
       diff_first_log_rt = reuse0_first_log_rt - reuse1_first_log_rt
       diff_max_log_rt = reuse0_max_log_rt - reuse1_max_log_rt
 
+    # OUTLIERS not useful for visualization
       if max(reuse1_max_rt, reuse0_max_rt) > 5:
         continue
       # Check if this maze has highest difference in first RT
@@ -293,19 +300,19 @@ def plot_min_median_max_differences(
 
     # display_metric = f"diff_{metric}"
     # metric_value = sorted_df[display_metric][idx]
-    experiment_analysis.plot_reaction_times(
+    analysis_utils.plot_reaction_times(
       rt0,
       ax=axes[i, 0],
-      color=experiment_analysis.default_colors["nice purple"],
+      color=plot_configs.default_colors["nice purple"],
       # title=f"{index_names[i].capitalize()} {display_metric.replace('_', ' ').capitalize()}: {metric_value:.3f}s",
       title=left_title_fn(index_names[i].capitalize()),
       show_xlabel=False,
     )
 
-    experiment_analysis.plot_reaction_times(
+    analysis_utils.plot_reaction_times(
       rt1,
       ax=axes[i, 1],
-      color=experiment_analysis.default_colors["bluish green"],
+      color=plot_configs.default_colors["bluish green"],
       title=right_title_fn(index_names[i].capitalize()),
       # title=f" {right_title} ({index_names[i].capitalize()} RT)",
       ylabel=None,
@@ -323,35 +330,16 @@ def plot_min_median_max_differences(
 
 
 if __name__ == "__main__":
-  from glob import glob
-  import data_configs
-
-  # Path to user data
-  USER_RESULTS_DIR = os.path.join(data_configs.JAXMAZE_USER_DIR, "user_data/exps")
-
-  # Load human data
-  human_data_pattern = "final*v2*"
-  files = f"{USER_RESULTS_DIR}/*{human_data_pattern}*.json"
-  valid_files = list(set(glob(files)))
-
-  user_df = housemaze_user_data.get_human_data(
-    valid_files,
-    overwrite_episode_data=False,
-    overwrite_episode_info=False,
-    require_finished=False,
+  from data_processing import process_user_data
+  
+  user_df = process_user_data.get_jaxmaze_human_data(
     load_df_only=False,
-    debug=False,
   )
+
   #########################################################
   # Two paths
   #########################################################
   # Filter to get evaluation episodes with path reuse manipulation
-  path_reuse_df = user_df.filter_by_group(
-    input_episode_filter=experiment_analysis.filter_train_by_min_success,
-    input_settings=dict(eval=False),
-    output_settings=dict(manipulation=3, tell_reuse=1),
-    group_key="user_id",
-  ).filter(eval=True)
   paths_diff_df = create_two_paths_diff_rt_df(user_df)
 
   fig = plot_min_median_max_differences(
@@ -362,9 +350,6 @@ if __name__ == "__main__":
     figsize=(15, 12),
   )
   save_figure(fig, "two_paths_first")
-
-  # fig = plot_min_median_max_differences(paths_diff_df, 'max_rt', left_title="Reuse 0", right_title="Reuse 1")
-  # save_figure(fig, 'two_paths_max')
 
   #########################################################
   # Juncture
@@ -378,6 +363,3 @@ if __name__ == "__main__":
     figsize=(15, 12),
   )
   save_figure(fig, "juncture_first")
-
-  # fig = plot_min_median_max_differences(juncture_df, 'max_rt')
-  # save_figure(fig, 'juncture_max')

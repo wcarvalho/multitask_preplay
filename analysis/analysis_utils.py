@@ -12,7 +12,8 @@ import data_configs
 from typing import List, Tuple, NamedTuple, Union
 
 import yaml
-
+import pickle
+import inspect
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -40,6 +41,7 @@ from plot_configs import (
   measure_to_title,
   measure_to_ylabel,
 )
+from pprint import pprint
 
 DEFAULT_TITLE_SIZE = 15
 DEFAULT_LABEL_SIZE = 15
@@ -97,6 +99,17 @@ def add_to_file(stats_file, algo, label, text):
   with open(yaml_file, "w") as f:
     yaml.dump(data, f, default_flow_style=False)
 
+def print_relevant_stats(stats_file):
+  yaml_file = data_configs.PAPER_STATS_FILE
+  # Load existing YAML if it exists
+  if os.path.exists(yaml_file):
+    with open(yaml_file, "r") as f:
+      data = yaml.safe_load(f)
+
+  base_filename = get_base_filename(stats_file.name)
+  experiment_data = data.get(base_filename, {})
+  pprint(experiment_data, indent=2)
+
 def filter_null(df, column):
   return df.filter(~pl.col(column).is_nan()).filter(~pl.col(column).is_null())
 
@@ -134,6 +147,66 @@ def add_reuse_column(
   removed_global_episode_idx = set(global_episode_idx) - set(new_global_episode_idx)
   print(f"Removed {len(removed_global_episode_idx)} global episode indices")
   return df
+
+def num_users(df):
+  return len(df["user_id"].unique())
+
+
+
+def filter_users_by_success_by_tell_reuse(df, analysis_name=None, **kwargs):
+  # Get the calling function name if not provided
+  if analysis_name is None:
+    analysis_name = inspect.currentframe().f_back.f_code.co_name
+
+  # Create cache file path
+  cache_path = os.path.join(
+    data_configs.ANALYSIS_CACHE_DIR, f"{analysis_name}_tell_reuse_user_ids.pkl"
+  )
+
+  # Try to load cached user IDs
+  if os.path.exists(cache_path):
+    with open(cache_path, "rb") as f:
+      print(f"Loading cached user IDs from {cache_path}")
+      first_100_users = pickle.load(f)
+
+    # Filter dataframe to only include rows with those user IDs
+    df_filtered = df.filter(pl.col("user_id").is_in(first_100_users))
+    print("Num users after cache filter: ", num_users(df_filtered))
+    return df_filtered, first_100_users
+
+  # Compute user IDs if cache doesn't exist or failed to load
+  print("Num initial users: ", num_users(df))
+
+  df = df.filter(min_train_success=True, eval=True)
+  print("Num initial users after success filter: ", num_users(df))
+
+  first_100_users = []
+  for tell_reuse in [1, 0]:
+    unique_user_ids = df.filter(tell_reuse=tell_reuse)["user_id"].unique()
+    unique_user_ids = unique_user_ids[: min(100, len(unique_user_ids))]
+    print(f"Adding {len(unique_user_ids)} users for tell_reuse={tell_reuse}")
+    first_100_users.extend(unique_user_ids)
+
+  # Save to cache
+  os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+  with open(cache_path, "wb") as f:
+    pickle.dump(first_100_users, f)
+  print(f"Saved user IDs to cache: {cache_path}")
+
+  # Filter dataframe to only include rows with those user IDs
+  df = df.filter(pl.col("user_id").is_in(first_100_users))
+  print("Num initial users after first 100 filter: ", num_users(df))
+  return df, first_100_users
+
+def hodges_lehmann(sample: np.ndarray) -> float:
+  """
+  One-sample Hodges–Lehmann estimator = median of all Walsh averages (xi+xj)/2, i≤j.
+  Works on any NumPy/SciPy version.
+  """
+  x = np.asarray(sample, dtype=float)
+  # build the upper-triangular matrix of pairwise sums and flatten
+  walsh = (x[:, None] + x[None, :]) / 2.0    # broadcasting → n×n
+  return np.median(walsh[np.triu_indices_from(walsh)])
 
 ######################################
 # Plotting functions
@@ -1103,6 +1176,79 @@ def mixed_effects_compute_power(
   return sum(results) / n_simulations
 
 
+def perform_wilcoxon_analysis(
+  data: np.ndarray,
+  n_groups: int,
+  p_obs: float,
+  mu: float = 0.0,
+  lower: float = None,
+  upper: float = None,
+  factor: float = 1.0,
+) -> dict:
+  """Perform Wilcoxon signed-rank test analysis with effect size and paper result.
+  
+  Args:
+      data: Array of data to test
+      mu: Null hypothesis value (ignored if test_against_zero=True)
+      n_groups: Number of groups
+      p_obs: Observed mean/proportion      
+  Returns:
+      dict containing test statistics, effect size, and paper result
+  """
+  # One-sided Wilcoxon signed-rank test
+  differences = data - mu
+  w_stat, p_value = stats.wilcoxon(differences, alternative="greater")
+  median = hodges_lehmann(differences)
+
+  rng = jax.random.PRNGKey(42)
+  B = 10000
+  boot_hl = []
+  for _ in range(B):
+    rng, rng_subkey = jax.random.split(rng)
+    boot_hl.append(
+      hodges_lehmann(jax.random.choice(rng_subkey, differences, shape=(len(differences),), replace=True))
+    )
+  ci_low, ci_high = np.percentile(boot_hl, [2.5, 97.5])
+
+  if ci_high < median:
+    ci_high = median
+  if ci_low > median:
+    ci_low = median
+
+  if lower is not None:
+    ci_low = max(lower, ci_low)  # Lower bound can't be below 0%
+  if upper is not None:
+    ci_high = min(upper, ci_high)  # Upper bound can't exceed 100%
+
+  n = len(data)
+  expected_w = n * (n + 1) / 4
+  variance_w = n * (n + 1) * (2 * n + 1) / 24
+  z_stat = (w_stat - expected_w) / np.sqrt(variance_w)
+
+  # Calculate r effect size (correlation coefficient) for Wilcoxon test
+  r = z_stat / np.sqrt(n)
+  effect_size = {"name": "r", "value": r}
+
+  test_name = "Wilcoxon signed-rank test"
+  test_stat = w_stat
+  df = n_groups - 1  # Using n-1 for consistency, though Wilcoxon doesn't use df
+
+  paper_result = f"Mean={factor * p_obs:.2f}, Median={factor * median:.2f} [95% CI: {factor * ci_low:.2f}, {factor * ci_high:.2f}], Z={z_stat:.2f}, r={r:.2f}, p={p_value:.2g}, is_normal={True}, test_name={test_name}"
+
+  return {
+    "test_name": test_name,
+    "test_stat": test_stat,
+    "p_value": p_value,
+    "z_stat": z_stat,
+    "effect_size": effect_size,
+    "df": df,
+    "paper_result": paper_result,
+    "p_median": median,
+    "ci_low_hl": ci_low,
+    "ci_high_hl": ci_high,
+  }
+
+
 def compute_binary_measure_statistics(
   df: pl.DataFrame,
   group_col: str,
@@ -1858,42 +2004,6 @@ def power_analysis_rt_differences(
   # Calculate median
   median = np.median(differences)
 
-  # Bootstrap 95% confidence intervals for the median
-  n_bootstrap = 10000
-  bootstrap_medians = []
-  for _ in range(n_bootstrap):
-    # Sample indices with replacement
-    idx = np.random.choice(n, size=n, replace=True)
-    # Calculate weighted mean using the sampled differences and their corresponding n_trials
-    # sampled_differences = differences[idx]
-    # sampled_trials = n_trials[idx]
-
-    # weighted_mean = np.sum(sampled_differences * sampled_trials) / np.sum(
-    #  sampled_trials
-    # )
-    bootstrap_medians.append(np.median(differences[idx]))
-
-  ci_low, ci_high = np.percentile(bootstrap_medians, [2.5, 97.5])
-
-  # Bound confidence intervals to ensure they don't go out of reasonable bounds
-  if ci_high < median:
-    ci_high = median
-  if ci_low > median:
-    ci_low = median
-
-  if stats_file:
-    stats_file.write(f"\n{measure}:\n")
-    stats_file.write("=" * (len(measure) + 10) + "\n")
-    stats_file.write(f"N = {n} participants\n")
-    stats_file.write(f"Mean difference = {mean:.3f} (SE: {se:.3f})\n")
-    stats_file.write(
-      f"Median difference = {median:.3f} (95% CI: [{ci_low:.3f}, {ci_high:.3f}])\n\n"
-    )
-    stats_file.write("Normality Test (Shapiro-Wilk):\n")
-    stats_file.write(
-      f"p = {normality_p:.3f} ({'Normal' if is_normal else 'Non-normal'} distribution)\n\n"
-    )
-
   if is_normal:
     # One-sided paired t-test (testing if condition 1 < condition 2)
     t_stat, p_value = stats.ttest_rel(differences, np.zeros_like(differences))
@@ -1923,20 +2033,43 @@ def power_analysis_rt_differences(
       )
       required_n[power] = ceil(n_required)
 
-  else:
-    # One-sided Wilcoxon signed-rank test
-    w_stat, p_value = stats.wilcoxon(differences, alternative="greater")
-    test_name = "Wilcoxon signed-rank test"
-    test_stat = w_stat
-    df = (
-      n - 1
-    )  # Using n-1 for consistency in reporting, though Wilcoxon technically doesn't use df
+    # Bootstrap 95% confidence intervals for the median
+    n_bootstrap = 10000
+    bootstrap_medians = []
+    for _ in range(n_bootstrap):
+      # Sample indices with replacement
+      idx = np.random.choice(n, size=n, replace=True)
+      bootstrap_medians.append(np.median(differences[idx]))
 
-    # Calculate r effect size for Wilcoxon test
-    # Convert p-value to z-score using inverse normal CDF
-    z = stats.norm.ppf(1 - p_value)  # One-sided p-value
-    r = z / np.sqrt(n)  # Standardize by sample size
-    effect_size = {"name": "r", "value": r}
+    ci_low, ci_high = np.percentile(bootstrap_medians, [2.5, 97.5])
+
+    # Bound confidence intervals to ensure they don't go out of reasonable bounds
+    if ci_high < median:
+      ci_high = median
+    if ci_low > median:
+      ci_low = median
+
+    # Create paper result for normal case
+    paper_result = f"Mean={mean:.3f}, Median={median:.3f} [95% CI: {ci_low:.3f}, {ci_high:.3f}], t({df})={test_stat:.2f}, d={d:.2f}, p={p_value:.2g}, is_normal={is_normal}, test_name={test_name}"
+
+  else:
+    # Use the new Wilcoxon analysis function
+    wilcoxon_results = perform_wilcoxon_analysis(
+      differences, mu=0, n_groups=n, p_obs=mean, factor=1
+    )
+    
+    test_name = wilcoxon_results["test_name"]
+    test_stat = wilcoxon_results["test_stat"]
+    p_value = wilcoxon_results["p_value"]
+    z = wilcoxon_results["z_stat"]
+    effect_size = wilcoxon_results["effect_size"]
+    df = wilcoxon_results["df"]
+    paper_result = wilcoxon_results["paper_result"]
+    median = wilcoxon_results["p_median"]
+    
+    # Extract r for power analysis
+    r = effect_size["value"]
+    ci_low, ci_high = wilcoxon_results["ci_low_hl"], wilcoxon_results["ci_high_hl"]
 
     # Convert r to d for power analysis
     # Formula: d = 2r/sqrt(1-r^2)
@@ -1959,28 +2092,14 @@ def power_analysis_rt_differences(
       # Adjust for Wilcoxon efficiency
       required_n[power] = ceil(n_required / 0.95)
 
-  paper_result = f"Mean={mean:.3f}, Median={median:.3f} [95% CI: {ci_low:.3f}, {ci_high:.3f}], t({df})={test_stat:.3f}, p={p_value:.2g}"
+
+    # Create paper result for non-normal case with Z values
   add_to_file(
     stats_file,
     algo="1.human data",
     label=f"{measure}_rt_difference_{setting}",
     text=paper_result,
   )
-  if stats_file:
-    stats_file.write(f"{test_name}:\n")
-    stats_file.write(f"statistic = {test_stat:.3f}\n")
-    stats_file.write(f"p = {p_value:.3f}\n\n")
-    stats_file.write(f"Effect Size ({effect_size['name']}):\n")
-    stats_file.write(f"{effect_size['value']:.3f}\n\n")
-    stats_file.write("<<<<<FOR PAPER>>>>>\n")
-    stats_file.write(f"{paper_result}\n")
-
-    # Add power analysis results
-    stats_file.write("Power Analysis:\n")
-    stats_file.write(f"Achieved power with current N={n}: {actual_power:.3f}\n")
-    stats_file.write("Required sample sizes:\n")
-    for power, n_req in required_n.items():
-      stats_file.write(f"  {power * 100:g}% power: N ≥ {n_req}\n")
 
   return {
     "n": n,

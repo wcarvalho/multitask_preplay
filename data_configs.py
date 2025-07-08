@@ -49,3 +49,15 @@ PAPER_STATS_FILE = os.path.join(DIRECTORY, "paper_stats.yaml")
 # Huggingface dataset names
 HUGGINGFACE_JAXMAZE_DATASET_NAME = "Multitask_Preplay_JaxMaze"
 HUGGINGFACE_CRAFTAX_DATASET_NAME = "Multitask_Preplay_Craftax"
+
+
+# Overlap thresholds
+TWO_PATHS_OVERLAP_THRESHOLD = 0.5
+SHORTCUT_OVERLAP_THRESHOLD = 0.7
+CRAFTAX_OVERLAP_THRESHOLD = 0.25
+COSINE_THRESHOLD = 0.5
+
+
+
+
+
