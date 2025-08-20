@@ -7,6 +7,8 @@ This repository is the official implementation of [Preemptive Solving of Future 
   - [Install](#install)
   - [Analysis on paper data](#analysis-on-paper-data)
   - [Running web experiments](#running-web-experiments)
+    - [JaxMaze experiment](#jaxmaze-experiment)
+    - [Craftax experiment](#craftax-experiment)
   - [Data Folder Structure](#data-folder-structure)
 
 <img src="assets/algo.png" alt="Comparison Image" style="width: 75%; max-width: 800px;">
@@ -36,7 +38,9 @@ Use the following notebooks for getting plots:
 * **JaxMaze analysis**: `figures/jaxmaze_results.ipynb`
 * **Craftax analysis**: `figures/craftax_cogsci_results.ipynb`
 
-Running these notebooks will automatically download any necessary data. You can also view this data and the preregistration for the JaxMaze experiments at Open Science Foundation repository https://doi.org/10.17605/OSF.IO/M53QH; and for the Craftax experiments at https://doi.org/10.17605/OSF.IO/B2EVM.
+Running these notebooks will automatically download any necessary data. You can also view this data and the preregistration for the JaxMaze experiments at the Open Science Foundation repositories
+* JaxMaze: https://doi.org/10.17605/OSF.IO/M53QH
+* Craftax: https://doi.org/10.17605/OSF.IO/B2EVM
 
 **Settings directory for data**.
 Defaults to `../preplay_results`. If you want to change it, either manually set the `DIRECTORY` variable in `data_configs.py` or set the environment variable `MULTITASK_PREPLAY_DATA_DIR`. 
@@ -53,7 +57,7 @@ Here, we describe how to do **local testing**. In [this file](online_web_experim
 
 Note: before running a new experiment you want to delete `.nicegui`
 
-**JaxMaze experiment**
+### JaxMaze experiment
 ```
 # Two Paths Manipulation (prediction 1)
 python experiments/jaxmaze/web_app.py MAN="paths"
@@ -70,7 +74,7 @@ python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=1  # known goals
 python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=0  # unknown goals
 ```
 
-**Craftax experiment**
+### Craftax experiment
 Before running experiments, run `python experiments/craftax/load_caches.py` to load caches (this will take 20-40 minutes)
 ```
 # known evaluation goals
