@@ -11,6 +11,8 @@ import traceback
 from datetime import datetime
 
 from experiments.gcs import save_to_gcs_with_retries
+from experiments.craftax.craftax_fullmap_constants import restore_texture_cache_if_needed
+
 import nicewebrl
 from nicewebrl.logging import setup_logging, get_logger
 from nicewebrl.utils import wait_for_button_or_keypress
@@ -18,10 +20,8 @@ from nicewebrl import stages
 from importlib.util import find_spec
 import shutil
 
-from configs import (
-    DATABASE_FILE, DATA_DIR, DEBUG, DEBUG_SEED, NAME, VERBOSITY,
-    CONSENT
-)
+from configs import DATABASE_FILE, DATA_DIR, DEBUG, DEBUG_SEED, NAME, VERBOSITY, CONSENT
+
 DATABASE_FILE = f"{DATABASE_FILE}_name={NAME}_debug={DEBUG}"
 
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -56,47 +56,6 @@ loader_logger = get_logger("craftax_loader")
 load_start_time = None
 load_error = None
 
-
-def restore_texture_cache_if_needed():
-  """Restore texture cache files from local cache if they don't exist in the package directory."""
-  # Get paths for texture cache files
-  original_constants_directory = os.path.join(
-    os.path.dirname(find_spec("craftax.craftax.constants").origin), "assets"
-  )
-  TEXTURE_CACHE_FILE = os.path.join(original_constants_directory, "texture_cache.pbz2")
-  FULLMAP_TEXTURE_CACHE_FILE = os.path.join(
-    original_constants_directory, "fullmap_texture_cache_48.pbz2"
-  )
-
-  # Local cache paths
-  cache_dir = "craftax_cache"
-  source_cache = os.path.join(cache_dir, "texture_cache.pbz2")
-  source_fullmap_cache = os.path.join(cache_dir, "fullmap_texture_cache_48.pbz2")
-
-  # Create the destination directories if they don't exist
-  os.makedirs(os.path.dirname(TEXTURE_CACHE_FILE), exist_ok=True)
-  os.makedirs(os.path.dirname(FULLMAP_TEXTURE_CACHE_FILE), exist_ok=True)
-
-  # Copy texture cache files if needed
-  if not os.path.exists(TEXTURE_CACHE_FILE) and os.path.exists(source_cache):
-    loader_logger.info(
-      f"Restoring texture cache from {source_cache} to {TEXTURE_CACHE_FILE}"
-    )
-    shutil.copy2(source_cache, TEXTURE_CACHE_FILE)
-    loader_logger.info("Regular cache file restored successfully!")
-  else:
-    loader_logger.info(f"{TEXTURE_CACHE_FILE} already exists.")
-
-  if not os.path.exists(FULLMAP_TEXTURE_CACHE_FILE) and os.path.exists(
-    source_fullmap_cache
-  ):
-    loader_logger.info(
-      f"Restoring fullmap texture cache from {source_fullmap_cache} to {FULLMAP_TEXTURE_CACHE_FILE}"
-    )
-    shutil.copy2(source_fullmap_cache, FULLMAP_TEXTURE_CACHE_FILE)
-    loader_logger.info("Fullmap cache file restored successfully!")
-  else:
-    loader_logger.info(f"{FULLMAP_TEXTURE_CACHE_FILE} already exists.")
 
 
 async def load_craftax_module():

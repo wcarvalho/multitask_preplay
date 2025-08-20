@@ -27,8 +27,19 @@ from nicewebrl import Stage, EnvStage
 from nicewebrl import get_logger
 from craftax.craftax.renderer import render_craftax_pixels
 from configs import (
-    DEBUG, SAY_REUSE, VERBOSITY, NAME, DATA_DIR, NTRAIN, GIVE_INSTRUCTIONS,
-    MANIPULATION, NUM_BLOCKS, EVAL_SHOW_MAP, PRECOMPILE, DUMMY_ENV, MONSTERS
+  DEBUG,
+  SAY_REUSE,
+  VERBOSITY,
+  NAME,
+  DATA_DIR,
+  NTRAIN,
+  GIVE_INSTRUCTIONS,
+  MANIPULATION,
+  NUM_BLOCKS,
+  EVAL_SHOW_MAP,
+  PRECOMPILE,
+  DUMMY_ENV,
+  MONSTERS,
 )
 from simulations.craftax_web_env import EnvParams as OriginalEnvParams
 from craftax.craftax.constants import (
@@ -43,7 +54,6 @@ from craftax.craftax.constants import (
 from simulations.craftax_experiment_configs import (
   PRACTICE_BLOCK_CONFIG,
   PATHS_CONFIGS,
-  JUNCTURE_CONFIGS,
   BlockConfig,
   make_block_env_params,
   POSSIBLE_GOALS,
@@ -345,8 +355,6 @@ all_goals_active = jnp.ones(len(possible_goals), dtype=jnp.float32)
 
 if MANIPULATION == "paths":
   dummy_block_config = PATHS_CONFIGS[0]
-elif MANIPULATION == "juncture":
-  dummy_block_config = JUNCTURE_CONFIGS[0]
 else:
   raise ValueError(f"Invalid manipulation: {MANIPULATION}")
 ########################################
@@ -711,117 +719,8 @@ def distance(x1, x2):
   return jnp.sqrt(jnp.sum((x1 - x2) ** 2, axis=0))
 
 
-async def set_initial_timestep_from_training(
-  stage: EnvStage,
-) -> Optional[nicewebrl.TimeStep]:
-  """Sets the initial timestep for an evaluation stage based on training data.
-
-  This function:
-  1. Loads training stage states
-  2. Finds timesteps where agent started in target position
-  3. Picks the timestep closest to the goal
-  4. Updates stage params and state with this position
-
-  Args:
-      stage: The evaluation stage to set initial timestep for
-
-  Returns:
-      Optional[TimeStep]: The new timestep if successful, None if no training data found
-  """
-  current_name = stage.name  # e.g. "juncture_0_eval1"
-  training_name = current_name.replace("_eval1", "_training")
-
-  # Load training stage states
-  logger.info(f"Loading data from {training_name}")
-  training_stage_states = await nicewebrl.StageStateModel.filter(
-    session_id=app.storage.browser["id"],
-    name=training_name,
-  ).all()
-  logger.info(f"num training_stage_states: {len(training_stage_states)}")
-
-  if len(training_stage_states) == 0:
-    return None
-
-  # Deserialize training stage states
-  current_stage_state = stage.get_user_data("stage_state")
-  training_stage_states = [
-    serialization.from_bytes(current_stage_state, s.data) for s in training_stage_states
-  ]
-  timesteps = [s.timestep for s in training_stage_states]
-
-  # Combine all timesteps from all stages
-  all_timesteps = jtu.tree_map(lambda *v: jnp.stack(v), *timesteps)
-
-  # Get timesteps where agent started in position we care about
-  goal_start_position = stage.env_params.start_positions[0]  # [2]
-  timestep_start_position = all_timesteps.state.start_position  # [N, 2]
-  match = (timestep_start_position == goal_start_position[None]).sum(axis=-1) == 2
-  relevant_timesteps = jax.tree_util.tree_map(lambda t: t[match], all_timesteps)
-
-  # For each timestep, compute distance to goal
-  current_goal = current_stage_state.timestep.state.current_goal
-  placed_blocks = stage.env_params.placed_goals
-  placed_goals = jnp.array(blocks_to_goals(placed_blocks, default=-1), dtype=jnp.int32)
-  goal_idx = (current_goal == placed_goals).argmax()
-  goal_location = stage.env_params.goal_locations[goal_idx]
-
-  distances = jax.vmap(distance, in_axes=(None, 0), out_axes=(0))(
-    jnp.asarray(goal_location), relevant_timesteps.state.player_position
-  )
-  logger.info(f"current_goal: {current_goal}")
-  logger.info(f"goal_location: {goal_location}")
-  logger.info(f"player_locations: {relevant_timesteps.state.player_position}")
-  logger.info(f"distances: {distances}")
-
-  # Pick closest timestep as starting point
-  sorted_indices = jnp.argsort(distances)
-  closest_idx = sorted_indices[0]
-  relevant_timestep_agent_pos = relevant_timesteps.state.player_position[closest_idx]
-  logger.info(f"will spawn at position: {relevant_timestep_agent_pos}")
-
-  # Set the initial params for the stage to have this as a start position
-  stage.env_params = stage.env_params.replace(
-    start_positions=make_start_position(relevant_timestep_agent_pos[None])
-  )
-  rng = nicewebrl.new_rng()
-  new_timestep = stage.web_env.reset(rng, stage.env_params)
-  await stage.set_user_data(stage_state=stage.state_cls(timestep=new_timestep))
-
-  return new_timestep
 
 
-async def env_reset_juncture_display_fn(
-  stage: EnvStage,
-  container: ui.element,
-  timestep: nicewebrl.TimeStep,
-):
-  juncture_stage = "juncture" in stage.name
-  eval1 = stage.metadata["condition"] == 1
-  if juncture_stage and eval1:
-    ui.markdown("# Loading task. One moment please")
-    new_timestep = await set_initial_timestep_from_training(stage)
-    if new_timestep is not None:
-      timestep = new_timestep
-
-  ############################
-  # Display goal object image
-  ############################
-  goal_object_idx = int(timestep.state.current_goal)
-  image = get_goal_image(goal_object_idx)
-  image = resize(image, (64, 64, 3), anti_aliasing=True, preserve_range=True).astype(
-    np.uint8
-  )
-  image = base64_npimage(image)
-
-  category = Achievement(goal_object_idx).name.replace("_", " ").title()
-
-  with container.style("align-items: center;"):
-    nicewebrl.clear_element(container)
-    ui.markdown(f"## {stage.title}")
-    ui.markdown(f"#### Goal task: {category}")
-    ui.html(make_image_html(src=image))
-    button = ui.button("click to start")
-    await nicewebrl.wait_for_button_or_keypress(button, ignore_recent_press=True)
 
 
 async def env_stage_display_fn(
@@ -951,11 +850,7 @@ def make_env_stage(
       display_full_map=True,
     )
 
-  juncture_display = "juncture" in name
-  if juncture_display and eval_stage:
-    reset_display_fn = env_reset_juncture_display_fn
-  else:
-    reset_display_fn = env_reset_display_fn
+  reset_display_fn = env_reset_display_fn
 
   if VERBOSITY:
     print("=" * 30)
@@ -1255,19 +1150,6 @@ if MANIPULATION == "paths":
     )
     for idx, config in enumerate(PATHS_CONFIGS)
   ]
-elif MANIPULATION == "juncture":
-  experiment_blocks = [
-    make_manipulation_block(
-      config=config,
-      manipulation="juncture",
-      name=f"juncture_{idx}",
-      desc="probe behavior at juncture",
-      long="Here there is a juncture to the test object. We predict that people will be faster at a juncture than at another point on the map.",
-      train_text=train_phase_text(),
-      eval_text=eval_phase_text(10),
-    )
-    for idx, config in enumerate(JUNCTURE_CONFIGS)
-  ]
 
 NUM_BLOCKS = min(NUM_BLOCKS, len(experiment_blocks))
 experiment_blocks = experiment_blocks[:NUM_BLOCKS]
@@ -1299,33 +1181,3 @@ experiment = nicewebrl.Experiment(
   randomize=randomize,
   name=f"craftax_experiment_{NAME}",
 )
-
-# all_stages = [stage for block in all_blocks for stage in block.stages]
-
-###########################
-## generating block order
-###########################
-
-
-# def generate_block_order(rng_key):
-#  """Take blocks defined above and generate a random order"""
-#  fixed_blocks = []
-#  offset = 0
-#  if GIVE_INSTRUCTIONS:
-#    offset = 2
-#  # fix ordering of instruct_block, practice_block
-#  fixed_blocks.extend(list(range(offset)))
-#  fixed_blocks = jnp.array(fixed_blocks)
-
-#  # blocks afterward are randomized
-#  randomized_blocks = list(all_blocks[offset:])
-#  random_order = jax.random.permutation(rng_key, len(randomized_blocks)) + offset
-
-#  block_order = jnp.concatenate(
-#    [
-#      fixed_blocks,  # instruction blocks
-#      random_order,  # experiment blocks
-#    ]
-#  ).astype(jnp.int32)
-#  block_order = block_order.tolist()
-#  return [int(i) for i in block_order]

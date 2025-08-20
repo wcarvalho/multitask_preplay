@@ -37,8 +37,12 @@ CONSENT = int(os.environ.get("CONSENT", 1))
 
 # Set NiceGUI storage path to DATA_DIR
 os.environ["NICEGUI_STORAGE_PATH"] = NICEGUI_DIR
+os.environ["CRAFTAX_CACHE_DIR"] = CRAFTAX_CACHE_DIR = os.path.join(
+    os.path.dirname(__file__), 'craftax_cache')
+os.makedirs(CRAFTAX_CACHE_DIR, exist_ok=True)
 
 CLEAR_CACHE = int(os.environ.get("CLEAR_CACHE", 1))
 if CLEAR_CACHE:
-    import shutil
-    shutil.rmtree(NICEGUI_DIR, ignore_errors=True)
+  import shutil
+
+  shutil.rmtree(NICEGUI_DIR, ignore_errors=True)

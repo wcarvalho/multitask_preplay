@@ -34,5 +34,6 @@ os.environ["NICEGUI_STORAGE_PATH"] = NICEGUI_DIR
 
 CLEAR_CACHE = int(os.environ.get("CLEAR_CACHE", 1))
 if CLEAR_CACHE:
-    import shutil
-    shutil.rmtree(NICEGUI_DIR, ignore_errors=True)
+  import shutil
+
+  shutil.rmtree(NICEGUI_DIR, ignore_errors=True)

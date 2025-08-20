@@ -58,7 +58,8 @@ Here, we describe how to do **local testing**. In [this file](online_web_experim
 Note: before running a new experiment you want to delete `.nicegui`
 
 ### JaxMaze experiment
-```
+
+```bash
 # Two Paths Manipulation (prediction 1)
 python experiments/jaxmaze/web_app.py MAN="paths"
 
@@ -70,13 +71,15 @@ python experiments/jaxmaze/web_app.py MAN="shortcut"
 python experiments/jaxmaze/web_app.py MAN="start"
 
 # Juncture Manipulation (prediction 4)
-python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=1  # known goals
 python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=0  # unknown goals
+python experiments/jaxmaze/web_app.py MAN="plan" SAY_REUSE=1  # known goals
 ```
 
 ### Craftax experiment
+
 Before running experiments, run `python experiments/craftax/load_caches.py` to load caches (this will take 20-40 minutes)
-```
+
+```bash
 # known evaluation goals
 python experiments/craftax/web_app.py SAY_REUSE=1
 
@@ -85,7 +88,7 @@ python experiments/craftax/web_app.py SAY_REUSE=0
 ```
 
 If you want to adapt this and debug quickly but don't want to compile the environment each time, you can use a "dummy environment" with `DUMMY_ENV=1`, e.g.
-```
+```bash
 python experiments/craftax/web_app.py SAY_REUSE=0 DUMMY_ENV=1
 ```
 

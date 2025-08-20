@@ -5,7 +5,13 @@ import aiofiles
 import subprocess
 
 from configs import (
-    DATABASE_FILE, DATA_DIR, NAME, DEBUG, DEBUG_SEED, EXPERIMENT, UPLOAD_DATA
+  DATABASE_FILE,
+  DATA_DIR,
+  NAME,
+  DEBUG,
+  DEBUG_SEED,
+  EXPERIMENT,
+  UPLOAD_DATA,
 )
 import jax.numpy as jnp
 from nicegui import app, ui
@@ -641,5 +647,5 @@ ui.run(
   storage_secret="private key to secure the browser session cookie",
   reload="FLY_ALLOC_ID" not in os.environ,
   # reload=False,
-  title='JazMaze Web App',
+  title="JazMaze Web App",
 )

@@ -1,0 +1,773 @@
+# flyctl launch added from .gitignore
+**/*data
+**/.vscode
+**/archive
+
+**/configs/*toml
+**/*cache*
+!**/craftax_cache
+**/*datastore-key.json
+
+# flyctl launch added from .gitignore
+**/**/__pycache__
+**/**/*.egg-info
+**/**/.*.swp
+**/**/dist
+**/test.py
+**/demo.py
+**/**/*.pickle
+**/**/tests/screenshots
+**/**/.venv
+**/**/.pytest_cache
+**/**/.coverage
+**/**/.git
+**/**/.mypy_cache
+**/**/.nicegui
+**/**/*.DS_Store
+
+# flyctl launch added from .pytest_cache/.gitignore
+# Created by pytest automatically.
+**/.pytest_cache/**/*
+
+# flyctl launch added from tests/.pytest_cache/.gitignore
+# Created by pytest automatically.
+**/tests/.pytest_cache/**/*
+
+
+# Byte-compiled / optimized / DLL files
+**/data
+**/.github
+**/__pycache__
+**/*.py[cod]
+**/example.ipynb
+**/*$py.class
+**/.sesskey
+**/db.*
+**/.nicegui
+
+# C extensions
+**/*.so
+
+# Distribution / packaging
+**/.Python
+**/build
+**/develop-eggs
+**/dist
+**/downloads
+**/eggs
+**/.eggs
+**/lib
+**/lib64
+**/parts
+**/sdist
+**/var
+**/wheels
+**/share/python-wheels
+**/*.egg-info
+**/.installed.cfg
+**/*.egg
+**/MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+**/*.manifest
+**/*.spec
+
+# Installer logs
+**/pip-log.txt
+**/pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+**/htmlcov
+**/.tox
+**/.nox
+**/.coverage
+**/.coverage.*
+**/.cache
+**/nosetests.xml
+**/coverage.xml
+**/*.cover
+**/*.py,cover
+**/.hypothesis
+**/.pytest_cache
+**/cover
+
+# Translations
+**/*.mo
+**/*.pot
+
+# Django stuff:
+**/*.log
+**/local_settings.py
+**/db.sqlite3
+**/db.sqlite3-journal
+
+# Flask stuff:
+**/instance
+**/.webassets-cache
+
+# Scrapy stuff:
+**/.scrapy
+
+# Sphinx documentation
+**/docs/_build
+
+# PyBuilder
+**/.pybuilder
+**/target
+
+# Jupyter Notebook
+**/.ipynb_checkpoints
+
+# IPython
+**/profile_default
+**/ipython_config.py
+
+# pyenv
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#poetry.lock
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#pdm.lock
+#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
+#   in version control.
+#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
+**/.pdm.toml
+**/.pdm-python
+**/.pdm-build
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
+**/__pypackages__
+
+# Celery stuff
+**/celerybeat-schedule
+**/celerybeat.pid
+
+# SageMath parsed files
+**/*.sage.py
+
+# Environments
+**/.env
+**/.venv
+**/env
+**/venv
+**/ENV
+**/env.bak
+**/venv.bak
+
+# Spyder project settings
+**/.spyderproject
+**/.spyproject
+
+# Rope project settings
+**/.ropeproject
+
+# mkdocs documentation
+site
+temp
+
+# mypy
+**/.mypy_cache
+**/.dmypy.json
+**/dmypy.json
+
+# Pyre type checker
+**/.pyre
+
+# pytype static type analyzer
+**/.pytype
+
+# Cython debug symbols
+**/cython_debug
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+#  and can be added to the global gitignore or merged into this file.  For a more nuclear
+#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+#.idea/
+
+# flyctl launch added from .ruff_cache/.gitignore
+# Automatically created by ruff.
+.ruff_cache/**/*
+
+# flyctl launch added from .venv/.gitignore
+.venv/**/*
+
+# flyctl launch added from .venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/_pydevd_frame_eval/.gitignore
+.venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/_pydevd_frame_eval/pydevd_frame_evaluator.*.so
+.venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/_pydevd_frame_eval/pydevd_frame_evaluator.*.pyd
+.venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/_pydevd_frame_eval/pydevd_frame_evaluator.pyx
+
+# flyctl launch added from .venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/pydevd_attach_to_process/linux_and_mac/.gitignore
+.venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/pydevd_attach_to_process/linux_and_mac/attach_x86.dylib
+.venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/pydevd_attach_to_process/linux_and_mac/attach_x86_64.dylib
+.venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/pydevd_attach_to_process/linux_and_mac/attach_linux_x86.o
+.venv/lib/python3.11/site-packages/debugpy/_vendored/pydevd/pydevd_attach_to_process/linux_and_mac/attach_linux_x86_64.o
+
+# flyctl launch added from .venv/lib/python3.11/site-packages/flax/nnx/.gitignore
+# Byte-compiled / optimized / DLL files
+.venv/lib/python3.11/site-packages/flax/nnx/**/__pycache__
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.py[cod]
+.venv/lib/python3.11/site-packages/flax/nnx/**/*$py.class
+
+# C extensions
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.so
+
+# Distribution / packaging
+.venv/lib/python3.11/site-packages/flax/nnx/**/.Python
+.venv/lib/python3.11/site-packages/flax/nnx/**/build
+.venv/lib/python3.11/site-packages/flax/nnx/**/develop-eggs
+.venv/lib/python3.11/site-packages/flax/nnx/**/dist
+.venv/lib/python3.11/site-packages/flax/nnx/**/downloads
+.venv/lib/python3.11/site-packages/flax/nnx/**/eggs
+.venv/lib/python3.11/site-packages/flax/nnx/**/.eggs
+.venv/lib/python3.11/site-packages/flax/nnx/**/lib
+.venv/lib/python3.11/site-packages/flax/nnx/**/lib64
+.venv/lib/python3.11/site-packages/flax/nnx/**/parts
+.venv/lib/python3.11/site-packages/flax/nnx/**/sdist
+.venv/lib/python3.11/site-packages/flax/nnx/**/var
+.venv/lib/python3.11/site-packages/flax/nnx/**/wheels
+.venv/lib/python3.11/site-packages/flax/nnx/**/pip-wheel-metadata
+.venv/lib/python3.11/site-packages/flax/nnx/**/share/python-wheels
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.egg-info
+.venv/lib/python3.11/site-packages/flax/nnx/**/.installed.cfg
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.egg
+.venv/lib/python3.11/site-packages/flax/nnx/**/MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.manifest
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.spec
+
+# Installer logs
+.venv/lib/python3.11/site-packages/flax/nnx/**/pip-log.txt
+.venv/lib/python3.11/site-packages/flax/nnx/**/pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.venv/lib/python3.11/site-packages/flax/nnx/**/htmlcov
+.venv/lib/python3.11/site-packages/flax/nnx/**/.tox
+.venv/lib/python3.11/site-packages/flax/nnx/**/.nox
+.venv/lib/python3.11/site-packages/flax/nnx/**/.coverage
+.venv/lib/python3.11/site-packages/flax/nnx/**/.coverage.*
+.venv/lib/python3.11/site-packages/flax/nnx/**/.cache
+.venv/lib/python3.11/site-packages/flax/nnx/**/nosetests.xml
+.venv/lib/python3.11/site-packages/flax/nnx/**/coverage.xml
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.cover
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.py,cover
+.venv/lib/python3.11/site-packages/flax/nnx/**/.hypothesis
+.venv/lib/python3.11/site-packages/flax/nnx/**/.pytest_cache
+
+# Translations
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.mo
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.pot
+
+# Django stuff:
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.log
+.venv/lib/python3.11/site-packages/flax/nnx/**/local_settings.py
+.venv/lib/python3.11/site-packages/flax/nnx/**/db.sqlite3
+.venv/lib/python3.11/site-packages/flax/nnx/**/db.sqlite3-journal
+
+# Flask stuff:
+.venv/lib/python3.11/site-packages/flax/nnx/**/instance
+.venv/lib/python3.11/site-packages/flax/nnx/**/.webassets-cache
+
+# Scrapy stuff:
+.venv/lib/python3.11/site-packages/flax/nnx/**/.scrapy
+
+# Sphinx documentation
+.venv/lib/python3.11/site-packages/flax/nnx/**/docs/_build
+
+# PyBuilder
+.venv/lib/python3.11/site-packages/flax/nnx/**/target
+
+# Jupyter Notebook
+.venv/lib/python3.11/site-packages/flax/nnx/**/.ipynb_checkpoints
+
+# IPython
+.venv/lib/python3.11/site-packages/flax/nnx/**/profile_default
+.venv/lib/python3.11/site-packages/flax/nnx/**/ipython_config.py
+
+# pyenv
+.venv/lib/python3.11/site-packages/flax/nnx/**/.python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+.venv/lib/python3.11/site-packages/flax/nnx/**/__pypackages__
+
+# Celery stuff
+.venv/lib/python3.11/site-packages/flax/nnx/**/celerybeat-schedule
+.venv/lib/python3.11/site-packages/flax/nnx/**/celerybeat.pid
+
+# SageMath parsed files
+.venv/lib/python3.11/site-packages/flax/nnx/**/*.sage.py
+
+# Environments
+.venv/lib/python3.11/site-packages/flax/nnx/**/.env
+.venv/lib/python3.11/site-packages/flax/nnx/**/.venv
+.venv/lib/python3.11/site-packages/flax/nnx/**/env
+.venv/lib/python3.11/site-packages/flax/nnx/**/venv
+.venv/lib/python3.11/site-packages/flax/nnx/**/ENV
+.venv/lib/python3.11/site-packages/flax/nnx/**/env.bak
+.venv/lib/python3.11/site-packages/flax/nnx/**/venv.bak
+
+# Spyder project settings
+.venv/lib/python3.11/site-packages/flax/nnx/**/.spyderproject
+.venv/lib/python3.11/site-packages/flax/nnx/**/.spyproject
+
+# Rope project settings
+.venv/lib/python3.11/site-packages/flax/nnx/**/.ropeproject
+
+# mkdocs documentation
+.venv/lib/python3.11/site-packages/flax/nnx/site
+
+# mypy
+.venv/lib/python3.11/site-packages/flax/nnx/**/.mypy_cache
+.venv/lib/python3.11/site-packages/flax/nnx/**/.dmypy.json
+.venv/lib/python3.11/site-packages/flax/nnx/**/dmypy.json
+
+# Pyre type checker
+.venv/lib/python3.11/site-packages/flax/nnx/**/.pyre
+
+# project specific
+.venv/lib/python3.11/site-packages/flax/nnx/**/.vscode
+.venv/lib/python3.11/site-packages/flax/nnx/tmp
+
+# flyctl launch added from .venv/lib/python3.11/site-packages/hydra/grammar/.gitignore
+.venv/lib/python3.11/site-packages/hydra/grammar/**/OverrideLexer.tokens
+
+# flyctl launch added from .venv/lib/python3.11/site-packages/hydra/grammar/gen/.gitignore
+.venv/lib/python3.11/site-packages/hydra/grammar/gen/**/*
+!.venv/lib/python3.11/site-packages/hydra/grammar/gen/**/.gitignore
+
+
+# flyctl launch added from .venv/lib/python3.11/site-packages/hydra/test_utils/configs/missing_init_py/.gitignore
+!.venv/lib/python3.11/site-packages/hydra/test_utils/configs/missing_init_py/**/.gitignore
+
+# flyctl launch added from archive/simulations-old/.gitignore
+# flyctl launch added from .gitignore
+archive/simulations-old/**/**/__pycache__
+archive/simulations-old/**/**/*.egg-info
+archive/simulations-old/**/**/.*.swp
+archive/simulations-old/**/**/dist
+archive/simulations-old/**/test.py
+archive/simulations-old/**/demo.py
+archive/simulations-old/**/**/*.pickle
+archive/simulations-old/**/**/tests/screenshots
+archive/simulations-old/**/**/.venv
+archive/simulations-old/**/**/.pytest_cache
+archive/simulations-old/**/**/.coverage
+archive/simulations-old/**/**/.git
+archive/simulations-old/**/**/.mypy_cache
+archive/simulations-old/**/**/.nicegui
+archive/simulations-old/**/*.DS_Store
+
+# flyctl launch added from .pytest_cache/.gitignore
+# Created by pytest automatically.
+archive/simulations-old/**/.pytest_cache/**/*
+
+# flyctl launch added from tests/.pytest_cache/.gitignore
+# Created by pytest automatically.
+archive/simulations-old/**/tests/.pytest_cache/**/*
+
+
+# Byte-compiled / optimized / DLL files
+archive/simulations-old/**/data
+archive/simulations-old/**/.github
+archive/simulations-old/**/__pycache__
+archive/simulations-old/**/*.py[cod]
+archive/simulations-old/**/example.ipynb
+archive/simulations-old/**/*$py.class
+archive/simulations-old/**/.sesskey
+archive/simulations-old/**/db.*
+archive/simulations-old/**/.nicegui
+
+# C extensions
+archive/simulations-old/**/*.so
+
+# Distribution / packaging
+archive/simulations-old/**/.Python
+archive/simulations-old/**/build
+archive/simulations-old/**/develop-eggs
+archive/simulations-old/**/dist
+archive/simulations-old/**/downloads
+archive/simulations-old/**/eggs
+archive/simulations-old/**/.eggs
+archive/simulations-old/**/lib
+archive/simulations-old/**/lib64
+archive/simulations-old/**/parts
+archive/simulations-old/**/sdist
+archive/simulations-old/**/var
+archive/simulations-old/**/wheels
+archive/simulations-old/**/share/python-wheels
+archive/simulations-old/**/*.egg-info
+archive/simulations-old/**/.installed.cfg
+archive/simulations-old/**/*.egg
+archive/simulations-old/**/MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+archive/simulations-old/**/*.manifest
+archive/simulations-old/**/*.spec
+
+# Installer logs
+archive/simulations-old/**/pip-log.txt
+archive/simulations-old/**/pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+archive/simulations-old/**/htmlcov
+archive/simulations-old/**/.tox
+archive/simulations-old/**/.nox
+archive/simulations-old/**/.coverage
+archive/simulations-old/**/.coverage.*
+archive/simulations-old/**/.cache
+archive/simulations-old/**/nosetests.xml
+archive/simulations-old/**/coverage.xml
+archive/simulations-old/**/*.cover
+archive/simulations-old/**/*.py,cover
+archive/simulations-old/**/.hypothesis
+archive/simulations-old/**/.pytest_cache
+archive/simulations-old/**/cover
+
+# Translations
+archive/simulations-old/**/*.mo
+archive/simulations-old/**/*.pot
+
+# Django stuff:
+archive/simulations-old/**/*.log
+archive/simulations-old/**/local_settings.py
+archive/simulations-old/**/db.sqlite3
+archive/simulations-old/**/db.sqlite3-journal
+
+# Flask stuff:
+archive/simulations-old/**/instance
+archive/simulations-old/**/.webassets-cache
+
+# Scrapy stuff:
+archive/simulations-old/**/.scrapy
+
+# Sphinx documentation
+archive/simulations-old/**/docs/_build
+
+# PyBuilder
+archive/simulations-old/**/.pybuilder
+archive/simulations-old/**/target
+
+# Jupyter Notebook
+archive/simulations-old/**/.ipynb_checkpoints
+
+# IPython
+archive/simulations-old/**/profile_default
+archive/simulations-old/**/ipython_config.py
+
+# pyenv
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#poetry.lock
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#pdm.lock
+#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
+#   in version control.
+#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
+archive/simulations-old/**/.pdm.toml
+archive/simulations-old/**/.pdm-python
+archive/simulations-old/**/.pdm-build
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
+archive/simulations-old/**/__pypackages__
+
+# Celery stuff
+archive/simulations-old/**/celerybeat-schedule
+archive/simulations-old/**/celerybeat.pid
+
+# SageMath parsed files
+archive/simulations-old/**/*.sage.py
+
+# Environments
+archive/simulations-old/**/.env
+archive/simulations-old/**/.venv
+archive/simulations-old/**/env
+archive/simulations-old/**/venv
+archive/simulations-old/**/ENV
+archive/simulations-old/**/env.bak
+archive/simulations-old/**/venv.bak
+
+# Spyder project settings
+archive/simulations-old/**/.spyderproject
+archive/simulations-old/**/.spyproject
+
+# Rope project settings
+archive/simulations-old/**/.ropeproject
+
+# mkdocs documentation
+archive/simulations-old/site
+
+# mypy
+archive/simulations-old/**/.mypy_cache
+archive/simulations-old/**/.dmypy.json
+archive/simulations-old/**/dmypy.json
+
+# Pyre type checker
+archive/simulations-old/**/.pyre
+
+# pytype static type analyzer
+archive/simulations-old/**/.pytype
+
+# Cython debug symbols
+archive/simulations-old/**/cython_debug
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+#  and can be added to the global gitignore or merged into this file.  For a more nuclear
+#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+#.idea/
+
+# flyctl launch added from archive/simulations-old/.ruff_cache/.gitignore
+# Automatically created by ruff.
+archive/simulations-old/.ruff_cache/**/*
+
+# flyctl launch added from multitask/.gitignore
+multitask/**/*
+
+# flyctl launch added from simulations/.gitignore
+# flyctl launch added from .gitignore
+simulations/**/**/__pycache__
+simulations/**/**/*.egg-info
+simulations/**/**/.*.swp
+simulations/**/**/dist
+simulations/**/test.py
+simulations/**/demo.py
+simulations/**/**/*.pickle
+simulations/**/**/tests/screenshots
+simulations/**/**/.venv
+simulations/**/**/.pytest_cache
+simulations/**/**/.coverage
+simulations/**/**/.git
+simulations/**/**/.mypy_cache
+simulations/**/**/.nicegui
+simulations/**/*.DS_Store
+
+# flyctl launch added from .pytest_cache/.gitignore
+# Created by pytest automatically.
+simulations/**/.pytest_cache/**/*
+
+# flyctl launch added from tests/.pytest_cache/.gitignore
+# Created by pytest automatically.
+simulations/**/tests/.pytest_cache/**/*
+
+
+# Byte-compiled / optimized / DLL files
+simulations/**/data
+simulations/**/.github
+simulations/**/__pycache__
+simulations/**/*.py[cod]
+simulations/**/example.ipynb
+simulations/**/*$py.class
+simulations/**/.sesskey
+simulations/**/db.*
+simulations/**/.nicegui
+
+# C extensions
+simulations/**/*.so
+
+# Distribution / packaging
+simulations/**/.Python
+simulations/**/build
+simulations/**/develop-eggs
+simulations/**/dist
+simulations/**/downloads
+simulations/**/eggs
+simulations/**/.eggs
+simulations/**/lib
+simulations/**/lib64
+simulations/**/parts
+simulations/**/sdist
+simulations/**/var
+simulations/**/wheels
+simulations/**/share/python-wheels
+simulations/**/*.egg-info
+simulations/**/.installed.cfg
+simulations/**/*.egg
+simulations/**/MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+simulations/**/*.manifest
+simulations/**/*.spec
+
+# Installer logs
+simulations/**/pip-log.txt
+simulations/**/pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+simulations/**/htmlcov
+simulations/**/.tox
+simulations/**/.nox
+simulations/**/.coverage
+simulations/**/.coverage.*
+simulations/**/.cache
+simulations/**/nosetests.xml
+simulations/**/coverage.xml
+simulations/**/*.cover
+simulations/**/*.py,cover
+simulations/**/.hypothesis
+simulations/**/.pytest_cache
+simulations/**/cover
+
+# Translations
+simulations/**/*.mo
+simulations/**/*.pot
+
+# Django stuff:
+simulations/**/*.log
+simulations/**/local_settings.py
+simulations/**/db.sqlite3
+simulations/**/db.sqlite3-journal
+
+# Flask stuff:
+simulations/**/instance
+simulations/**/.webassets-cache
+
+# Scrapy stuff:
+simulations/**/.scrapy
+
+# Sphinx documentation
+simulations/**/docs/_build
+
+# PyBuilder
+simulations/**/.pybuilder
+simulations/**/target
+
+# Jupyter Notebook
+simulations/**/.ipynb_checkpoints
+
+# IPython
+simulations/**/profile_default
+simulations/**/ipython_config.py
+
+# pyenv
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
+
+# pipenv
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
+
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#poetry.lock
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#pdm.lock
+#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
+#   in version control.
+#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
+simulations/**/.pdm.toml
+simulations/**/.pdm-python
+simulations/**/.pdm-build
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
+simulations/**/__pypackages__
+
+# Celery stuff
+simulations/**/celerybeat-schedule
+simulations/**/celerybeat.pid
+
+# SageMath parsed files
+simulations/**/*.sage.py
+
+# Environments
+simulations/**/.env
+simulations/**/.venv
+simulations/**/env
+simulations/**/venv
+simulations/**/ENV
+simulations/**/env.bak
+simulations/**/venv.bak
+
+# Spyder project settings
+simulations/**/.spyderproject
+simulations/**/.spyproject
+
+# Rope project settings
+simulations/**/.ropeproject
+
+# mkdocs documentation
+simulations/site
+
+# mypy
+simulations/**/.mypy_cache
+simulations/**/.dmypy.json
+simulations/**/dmypy.json
+
+# Pyre type checker
+simulations/**/.pyre
+
+# pytype static type analyzer
+simulations/**/.pytype
+
+# Cython debug symbols
+simulations/**/cython_debug
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+#  and can be added to the global gitignore or merged into this file.  For a more nuclear
+#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
+#.idea/
+
+# flyctl launch added from simulations/.ruff_cache/.gitignore
+# Automatically created by ruff.
+simulations/.ruff_cache/**/*
+fly.toml

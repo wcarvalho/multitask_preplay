@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+RUN apt update && apt install -y curl procps git
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+COPY . /app
+COPY experiments/craftax/craftax_cache /app/experiments/craftax/craftax_cache
+
+# Remove any existing .venv and create environment
+RUN rm -rf .venv && uv sync --python 3.11
+
+ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=DEBUG
+
+CMD ["uv", "run", "python", "experiments/craftax/web_app.py"]

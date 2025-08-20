@@ -23,8 +23,19 @@ import jax
 import jax.numpy as jnp
 from flax import struct
 from configs import (
-    GIVE_INSTRUCTIONS, DEBUG, NAME, MAN, DATA_DIR, FEEDBACK, 
-    SAY_REUSE, COND2_TRAIN, TIMER, VERBOSITY, NTRAIN, TIME_LIMIT, USE_DONE
+  GIVE_INSTRUCTIONS,
+  DEBUG,
+  NAME,
+  MAN,
+  DATA_DIR,
+  FEEDBACK,
+  SAY_REUSE,
+  COND2_TRAIN,
+  TIMER,
+  VERBOSITY,
+  NTRAIN,
+  TIME_LIMIT,
+  USE_DONE,
 )
 from experiment_utils import SuccessTrackingAutoResetWrapper
 
