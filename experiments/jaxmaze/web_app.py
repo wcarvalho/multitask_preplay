@@ -4,7 +4,9 @@ import asyncio
 import aiofiles
 import subprocess
 
-from dotenv import load_dotenv
+from configs import (
+    DATABASE_FILE, DATA_DIR, NAME, DEBUG, DEBUG_SEED, EXPERIMENT, UPLOAD_DATA
+)
 import jax.numpy as jnp
 from nicegui import app, ui
 from fastapi import Request
@@ -24,16 +26,6 @@ from nicewebrl.logging import setup_logging, get_logger
 
 from asyncio import Lock
 
-load_dotenv()
-
-DATABASE_FILE = os.environ.get("DB_FILE", "db.sqlite")
-DATA_DIR = os.environ.get("DATA_DIR", "jaxmaze_data")
-NAME = os.environ.get("NAME", "exp")
-
-DEBUG = int(os.environ.get("DEBUG", 0))
-DEBUG_SEED = int(os.environ.get("SEED", 0))
-EXPERIMENT = int(os.environ.get("EXP", 4))
-UPLOAD_DATA = int(os.environ.get("UPLOAD_DATA", 1))
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
@@ -72,7 +64,6 @@ logger = get_logger("main")
 
 import experiment_structure as experiment
 
-APP_TITLE = "Dyna 4"
 all_stages = experiment.all_stages
 
 DATABASE_FILE = f"{DATABASE_FILE}_name={NAME}_debug={DEBUG}"
@@ -650,5 +641,5 @@ ui.run(
   storage_secret="private key to secure the browser session cookie",
   reload="FLY_ALLOC_ID" not in os.environ,
   # reload=False,
-  title=APP_TITLE,
+  title='JazMaze Web App',
 )

@@ -38,6 +38,7 @@ try:
 except ImportError:
   JUPYTER_AVAILABLE = False
 
+
 def make_image_path_panel(episode, ax, title):
   first_state = jax.tree_util.tree_map(lambda x: x[0], episode.timesteps.state)
   image = craftax_utils.render_fn(first_state, show_agent=False)
@@ -71,16 +72,16 @@ def parse_and_compute_overlaps(
 ):
   """
   Parse dataframe and compute all overlap values once.
-  
+
   Returns:
     List of sample dictionaries with computed overlap values
   """
   samples = []
-  
+
   debug = debug if manual_user_id is None else 0
   user_ids = df["user_id"].unique().to_list()
   block_names = df["block_name"].unique().to_list()
-  
+
   if debug != -1:
     if manual_user_id is not None:
       user_ids = [manual_user_id]
@@ -89,7 +90,7 @@ def parse_and_compute_overlaps(
 
   for block_name in tqdm(block_names, desc="Block Names"):
     user_ids_to_process = user_ids[:max_tries]
-    
+
     for user_id in tqdm(user_ids_to_process, desc="User IDs"):
       # Get test examples for this user
       test_initial = df.filter(
@@ -127,46 +128,58 @@ def parse_and_compute_overlaps(
           manipulation=manipulation,
           **filters,
         )
-        corresponding_train_episode_idx = test["corresponding_train_episode_idx"].to_list()[test_episode_idx]
+        corresponding_train_episode_idx = test[
+          "corresponding_train_episode_idx"
+        ].to_list()[test_episode_idx]
         train = df.filter(
           global_episode_idx=corresponding_train_episode_idx,
         )
-        
+
         if len(train.episodes) == 0 or len(test.episodes) == 0:
           continue
 
         assert len(train.episodes) == 1
-        
+
         # Calculate map overlap
         train_map = create_maps([train.episodes[0]], add_error=True)
         test_map = create_maps([test.episodes[0]], add_error=False)
         map_overlap_value = compute_overlap(train_map, test_map).mean()
 
         # calculate cosine similarity between train and test average vectors
-        train_avg_vector, train_vectors = compute_average_vector_from_end(train.episodes[0].positions)
-        test_avg_vector, test_vectors = compute_average_vector_from_end(test.episodes[0].positions)
-        cosine = np.dot(train_avg_vector, test_avg_vector) / (np.linalg.norm(train_avg_vector) * np.linalg.norm(test_avg_vector) + 1e-5)
+        train_avg_vector, train_vectors = compute_average_vector_from_end(
+          train.episodes[0].positions
+        )
+        test_avg_vector, test_vectors = compute_average_vector_from_end(
+          test.episodes[0].positions
+        )
+        cosine = np.dot(train_avg_vector, test_avg_vector) / (
+          np.linalg.norm(train_avg_vector) * np.linalg.norm(test_avg_vector) + 1e-5
+        )
 
         optimal_test_path = OPTIMAL_TEST_PATHS[int(world_seed_val)]
-        ratio_optimal_test_path = len(test.episodes[0].positions) / len(optimal_test_path)
-        
+        ratio_optimal_test_path = len(test.episodes[0].positions) / len(
+          optimal_test_path
+        )
+
         df_overlap_value = test["overlap"].to_list()[0]
         assert np.abs(df_overlap_value - map_overlap_value) < 1e-5
-        
-        samples.append({
-          "key": user_id,
-          "train": train,
-          "test": test,
-          "train_map": train_map,
-          "test_map": test_map,
-          "cosine": cosine,
-          "df_overlap": df_overlap_value,
-          "best_idx": 0,
-          "filters": filters,
-          "world_seed": world_seed_val,
-          "ratio_optimal_test_path": ratio_optimal_test_path,
-        })
-        
+
+        samples.append(
+          {
+            "key": user_id,
+            "train": train,
+            "test": test,
+            "train_map": train_map,
+            "test_map": test_map,
+            "cosine": cosine,
+            "df_overlap": df_overlap_value,
+            "best_idx": 0,
+            "filters": filters,
+            "world_seed": world_seed_val,
+            "ratio_optimal_test_path": ratio_optimal_test_path,
+          }
+        )
+
         if debug != -1 or manual_user_id is not None:
           return samples
 
@@ -178,7 +191,7 @@ def visualize_computations(data, model=None, threshold=None, cosine_threshold=0.
   test = data["test"]
   train_map = data["train_map"]
   test_map = data["test_map"]
-  #overlap_value = data["df_overlap"]
+  # overlap_value = data["df_overlap"]
   overlap_value = data["df_overlap"]
   ratio_optimal_test_path = data["ratio_optimal_test_path"]
   if train_map.ndim > 2:
@@ -209,9 +222,7 @@ def visualize_computations(data, model=None, threshold=None, cosine_threshold=0.
     train_title = f"Train (user: {k}, success: {train_success})"
   else:
     model_key = "seed"
-    train_title = (
-      f"Train ({model_key}: {k}, success: {train_success})"
-    )
+    train_title = f"Train ({model_key}: {k}, success: {train_success})"
 
   test_title = f"Test success: {test_success}\n reuse: {reuse_value}, path_length: {len(test.episodes[0].positions)}, ratio: {ratio_optimal_test_path:.3f},"
 
@@ -244,35 +255,59 @@ def visualize_computations(data, model=None, threshold=None, cosine_threshold=0.
   # Get positions for train and test
   train_positions = train.episodes[0].positions[:-1]
   test_positions = test.episodes[0].positions[:-1]
-  
+
   # Compute average vectors
   train_avg_vector, train_vectors = compute_average_vector_from_end(train_positions)
   test_avg_vector, test_vectors = compute_average_vector_from_end(test_positions)
 
   # Calculate dot product
-  cosine = np.dot(train_avg_vector, test_avg_vector) / (np.linalg.norm(train_avg_vector) * np.linalg.norm(test_avg_vector))
-  
+  cosine = np.dot(train_avg_vector, test_avg_vector) / (
+    np.linalg.norm(train_avg_vector) * np.linalg.norm(test_avg_vector)
+  )
+
   # Visualize train average vector
-  axes[2, 0].quiver(0, 0, train_avg_vector[0], train_avg_vector[1], 
-                    scale=1, scale_units='xy', angles='xy', color='blue', width=0.01)
+  axes[2, 0].quiver(
+    0,
+    0,
+    train_avg_vector[0],
+    train_avg_vector[1],
+    scale=1,
+    scale_units="xy",
+    angles="xy",
+    color="blue",
+    width=0.01,
+  )
   axes[2, 0].set_xlim(-2, 2)
   axes[2, 0].set_ylim(-2, 2)
-  axes[2, 0].set_aspect('equal')
+  axes[2, 0].set_aspect("equal")
   axes[2, 0].grid(True, alpha=0.3)
-  axes[2, 0].axhline(y=0, color='k', linewidth=0.5)
-  axes[2, 0].axvline(x=0, color='k', linewidth=0.5)
-  axes[2, 0].set_title(f"Train Avg Vector (last half): ({train_avg_vector[0]:.3f}, {train_avg_vector[1]:.3f})")
-  
+  axes[2, 0].axhline(y=0, color="k", linewidth=0.5)
+  axes[2, 0].axvline(x=0, color="k", linewidth=0.5)
+  axes[2, 0].set_title(
+    f"Train Avg Vector (last half): ({train_avg_vector[0]:.3f}, {train_avg_vector[1]:.3f})"
+  )
+
   # Visualize test average vector
-  axes[2, 1].quiver(0, 0, test_avg_vector[0], test_avg_vector[1], 
-                    scale=1, scale_units='xy', angles='xy', color='red', width=0.01)
+  axes[2, 1].quiver(
+    0,
+    0,
+    test_avg_vector[0],
+    test_avg_vector[1],
+    scale=1,
+    scale_units="xy",
+    angles="xy",
+    color="red",
+    width=0.01,
+  )
   axes[2, 1].set_xlim(-2, 2)
   axes[2, 1].set_ylim(-2, 2)
-  axes[2, 1].set_aspect('equal')
+  axes[2, 1].set_aspect("equal")
   axes[2, 1].grid(True, alpha=0.3)
-  axes[2, 1].axhline(y=0, color='k', linewidth=0.5)
-  axes[2, 1].axvline(x=0, color='k', linewidth=0.5)
-  axes[2, 1].set_title(f"Test Avg Vector (last half): ({test_avg_vector[0]:.3f}, {test_avg_vector[1]:.3f})")
+  axes[2, 1].axhline(y=0, color="k", linewidth=0.5)
+  axes[2, 1].axvline(x=0, color="k", linewidth=0.5)
+  axes[2, 1].set_title(
+    f"Test Avg Vector (last half): ({test_avg_vector[0]:.3f}, {test_avg_vector[1]:.3f})"
+  )
 
   # Display overlap info as main title
   title = f"user: {k}"
@@ -280,7 +315,7 @@ def visualize_computations(data, model=None, threshold=None, cosine_threshold=0.
   cosine_reuse_value = int(cosine >= cosine_threshold)
   title += f"\noverlap: {overlap_value:.3f}, reuse: {overlap_reuse_value}"
   title += f"\ncosine: {cosine:.3f}, reuse: {cosine_reuse_value}"
-  title += f"\njoint reuse: {(cosine_reuse_value + overlap_reuse_value)>1}"
+  title += f"\njoint reuse: {(cosine_reuse_value + overlap_reuse_value) > 1}"
 
   fig.suptitle(
     title,
@@ -307,7 +342,7 @@ def visualize_from_samples(
 ):
   """
   Visualize examples from pre-computed samples based on threshold.
-  
+
   Args:
     samples: Pre-computed list of sample dictionaries with overlap values
     threshold: Threshold value for determining reuse
@@ -325,6 +360,7 @@ def visualize_from_samples(
 
   # Delete existing directory to remove old data
   import shutil
+
   if os.path.exists(output_dir) and clear_output_dir:
     print(f"Removing old data from {output_dir}...")
     shutil.rmtree(output_dir)
@@ -335,16 +371,19 @@ def visualize_from_samples(
   # Update reuse values based on current threshold
   for sample in samples:
     sample["reuse"] = int(
-      sample["df_overlap"] >= threshold and 
-      sample["cosine"] >= cosine_threshold
-      )
+      sample["df_overlap"] >= threshold and sample["cosine"] >= cosine_threshold
+    )
   # Separate into above and below threshold examples
   above_threshold_samples = [s for s in samples if s["reuse"]]
   below_threshold_samples = [s for s in samples if not s["reuse"]]
 
   # Sort by overlap for better visualization
-  above_threshold_samples.sort(key=lambda x: x["df_overlap"], reverse=False)  # Lower overlap first
-  below_threshold_samples.sort(key=lambda x: x["df_overlap"], reverse=True)  # Highest overlap first
+  above_threshold_samples.sort(
+    key=lambda x: x["df_overlap"], reverse=False
+  )  # Lower overlap first
+  below_threshold_samples.sort(
+    key=lambda x: x["df_overlap"], reverse=True
+  )  # Highest overlap first
 
   print(f"{model} - {manipulation} - threshold {threshold}:")
   if world_seed is not None:
@@ -421,6 +460,7 @@ def visualize_from_samples(
 
     plt.close(fig)  # Close the figure to free memory
 
+
 def visualize_examples_by_reuse(
   df: nicewebrl.DataFrame,
   manipulation: str,
@@ -447,7 +487,9 @@ def visualize_examples_by_reuse(
   """
 
   # Create directory structure
-  output_dir = f"{data_configs.CRAFTAX_OVERLAP_ANALYSIS_DIR}/{manipulation}_{threshold}/{model}"
+  output_dir = (
+    f"{data_configs.CRAFTAX_OVERLAP_ANALYSIS_DIR}/{manipulation}_{threshold}/{model}"
+  )
   if world_seed is not None:
     output_dir = f"{output_dir}_world_{world_seed}"
 
@@ -465,15 +507,14 @@ def visualize_examples_by_reuse(
   samples = []
 
   debug = debug if manual_user_id is None else 0
-  #if model == "human":
-    # For humans, we need to carefully match train and test examples
+  # if model == "human":
+  # For humans, we need to carefully match train and test examples
   user_ids = df["user_id"].unique().to_list()
   if debug != -1:
     if manual_user_id is not None:
       user_ids = [manual_user_id]
     else:
       user_ids = [user_ids[debug]]
-
 
   user_ids = user_ids[:max_tries]
   for user_id in tqdm(user_ids, desc="User IDs"):
@@ -508,7 +549,9 @@ def visualize_examples_by_reuse(
         manipulation=manipulation,
         **filters,
       )
-      corresponding_train_episode_idx = test["corresponding_train_episode_idx"].to_list()[test_episode_idx]
+      corresponding_train_episode_idx = test[
+        "corresponding_train_episode_idx"
+      ].to_list()[test_episode_idx]
       train = df.filter(
         global_episode_idx=corresponding_train_episode_idx,
       )
@@ -523,9 +566,7 @@ def visualize_examples_by_reuse(
       overlap_value = compute_overlap(train_map, test_map).mean()
 
       optimal_test_path = OPTIMAL_TEST_PATHS[int(world_seed_val)]
-      ratio_optimal_test_path = len(test.episodes[0].positions) / len(
-        optimal_test_path
-      )
+      ratio_optimal_test_path = len(test.episodes[0].positions) / len(optimal_test_path)
       reuse_value = int(overlap_value >= threshold)
       df_overlap_value = test["df_overlap"].to_list()[0]
       samples.append(
@@ -654,7 +695,7 @@ if __name__ == "__main__":
     "--thresholds",
     nargs="+",
     type=float,
-    default=[0.15, .2, .25, .3],
+    default=[0.15, 0.2, 0.25, 0.3],
     help="Overlap thresholds to analyze (default: 0.15 0.2)",
   )
   parser.add_argument(
@@ -700,9 +741,9 @@ if __name__ == "__main__":
         model="human",
         world_seed=world_seed,
       )
-      
+
       print(f"Found {len(samples)} samples for world {world_seed}")
-      
+
       # Apply each threshold to the same parsed data
       for threshold in thresholds:
         print(f"Visualizing with threshold {threshold}...")
@@ -727,7 +768,7 @@ if __name__ == "__main__":
     # Process each model
     for model in requested_models:
       print(f"\n=== Processing {model} model ===")
-      
+
       # Parse data once for each world seed
       for world_seed in world_seeds:
         print(f"\nParsing {model} data for world {world_seed}...")
@@ -737,9 +778,9 @@ if __name__ == "__main__":
           model=model,
           world_seed=world_seed,
         )
-        
+
         print(f"Found {len(samples)} samples for world {world_seed}")
-        
+
         # Apply each threshold to the same parsed data
         for threshold in thresholds:
           print(f"Visualizing with threshold {threshold}...")

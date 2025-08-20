@@ -22,43 +22,23 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from flax import struct
-from dotenv import load_dotenv
-import os
+from configs import (
+    GIVE_INSTRUCTIONS, DEBUG, NAME, MAN, DATA_DIR, FEEDBACK, 
+    SAY_REUSE, COND2_TRAIN, TIMER, VERBOSITY, NTRAIN, TIME_LIMIT, USE_DONE
+)
 from experiment_utils import SuccessTrackingAutoResetWrapper
 
 
 from nicegui import ui, app
-import nicewebrl
 from nicewebrl import stages
 from nicewebrl.stages import Stage, EnvStage, Block, FeedbackStage
 from nicewebrl.nicejax import JaxWebEnv, base64_npimage, make_serializable
 from nicewebrl.utils import wait_for_button_or_keypress, clear_element
 from nicewebrl import nicejax
 
-load_dotenv()
-
-GIVE_INSTRUCTIONS = int(os.environ.get("INST", 1))
-DEBUG = int(os.environ.get("DEBUG", 0))
-NAME = os.environ.get("NAME", "exp")
-MAN = os.environ.get("MAN", "paths")  # which manipulation
-DATA_DIR = os.environ.get("DATA_DIR", "data")
-DATA_DIR = os.path.join(os.path.dirname(__file__), DATA_DIR)
-
-# USE_REVERSALS = int(os.environ.get('REV', 0))
-# EVAL_OBJECTS = int(os.environ.get('EVAL_OBJECTS', 1))
-FEEDBACK = int(os.environ.get("FEEDBACK", 0))
-SAY_REUSE = int(os.environ.get("SAY_REUSE", 1))
-COND2_TRAIN = int(os.environ.get("COND2_TRAIN", 1))
-TIMER = int(os.environ.get("TIMER", 0))
-VERBOSITY = int(os.environ.get("VERBOSITY", 0))
-NTRAIN = int(os.environ.get("NTRAIN", 8))
-TIME_LIMIT = int(os.environ.get("TIME_LIMIT", 10_000_000))
-USE_DONE = DEBUG > 0
-
 
 # number of rooms to user for tasks (1st n)
 num_rooms = 2
-
 
 min_success_task = NTRAIN
 min_success_train = min_success_task * num_rooms

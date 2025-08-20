@@ -27,10 +27,8 @@ DEFAULT_LEGEND_SIZE = 10.5
 image_dict = utils.load_image_dict()
 
 
-
 def num_users(df):
   return len(df["user_id"].unique())
-
 
 
 def filter_users_by_success(df, analysis_name=None, **kwargs):
@@ -39,11 +37,12 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
     analysis_name = inspect.currentframe().f_back.f_code.co_name
 
   # Create cache file path
-  cache_path = os.path.join(data_configs.ANALYSIS_CACHE_DIR, f"{analysis_name}_user_ids.pkl")
+  cache_path = os.path.join(
+    data_configs.ANALYSIS_CACHE_DIR, f"{analysis_name}_user_ids.pkl"
+  )
 
   # Compute user IDs if cache doesn't exist or failed to load
   print("Num initial users: ", num_users(df))
-
 
   # Try to load cached user IDs
   if os.path.exists(cache_path):
@@ -55,7 +54,6 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
     df_filtered = df.filter(pl.col("user_id").is_in(unique_user_ids))
     print("Num users after cache filter: ", num_users(df_filtered))
     return df_filtered, unique_user_ids
-
 
   df = df.filter(min_train_success=True, eval=True)
   print("Num initial users after success filter: ", num_users(df))
@@ -279,10 +277,7 @@ def path_reuse_results(
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
-    user_df.filter(
-      tell_reuse=tell_reuse,
-      eval_shares_start_pos=True,
-      **eval_filter),
+    user_df.filter(tell_reuse=tell_reuse, eval_shares_start_pos=True, **eval_filter),
     analysis_name="path_reuse_results",
   )
 
@@ -305,7 +300,6 @@ def path_reuse_results(
     fig.savefig(
       os.path.join(save_dir, "success_rate_path_reuse.pdf"), bbox_inches="tight"
     )
-
 
   ######################
   # Plot Response times when using new path vs. partial reuse
@@ -355,7 +349,7 @@ def path_reuse_results(
         plt.show()
 
   # Close stats file at the end
-  #analysis_utils.print_relevant_stats(stats_file)
+  # analysis_utils.print_relevant_stats(stats_file)
   stats_file.close()
 
 
@@ -422,7 +416,7 @@ def shortcut_results(
     display(fig)
 
   # Close stats file at the end
-  #analysis_utils.print_relevant_stats(stats_file)
+  # analysis_utils.print_relevant_stats(stats_file)
   stats_file.close()
   if verbosity > 0:
     with open(os.path.join(save_dir, "stats.txt"), "r") as f:
@@ -465,10 +459,7 @@ def start_results(
   # get all episodes for users who achieved at least 16 successes during training
   ##################
   sub_df, _ = filter_users_by_success(
-    user_df.filter(
-      manipulation="start",
-      eval=True,
-      tell_reuse=tell_reuse),
+    user_df.filter(manipulation="start", eval=True, tell_reuse=tell_reuse),
     analysis_name="start_results",
   )
 
@@ -524,7 +515,7 @@ def start_results(
     from IPython.display import display
 
     display(fig)
-  #analysis_utils.print_relevant_stats(stats_file)
+  # analysis_utils.print_relevant_stats(stats_file)
   stats_file.close()
 
 
@@ -570,7 +561,7 @@ def juncture_results(
   user_df, first_100_users = analysis_utils.filter_users_by_success_by_tell_reuse(
     user_df.filter(manipulation="juncture"),
     analysis_name="juncture_results",
-    )
+  )
 
   ##################
   # Add setting column based on maze name
@@ -635,7 +626,10 @@ def juncture_results(
 
     # Get statistics for this condition
     results = analysis_utils.power_analysis_rt_differences(
-      difference_df, measure, stats_file=stats_file, setting=str((idx, setting, tell_reuse))
+      difference_df,
+      measure,
+      stats_file=stats_file,
+      setting=str((idx, setting, tell_reuse)),
     )
 
     # Store data for plotting - always use median + bootstrapped CI
@@ -717,7 +711,7 @@ def juncture_results(
     display(fig)
 
   # Close stats file at the end
-  #analysis_utils.print_relevant_stats(stats_file)
+  # analysis_utils.print_relevant_stats(stats_file)
   stats_file.close()
   if verbosity > 0:
     with open(stats_filename, "r") as f:

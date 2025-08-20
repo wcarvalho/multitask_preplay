@@ -7,7 +7,6 @@ python figures_supplemental/jaxmaze_overlap_analysis.py
 The figures are saved in the {data_configs.JAXMAZE_OVERLAP_ANALYSIS_DIR} directory.
 """
 
-
 import sys
 import os
 
@@ -68,7 +67,7 @@ def visualize_examples_by_reuse(
   samples = []
 
   # if model == "human":
-    # For humans, we need to carefully match train and test examples
+  # For humans, we need to carefully match train and test examples
   user_ids = df["user_id"].unique().to_list()
   block_names = df["block_name"].unique().to_list()
   for user_id in user_ids:
@@ -102,12 +101,14 @@ def visualize_examples_by_reuse(
         test = df.filter(
           eval=True, manipulation=manipulation_id, world=test_maze, **filters
         )
-        corresponding_train_episode_idx = test["corresponding_train_episode_idx"].to_list()[test_episode_idx]
+        corresponding_train_episode_idx = test[
+          "corresponding_train_episode_idx"
+        ].to_list()[test_episode_idx]
 
         train = df.filter(
-          #eval=False,
-          #manipulation=manipulation_id,
-          #world=train_maze,
+          # eval=False,
+          # manipulation=manipulation_id,
+          # world=train_maze,
           global_episode_idx=corresponding_train_episode_idx,
         )
 
@@ -295,7 +296,6 @@ if __name__ == "__main__":
   ]
   if args.manipulations:
     manipulations = [m for m in manipulations if m["name"] in args.manipulations]
-
 
   # Define models available for JaxMaze (excluding human which is handled separately)
   available_models = ["preplay", "usfa", "dyna", "qlearning", "bfs", "dfs"]

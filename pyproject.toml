@@ -33,7 +33,7 @@ dependencies = [
     "jaxlib==0.4.22",
     "datasets",
     "huggingface-hub==0.33.0",
-    "housemaze",
+    "jaxmaze",
     "jaxneurorl",
     "nicewebrl",
     "absl-py==2.1.0",
@@ -295,6 +295,6 @@ profile = "black"
 line_length = 88 
 
 [tool.uv.sources]
-housemaze = { git = "https://github.com/wcarvalho/JaxMaze.git" }
+jaxmaze = { git = "https://github.com/wcarvalho/JaxMaze.git" }
 jaxneurorl = { git = "https://github.com/wcarvalho/jaxneurorl.git" }
 nicewebrl = { git = "https://github.com/wcarvalho/nicewebrl.git" }

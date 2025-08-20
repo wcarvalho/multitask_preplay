@@ -3,11 +3,11 @@ This repository is the official implementation of [Preemptive Solving of Future 
 
 **Table of Contents**
 
-* [Install](#install)
-* [Running analysis on existing data](#analysis-on-paper-data)
-* [Running web experiments](#running-web-experiments)
-* [Running simulations](https://github.com/wcarvalho/preplay-AI/tree/main)
-* [Data folder structure](#data-folder-structure)
+- [Preemptive Solving of Future Problems: Multitask Preplay in Humans and Machines](#preemptive-solving-of-future-problems-multitask-preplay-in-humans-and-machines)
+  - [Install](#install)
+  - [Analysis on paper data](#analysis-on-paper-data)
+  - [Running web experiments](#running-web-experiments)
+  - [Data Folder Structure](#data-folder-structure)
 
 <img src="assets/algo.png" alt="Comparison Image" style="width: 75%; max-width: 800px;">
 
@@ -47,6 +47,10 @@ export MULTITASK_PREPLAY_DATA_DIR="/path/to/data"
 
 ## Running web experiments
 
+
+
+Here, we describe how to do **local testing**. In [this file](online_web_experiments.md), we describe how to launch things with fly.io.
+
 Note: before running a new experiment you want to delete `.nicegui`
 
 **JaxMaze experiment**
@@ -74,6 +78,11 @@ python experiments/craftax/web_app.py SAY_REUSE=1
 
 # unknown evaluation goals
 python experiments/craftax/web_app.py SAY_REUSE=0
+```
+
+If you want to adapt this and debug quickly but don't want to compile the environment each time, you can use a "dummy environment" with `DUMMY_ENV=1`, e.g.
+```
+python experiments/craftax/web_app.py SAY_REUSE=0 DUMMY_ENV=1
 ```
 
 

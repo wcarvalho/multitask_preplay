@@ -99,6 +99,7 @@ def add_to_file(stats_file, algo, label, text):
   with open(yaml_file, "w") as f:
     yaml.dump(data, f, default_flow_style=False)
 
+
 def print_relevant_stats(stats_file):
   yaml_file = data_configs.PAPER_STATS_FILE
   # Load existing YAML if it exists
@@ -110,8 +111,10 @@ def print_relevant_stats(stats_file):
   experiment_data = data.get(base_filename, {})
   pprint(experiment_data, indent=2)
 
+
 def filter_null(df, column):
   return df.filter(~pl.col(column).is_nan()).filter(~pl.col(column).is_null())
+
 
 def add_reuse_column(
   df: pl.DataFrame,
@@ -126,12 +129,14 @@ def add_reuse_column(
     # overlap > threshold and train_test_cosine > threshold
     df = df.with_columns(
       (
-        (pl.col("overlap") > 2*overlap_threshold) |
-        (
-          (pl.col("overlap") > overlap_threshold) &
-          (pl.col("train_test_cosine") > cosine_threshold)
+        (pl.col("overlap") > 2 * overlap_threshold)
+        | (
+          (pl.col("overlap") > overlap_threshold)
+          & (pl.col("train_test_cosine") > cosine_threshold)
         )
-      ).cast(pl.Float64).alias(reuse_column)
+      )
+      .cast(pl.Float64)
+      .alias(reuse_column)
     )
   else:
     # overlap > threshold
@@ -148,9 +153,9 @@ def add_reuse_column(
   print(f"Removed {len(removed_global_episode_idx)} global episode indices")
   return df
 
+
 def num_users(df):
   return len(df["user_id"].unique())
-
 
 
 def filter_users_by_success_by_tell_reuse(df, analysis_name=None, **kwargs):
@@ -198,6 +203,7 @@ def filter_users_by_success_by_tell_reuse(df, analysis_name=None, **kwargs):
   print("Num initial users after first 100 filter: ", num_users(df))
   return df, first_100_users
 
+
 def hodges_lehmann(sample: np.ndarray) -> float:
   """
   One-sample Hodges–Lehmann estimator = median of all Walsh averages (xi+xj)/2, i≤j.
@@ -205,8 +211,9 @@ def hodges_lehmann(sample: np.ndarray) -> float:
   """
   x = np.asarray(sample, dtype=float)
   # build the upper-triangular matrix of pairwise sums and flatten
-  walsh = (x[:, None] + x[None, :]) / 2.0    # broadcasting → n×n
+  walsh = (x[:, None] + x[None, :]) / 2.0  # broadcasting → n×n
   return np.median(walsh[np.triu_indices_from(walsh)])
+
 
 ######################################
 # Plotting functions
@@ -395,7 +402,6 @@ def plot_bar_rt_comparison(
   df = add_reuse_column(df, reuse_column, overlap_threshold)
   print("Mean reuse: ", df[reuse_column].mean())
 
-
   ylabel = ylabel or measure_to_ylabel[rt_column]
   title = title or measure_to_title[rt_column]
   len_after = len(df)
@@ -408,7 +414,9 @@ def plot_bar_rt_comparison(
 
     # Create a unique cache key based on the analysis parameters
     cache_key = f"{rt_column}_{reuse_column}_{n_simulations}_{overlap_threshold}"
-    cache_path = os.path.join(data_configs.ANALYSIS_CACHE_DIR, f"statsfile.{cache_key}.pkl")
+    cache_path = os.path.join(
+      data_configs.ANALYSIS_CACHE_DIR, f"statsfile.{cache_key}.pkl"
+    )
 
     if os.path.exists(cache_path) and not rereun_analysis:
       print(f"Loading cached results from {cache_path}")
@@ -740,7 +748,7 @@ def get_human_success_rate_path_reuse_data(
 
   # Calculate human success statistics
   human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
-  
+
   # Calculate human reuse statistics
   human_reuse_stats = compute_binary_measure_statistics(df, "user_id", reuse_column)
 
@@ -807,7 +815,9 @@ def get_model_success_rate_path_reuse_data(
     return {}
 
   # Add boolean "reuse" column based on overlap threshold
-  model_df = add_reuse_column(model_df, reuse_column, overlap_threshold, cosine_threshold)
+  model_df = add_reuse_column(
+    model_df, reuse_column, overlap_threshold, cosine_threshold
+  )
 
   model_data = {}
 
@@ -1186,12 +1196,12 @@ def perform_wilcoxon_analysis(
   factor: float = 1.0,
 ) -> dict:
   """Perform Wilcoxon signed-rank test analysis with effect size and paper result.
-  
+
   Args:
       data: Array of data to test
       mu: Null hypothesis value (ignored if test_against_zero=True)
       n_groups: Number of groups
-      p_obs: Observed mean/proportion      
+      p_obs: Observed mean/proportion
   Returns:
       dict containing test statistics, effect size, and paper result
   """
@@ -1206,7 +1216,11 @@ def perform_wilcoxon_analysis(
   for _ in range(B):
     rng, rng_subkey = jax.random.split(rng)
     boot_hl.append(
-      hodges_lehmann(jax.random.choice(rng_subkey, differences, shape=(len(differences),), replace=True))
+      hodges_lehmann(
+        jax.random.choice(
+          rng_subkey, differences, shape=(len(differences),), replace=True
+        )
+      )
     )
   ci_low, ci_high = np.percentile(boot_hl, [2.5, 97.5])
 
@@ -1361,7 +1375,6 @@ def compute_binary_measure_statistics(
     df = n_groups - 1  # Using n-1 for consistency, though Wilcoxon doesn't use df
     # Prepare paper result text
     paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], Z={z_stat:.2f}, r={r:.2f}, p={p_value:.2g}, is_normal={is_normal}"
-
 
   return {
     "n_groups": n_groups,
@@ -2057,7 +2070,7 @@ def power_analysis_rt_differences(
     wilcoxon_results = perform_wilcoxon_analysis(
       differences, mu=0, n_groups=n, p_obs=mean, factor=1
     )
-    
+
     test_name = wilcoxon_results["test_name"]
     test_stat = wilcoxon_results["test_stat"]
     p_value = wilcoxon_results["p_value"]
@@ -2066,7 +2079,7 @@ def power_analysis_rt_differences(
     df = wilcoxon_results["df"]
     paper_result = wilcoxon_results["paper_result"]
     median = wilcoxon_results["p_median"]
-    
+
     # Extract r for power analysis
     r = effect_size["value"]
     ci_low, ci_high = wilcoxon_results["ci_low_hl"], wilcoxon_results["ci_high_hl"]
@@ -2091,7 +2104,6 @@ def power_analysis_rt_differences(
       )
       # Adjust for Wilcoxon efficiency
       required_n[power] = ceil(n_required / 0.95)
-
 
     # Create paper result for non-normal case with Z values
   add_to_file(

@@ -248,7 +248,7 @@ def plot_performance_max_bars(
       ylabel: Label for y-axis
       title: Plot title (if None, derives from key)
       model_to_bar: Optional dictionary mapping model names to bar styles (e.g., {'model': {'alpha': 0.8, 'label': 'Custom Label'}})
-      
+
   Note:
       If model_to_bar contains a 'label' key for a model, it will be used for that bar's label.
       Otherwise, falls back to model_names dictionary or the model key.
@@ -273,18 +273,17 @@ def plot_performance_max_bars(
       run_data = df[df["run_id"] == run_id]
       if len(run_data) > 0:
         run_maxes.append(run_data[key].max())
-    
+
     if len(run_maxes) > 0:
       # Calculate mean and standard error of maximum values across runs
       max_mean = np.mean(run_maxes)
       max_sem = np.std(run_maxes) / np.sqrt(len(run_maxes))
-      
+
       # Check if model_to_bar has a 'label' key for this model
-      if model_to_bar and model in model_to_bar and 'label' in model_to_bar[model]:
-        label = model_to_bar[model]['label']
+      if model_to_bar and model in model_to_bar and "label" in model_to_bar[model]:
+        label = model_to_bar[model]["label"]
       else:
         label = model_names.get(model, model)  # Fall back to existing behavior
-      
       model_names_list.append(label)
       max_means.append(max_mean)
       max_sems.append(max_sem)
@@ -293,13 +292,13 @@ def plot_performance_max_bars(
   # Create bar plot
   x_pos = np.arange(len(model_names_list))
   bar_props = {"alpha": 0.8, "capsize": 5}
-  
+
   # Apply custom bar properties if provided
   if model_to_bar:
     for i, model in enumerate(data.keys()):
       if model in model_to_bar:
         # Create a copy to avoid modifying the original and exclude 'label' from bar properties
-        bar_style = {k: v for k, v in model_to_bar[model].items() if k != 'label'}
+        bar_style = {k: v for k, v in model_to_bar[model].items() if k != "label"}
         bar_props.update(bar_style)
 
   bars = ax.bar(x_pos, max_means, yerr=max_sems, color=colors, **bar_props)
@@ -422,8 +421,16 @@ if __name__ == "__main__":
   )
 
   model_to_line_3 = {
-    "preplay": {"linestyle": "-", "linewidth": 3, "label": "Structured object locations"},
-    "preplay-randomization-ablation": {"linestyle": "-.", "linewidth": 2.5, "label": "Randomized object locations"},
+    "preplay": {
+      "linestyle": "-",
+      "linewidth": 3,
+      "label": "Structured object locations",
+    },
+    "preplay-randomization-ablation": {
+      "linestyle": "-.",
+      "linewidth": 2.5,
+      "label": "Randomized object locations",
+    },
   }
 
   plot_performance_max_bars(
@@ -434,6 +441,7 @@ if __name__ == "__main__":
     ylabel="Score",
     title="Performance of Multitask Preplay\nwhen object locations are randomized",
     y_axis=(0, 7),
+    model_to_bar=model_to_line_3,
   )
 
   # Adjust layout and save the combined figure

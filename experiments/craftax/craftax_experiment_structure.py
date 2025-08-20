@@ -26,6 +26,10 @@ from nicewebrl import JaxWebEnv, base64_npimage, TimestepWrapper
 from nicewebrl import Stage, EnvStage
 from nicewebrl import get_logger
 from craftax.craftax.renderer import render_craftax_pixels
+from configs import (
+    DEBUG, SAY_REUSE, VERBOSITY, NAME, DATA_DIR, NTRAIN, GIVE_INSTRUCTIONS,
+    MANIPULATION, NUM_BLOCKS, EVAL_SHOW_MAP, PRECOMPILE, DUMMY_ENV, MONSTERS
+)
 from simulations.craftax_web_env import EnvParams as OriginalEnvParams
 from craftax.craftax.constants import (
   Action,
@@ -53,21 +57,6 @@ from simulations.craftax_experiment_configs import (
 load_dotenv()
 
 logger = get_logger(__name__)
-VERBOSITY = int(os.environ.get("VERBOSITY", 0))
-DEBUG = int(os.environ.get("DEBUG", 0))
-MANIPULATION = os.environ.get("MANIPULATION", "paths")
-SAY_REUSE = int(os.environ.get("SAY_REUSE", 0))
-NUM_BLOCKS = int(os.environ.get("NUM_BLOCKS", 100))
-EVAL_SHOW_MAP = int(os.environ.get("EVAL_SHOW_MAP", 1))
-GIVE_INSTRUCTIONS = int(os.environ.get("GIVE_INSTRUCTIONS", 0))
-
-PRECOMPILE = int(os.environ.get("PRECOMPILE", 1))
-
-DUMMY_ENV = int(os.environ.get("DUMMY_ENV", 0))
-MONSTERS = int(os.environ.get("MONSTERS", 1))
-NAME = os.environ.get("NAME", "exp")
-DATA_DIR = os.environ.get("DATA_DIR", "data")
-NTRAIN = int(os.environ.get("NTRAIN", 8))
 
 MAX_STAGE_EPISODES = 50 if DEBUG == 0 else 2
 MIN_SUCCESS_TASK = NTRAIN if DEBUG == 0 else 1

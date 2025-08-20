@@ -13,7 +13,14 @@ from flax import serialization
 import polars as pl
 from simulations import craftax_experiment_configs  # human
 from simulations import craftax_simulation_configs  # model. derivative of human configs
-from data_processing.utils import get_in_episode, total_reward, success, path_length, get_overlap_dicts_model, get_overlap_dicts_human
+from data_processing.utils import (
+  get_in_episode,
+  total_reward,
+  success,
+  path_length,
+  get_overlap_dicts_model,
+  get_overlap_dicts_human,
+)
 from simulations.craftax_web_env import (
   EnvParams,
   CraftaxSymbolicWebEnvNoAutoReset,
@@ -189,9 +196,9 @@ def make_human_episode_row_data(
     episode_idx=metadata["nepisodes"],
     task_vector=str(make_task_vector(timesteps)),
     # Human specific
-    session_start=user_storage['session_start'],
-    session_duration=user_storage['session_duration'],
-    timezone=user_storage['env_vars']['TIMEZONE'],
+    session_start=user_storage["session_start"],
+    session_duration=user_storage["session_duration"],
+    timezone=user_storage["env_vars"]["TIMEZONE"],
   )
   row.update(metadata["user_data"])
 
@@ -332,7 +339,7 @@ def any_feature_achieved(episode_data):
   return achieved.any().astype(np.float32)
 
 
-#def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
+# def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
 #  """maps: NxHxW, test_map: HxW"""
 #  """Calculate the overlap between two maps."""
 #  # Find the train episode with highest overlap
@@ -359,7 +366,7 @@ def any_feature_achieved(episode_data):
 #  return best_idx, best_map, best_overlap
 
 
-#def compute_overlap(map1: np.ndarray, map2: np.ndarray):
+# def compute_overlap(map1: np.ndarray, map2: np.ndarray):
 #  """map1: HxW, map2: HxW"""
 #  """Calculate the overlap between two maps."""
 
@@ -420,18 +427,20 @@ def add_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> tuple:
   all_cosine_dict = {}
 
   for world in df["world"].unique():
-    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_human(
-      df,
-      train_maze=world,
-      test_maze=world,
-      overlap_threshold=0.15,
-      create_train_maps_fn=partial(create_maps, add_error=True),
-      create_test_maps_fn=partial(create_maps, add_error=False),
+    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
+      get_overlap_dicts_human(
+        df,
+        train_maze=world,
+        test_maze=world,
+        overlap_threshold=0.15,
+        create_train_maps_fn=partial(create_maps, add_error=True),
+        create_test_maps_fn=partial(create_maps, add_error=False),
+      )
     )
     all_reuse_dict.update(reuse_dict)
     all_overlap_dict.update(overlap_dict)
     all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
-    all_cosine_dict.update(cosine_dict) 
+    all_cosine_dict.update(cosine_dict)
 
   # Return the dictionaries directly instead of converting to Series
   return (
@@ -589,15 +598,17 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> 
   all_overlap_dict = {}
   all_corresponding_train_episode_idx = {}
   all_cosine_dict = {}
-  
+
   for world in df["world"].unique():
-    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = get_overlap_dicts_model(
-      df,
-      train_maze=world,
-      test_maze=world,
-      overlap_threshold=0.15,
-      create_train_maps_fn=partial(create_maps, add_error=True),
-      create_test_maps_fn=partial(create_maps, add_error=False),
+    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
+      get_overlap_dicts_model(
+        df,
+        train_maze=world,
+        test_maze=world,
+        overlap_threshold=0.15,
+        create_train_maps_fn=partial(create_maps, add_error=True),
+        create_test_maps_fn=partial(create_maps, add_error=False),
+      )
     )
     all_reuse_dict.update(reuse_dict)
     all_overlap_dict.update(overlap_dict)

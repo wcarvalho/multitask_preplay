@@ -44,14 +44,16 @@ def create_two_paths_diff_rt_df(df: dataframe.DataFrame):
       eval_shares_start_pos=True,
       manipulation="paths",
       world="big_m3_maze1",
-      eval=True),
+      eval=True,
+    ),
     analysis_name="path_reuse_results",
   )
   path_reuse_df = analysis_utils.add_reuse_column(
     path_reuse_df,
-    reuse_column='reuse',
+    reuse_column="reuse",
     overlap_threshold=data_configs.TWO_PATHS_OVERLAP_THRESHOLD,
-    cosine_threshold=data_configs.COSINE_THRESHOLD)
+    cosine_threshold=data_configs.COSINE_THRESHOLD,
+  )
 
   # Get unique user IDs
   user_ids = df["user_id"].unique().to_list()
@@ -148,8 +150,7 @@ def create_juncture_diff_rt_df(df: dataframe.DataFrame, **kwargs):
   """
   # Get unique user IDs
   df, _ = filter_users_by_success(
-    df.filter(manipulation="juncture"),
-    analysis_name="juncture_results"
+    df.filter(manipulation="juncture"), analysis_name="juncture_results"
   )
 
   def get_maze_setting(maze_str: str) -> str:
@@ -214,7 +215,7 @@ def create_juncture_diff_rt_df(df: dataframe.DataFrame, **kwargs):
       diff_first_log_rt = reuse0_first_log_rt - reuse1_first_log_rt
       diff_max_log_rt = reuse0_max_log_rt - reuse1_max_log_rt
 
-    # OUTLIERS not useful for visualization
+      # OUTLIERS not useful for visualization
       if max(reuse1_max_rt, reuse0_max_rt) > 5:
         continue
       # Check if this maze has highest difference in first RT
@@ -331,7 +332,7 @@ def plot_min_median_max_differences(
 
 if __name__ == "__main__":
   from data_processing import process_user_data
-  
+
   user_df = process_user_data.get_jaxmaze_human_data(
     load_df_only=False,
   )

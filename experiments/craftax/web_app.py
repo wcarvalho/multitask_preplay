@@ -18,19 +18,11 @@ from nicewebrl import stages
 from importlib.util import find_spec
 import shutil
 
-
-DATABASE_FILE = os.environ.get("DB_FILE", "db.sqlite")
-DATA_DIR = os.environ.get("DATA_DIR", "craftax_data")
-DATA_DIR = os.path.join(os.path.dirname(__file__), DATA_DIR)
-
-LOGGER_DISPLAY_TIME = int(os.environ.get("LOGGER_DISPLAY_TIME", 0))
-DEBUG = int(os.environ.get("DEBUG", 0))
-CONSENT = int(os.environ.get("CONSENT", 1))
-DEBUG_SEED = int(os.environ.get("SEED", 0))
-NAME = os.environ.get("NAME", "exp")
+from configs import (
+    DATABASE_FILE, DATA_DIR, DEBUG, DEBUG_SEED, NAME, VERBOSITY,
+    CONSENT
+)
 DATABASE_FILE = f"{DATABASE_FILE}_name={NAME}_debug={DEBUG}"
-DUMMY_ENV = int(os.environ.get("DUMMY_ENV", 1))
-VERBOSITY = int(os.environ.get("VERBOSITY", 0))
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
@@ -54,7 +46,6 @@ setup_logging(
   DATA_DIR,
   # each user has a unique seed
   # can use this to identify users
-  display_time=LOGGER_DISPLAY_TIME,
   log_filename_fn=log_filename_fn,
   nicegui_storage_user_key="user_id",
 )

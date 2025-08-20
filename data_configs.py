@@ -10,9 +10,7 @@ JAXMAZE_HUMAN_DATA_PATTERN = "*final*v2*debug=0*.json"
 CRAFTAX_HUMAN_DATA_PATTERN = "*final*v2*debug=0*.json"
 
 
-DIRECTORY = os.environ.get(
-  "MULTITASK_PREPLAY_DATA_DIR", "../preplay_results"
-)
+DIRECTORY = os.environ.get("MULTITASK_PREPLAY_DATA_DIR", "../preplay_results")
 
 
 CACHE_DIR = os.path.join(DIRECTORY, "cache")
@@ -38,10 +36,16 @@ CRAFTAX_ENV_FIGURES_DIR = os.path.join(ENV_FIGURES_DIR, "craftax")
 
 # Analysis figure directory
 ANALYSIS_FIGURES_DIR = os.path.join(DIRECTORY, "analysis_figures")
-JAXMAZE_INDIVIDUAL_RTS_DIR = os.path.join(ANALYSIS_FIGURES_DIR, "jaxmaze_individual_rts")
+JAXMAZE_INDIVIDUAL_RTS_DIR = os.path.join(
+  ANALYSIS_FIGURES_DIR, "jaxmaze_individual_rts"
+)
 JAXMAZE_SF_DIR = os.path.join(ANALYSIS_FIGURES_DIR, "jaxmaze_sf_analysis")
-JAXMAZE_OVERLAP_ANALYSIS_DIR = os.path.join(ANALYSIS_FIGURES_DIR, "jaxmaze_overlap_analysis")
-CRAFTAX_OVERLAP_ANALYSIS_DIR = os.path.join(ANALYSIS_FIGURES_DIR, "craftax_overlap_analysis")
+JAXMAZE_OVERLAP_ANALYSIS_DIR = os.path.join(
+  ANALYSIS_FIGURES_DIR, "jaxmaze_overlap_analysis"
+)
+CRAFTAX_OVERLAP_ANALYSIS_DIR = os.path.join(
+  ANALYSIS_FIGURES_DIR, "craftax_overlap_analysis"
+)
 
 # File for paper stats
 PAPER_STATS_FILE = os.path.join(DIRECTORY, "paper_stats.yaml")
@@ -56,8 +60,3 @@ TWO_PATHS_OVERLAP_THRESHOLD = 0.5
 SHORTCUT_OVERLAP_THRESHOLD = 0.7
 CRAFTAX_OVERLAP_THRESHOLD = 0.25
 COSINE_THRESHOLD = 0.5
-
-
-
-
-
