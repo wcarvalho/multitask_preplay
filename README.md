@@ -1,4 +1,4 @@
-# Preemptive Solving of Future Problems: Multitask Preplay in Humans and Machines
+# Multitask Preplay
 This repository is the official implementation of [Preemptive Solving of Future Problems: Multitask Preplay in Humans and Machines](link).
 
 **Table of Contents**
