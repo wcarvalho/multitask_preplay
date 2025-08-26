@@ -3,13 +3,12 @@ This repository is the official implementation of [Preemptive Solving of Future 
 
 **Table of Contents**
 
-- [Preemptive Solving of Future Problems: Multitask Preplay in Humans and Machines](#preemptive-solving-of-future-problems-multitask-preplay-in-humans-and-machines)
-  - [Install](#install)
-  - [Analysis on paper data](#analysis-on-paper-data)
-  - [Running web experiments](#running-web-experiments)
-    - [JaxMaze experiment](#jaxmaze-experiment)
-    - [Craftax experiment](#craftax-experiment)
-  - [Data Folder Structure](#data-folder-structure)
+- [Install](#install)
+- [Analysis on paper data](#analysis-on-paper-data)
+- [Running web experiments](#running-web-experiments)
+  - [JaxMaze experiment](#jaxmaze-experiment)
+  - [Craftax experiment](#craftax-experiment)
+- [Data Folder Structure](#data-folder-structure)
 
 <img src="assets/algo.png" alt="Comparison Image" style="width: 75%; max-width: 800px;">
 
