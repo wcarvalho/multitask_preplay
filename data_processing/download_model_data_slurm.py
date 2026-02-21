@@ -9,6 +9,9 @@ python data_processing/download_model_data_slurm.py  # defaults to both
 """
 
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import subprocess
 import shutil
@@ -149,12 +152,12 @@ if __name__ == "__main__":
     )
     download_model_files(
       base_server_dir=server_dir,
-      base_local_dir=data_configs.JAXMAZE_DATA_DIR,
+      base_local_dir=data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
       model_dirs={
-        # "qlearning": "ql-final/save_data/ql-final-rotations-2/exp=exp4",
-        # "sf": "usfa-final/save_data/usfa-final-rotations-2/euxp=exp4",
-        # "dyna": "dyna-final/save_data/dyna-final-rotations-4/alg=dyna,exp=exp4",
-        # "preplay-new": "preplay-final/save_data/preplay-final-rotations-5/alg=preplay,simu=15,exp=exp4",
+        "qlearning": "ql-final/save_data/ql-final-rotations-2/exp=exp4",
+        "sf": "usfa-final/save_data/usfa-final-rotations-2/euxp=exp4",
+        "dyna": "dyna-final/save_data/dyna-final-rotations-4/alg=dyna,exp=exp4",
+        "preplay-new": "preplay-final/save_data/preplay-final-rotations-5/alg=preplay,simu=15,exp=exp4",
       },
       model_names=model_names,
     )
@@ -168,11 +171,11 @@ if __name__ == "__main__":
     server_dir = "/n/holylfs06/LABS/kempner_fellow_wcarvalho/jax_rl_results/craftax_multigoal_trainer"
     download_model_files(
       base_server_dir=server_dir,
-      base_local_dir=data_configs.CRAFTAX_DATA_DIR,
+      base_local_dir=data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
       model_dirs={
-        # "qlearning": "ql-final/save_data/ql-final-1/alg=qlearning",
+        "qlearning": "ql-final/save_data/ql-final-1/alg=qlearning",
         "sf": "usfa-final/save_data/usfa-final-5/alg=usfa",
-        # "dyna": "dyna-final/save_data/dyna-final-2/alg=dyna",
+        "dyna": "dyna-final/save_data/dyna-final-2/alg=dyna",
         "preplay": "preplay-final/save_data/preplay-final-1/alg=preplay",
       },
       model_names=model_names,

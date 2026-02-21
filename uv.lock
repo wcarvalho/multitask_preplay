@@ -1771,7 +1771,7 @@ wheels = [
 [[package]]
 name = "jaxmaze"
 version = "0.0.2"
-source = { git = "https://github.com/wcarvalho/JaxMaze.git#2848b7a058d008e66634354539f8c96ba236a889" }
+source = { git = "https://github.com/wcarvalho/JaxMaze.git#d75c355ea548152635bd1152b165ff2c29ddfde0" }
 dependencies = [
     { name = "distrax" },
     { name = "flax" },

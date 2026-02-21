@@ -6,6 +6,10 @@ python data_processing/download_user_data_google.py
 """
 
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from google.cloud import storage
 import fnmatch
 import data_configs
@@ -56,9 +60,9 @@ if __name__ == "__main__":
   download_user_files(
     bucket_name=bucket_name,
     pattern=human_data_pattern,
-    destination_folder=f"{data_configs.JAXMAZE_USER_DIR}",
+    destination_folder=f"{data_configs.JAXMAZE_HUMAN_RAW_DATA_DIR}",
   )
-  jaxmaze_files = f"{data_configs.JAXMAZE_USER_DIR}/*{human_data_pattern}"
+  jaxmaze_files = f"{data_configs.JAXMAZE_HUMAN_RAW_DATA_DIR}/*{human_data_pattern}"
   jaxmaze_files = list(set(glob(jaxmaze_files)))
 
   # craftax
@@ -67,9 +71,9 @@ if __name__ == "__main__":
   download_user_files(
     bucket_name=bucket_name,
     pattern=human_data_pattern,
-    destination_folder=f"{data_configs.CRAFTAX_USER_DIR}",
+    destination_folder=f"{data_configs.CRAFTAX_HUMAN_RAW_DATA_DIR}",
   )
-  craftax_files = f"{data_configs.CRAFTAX_USER_DIR}/*{human_data_pattern}"
+  craftax_files = f"{data_configs.CRAFTAX_HUMAN_RAW_DATA_DIR}/*{human_data_pattern}"
   craftax_files = list(set(glob(craftax_files)))
   print(f"{len(jaxmaze_files)} JaxMaze files")
   print(f"{len(craftax_files)} Craftax files")

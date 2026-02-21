@@ -77,6 +77,30 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
   return df, unique_user_ids
 
 
+def get_path_reuse_eval_data(user_df, tell_reuse=1):
+  """Return filtered (user_df, model_df) for path reuse experiment."""
+  eval_filter = dict(manipulation="paths", world="big_m3_maze1", eval=True)
+  sub_df, _ = filter_users_by_success(
+    user_df.filter(tell_reuse=tell_reuse, eval_shares_start_pos=True, **eval_filter),
+    analysis_name="path_reuse_results",
+  )
+  return sub_df
+
+
+def get_shortcut_eval_data(user_df, tell_reuse=1):
+  """Return filtered (user_df, model_df) for shortcut experiment."""
+  sub_df, _ = filter_users_by_success(
+    user_df.filter(
+      manipulation="shortcut",
+      world="big_m1_maze3_shortcut",
+      tell_reuse=tell_reuse,
+      eval_shares_start_pos=True,
+    ),
+    analysis_name="shortcut_results",
+  )
+  return sub_df
+
+
 ######################################
 # Model Analysis
 ######################################
@@ -237,15 +261,13 @@ def path_reuse_results(
   user_df: DataFrame,
   model_df: DataFrame,
   save_dir: str = None,
-  filter_columns: List[str] = [],
   tell_reuse: int = 1,
   display_figs: bool = False,
   save_figs: bool = True,
-  verbosity: int = 0,
   n_simulations: int = 1000,
   rereun_analysis: bool = False,
-  rt_ylim: Tuple[float, float] = None,
   overlap_threshold: float = 0.7,
+  mu: float = 0.5,
 ):
   """_summary_
 
@@ -259,79 +281,61 @@ def path_reuse_results(
   save_dir = os.path.join(save_dir, f"1.path_reuse_tell_reuse={tell_reuse}")
   os.makedirs(save_dir, exist_ok=True)
 
-  # Open stats file
-  stats_file = open(os.path.join(save_dir, "1.two_paths_stats.txt"), "w")
-  stats_file.write("Two Paths Statistical Analysis\n\n")
+  experiment_name = "1.two_paths_stats"
 
   ##################
-  # Get relevant simulations
+  # Get relevant simulations and filtered user data
   ##################
-  eval_filter = dict(
-    manipulation="paths",
-    world="big_m3_maze1",
-    eval=True,
-  )
+  eval_filter = dict(manipulation="paths", world="big_m3_maze1", eval=True)
   mdf = model_df.filter(**eval_filter)
+  sub_df = get_path_reuse_eval_data(user_df, tell_reuse=tell_reuse)
 
   ##################
-  # get all episodes for users who achieved at least 16 successes during training
+  # Create success rate and path reuse plot (median and mean)
   ##################
-  sub_df, _ = filter_users_by_success(
-    user_df.filter(tell_reuse=tell_reuse, eval_shares_start_pos=True, **eval_filter),
-    analysis_name="path_reuse_results",
-  )
+  for center in ["median", "mean"]:
+    fig, ax, human_data = analysis_utils.plot_success_rate_path_reuse_metrics(
+      df=sub_df,
+      model_df=mdf,
+      experiment_name=experiment_name,
+      title="Generalization Success & Path Reuse",
+      figsize=(6, 4),
+      legend_loc="center left",
+      legend_ncol=1,
+      overlap_threshold=overlap_threshold,
+      center=center,
+      mu=mu,
+    )
 
-  ##################
-  # Create success rate and path reuse plot
-  ##################
-  fig, ax = analysis_utils.plot_success_rate_path_reuse_metrics(
-    df=sub_df,
-    model_df=mdf,
-    stats_file=stats_file,
-    title="Generalization Success & Path Reuse",
-    figsize=(6, 4),
-    include_raw_data=False,
-    legend_loc="center left",
-    legend_ncol=1,
-    overlap_threshold=overlap_threshold,
-  )
+    if save_figs:
+      fig.savefig(
+        os.path.join(save_dir, f"success_rate_path_reuse_{center}.pdf"),
+        bbox_inches="tight",
+      )
 
   if save_figs:
-    fig.savefig(
-      os.path.join(save_dir, "success_rate_path_reuse.pdf"), bbox_inches="tight"
+    analysis_utils.plot_human_rate_histograms(
+      reuse_rates={"Human": human_data["human"]["reuse_rates"]},
+      save_path=os.path.join(save_dir, "human_rate_distributions.pdf"),
     )
 
   ######################
   # Plot Response times when using new path vs. partial reuse
   ######################
-  stats_file.write("\nResponse Time Analysis\n")
-  stats_file.write("======================================\n")
-
   do_analysis = [True, True, False, False, False]
-  # measure_to_ylim = {
-  #  'max_log_rt': None,
-  #  'first_log_rt': None,
-  #  #'first_rt': None,
-  #  #'max_rt': None,
-  #  #'total_rt': None,
-  # }
   for idx, measure in enumerate(
     [
       "first_log_rt",
       "max_log_rt",
-      #'first_rt', 'max_rt', 'total_rt'
     ]
   ):
-    stats_file.write(f"\n{measure}\n")
-    stats_file.write("--------------------\n")
-
     for use_box_plot in [False]:
       fig, ax = plt.subplots(figsize=(4, 4))
       analysis_utils.plot_bar_rt_comparison(
         sub_df,
         measure,
         n_simulations=n_simulations if do_analysis[idx] else 1,
-        stats_file=stats_file if do_analysis[idx] else None,
+        experiment_name=experiment_name if do_analysis[idx] else None,
         ax=ax,
         rereun_analysis=rereun_analysis,
         ylim=None if use_box_plot else (7, 8),
@@ -348,10 +352,6 @@ def path_reuse_results(
       if display_figs:
         plt.show()
 
-  # Close stats file at the end
-  # analysis_utils.print_relevant_stats(stats_file)
-  stats_file.close()
-
 
 def shortcut_results(
   user_df: DataFrame,
@@ -363,6 +363,7 @@ def shortcut_results(
   save_figs: bool = True,
   verbosity: int = 0,
   overlap_threshold: float = 0.6,
+  mu: float = 0.5,
 ):
   """_summary_
 
@@ -376,51 +377,48 @@ def shortcut_results(
   save_dir = os.path.join(save_dir, f"4.shortcut_tell_reuse={tell_reuse}")
   os.makedirs(save_dir, exist_ok=True)
 
-  # Open stats file
-  stats_file = open(os.path.join(save_dir, "2.shortcut_stats.txt"), "w")
-  stats_file.write("Shortcut Manipulation Statistical Analysis\n")
-
   mdf = model_df.filter(world="big_m1_maze3_shortcut", eval=True)
-
-  sub_df, _ = filter_users_by_success(
-    user_df.filter(
-      manipulation="shortcut",
-      world="big_m1_maze3_shortcut",
-      tell_reuse=tell_reuse,
-      eval_shares_start_pos=True,
-      eval=True,
-    ),
-    analysis_name="shortcut_results",
+  sub_df = get_shortcut_eval_data(
+    user_df,
+    tell_reuse=tell_reuse,
   )
 
   ##################
-  # Create success rate and path reuse plots
+  # Create success rate and path reuse plots (median and mean)
   ##################
-  fig, ax = analysis_utils.plot_success_rate_path_reuse_metrics(
-    df=sub_df,
-    model_df=mdf,
-    stats_file=stats_file,
-    title="Generalization Success & Path Reuse",
-    figsize=(6, 4),
-    include_raw_data=False,
-    legend_loc="center left",
-    overlap_threshold=overlap_threshold,
-  )
+  for center in ["median", "mean"]:
+    fig, ax, human_data = analysis_utils.plot_success_rate_path_reuse_metrics(
+      df=sub_df,
+      model_df=mdf,
+      title="Generalization Success & Path Reuse",
+      figsize=(6, 4),
+      legend_loc="center left",
+      overlap_threshold=overlap_threshold,
+      center=center,
+      mu=mu,
+    )
+
+    if save_figs:
+      fig.savefig(
+        os.path.join(save_dir, f"success_rate_path_reuse_{center}.pdf"),
+        bbox_inches="tight",
+      )
 
   if save_figs:
-    fig.savefig(os.path.join(save_dir, "exp2_2_success_rate.pdf"), bbox_inches="tight")
+    analysis_utils.plot_human_rate_histograms(
+      reuse_rates={"Human": human_data["human"]["reuse_rates"]},
+      save_path=os.path.join(save_dir, "human_rate_distributions.pdf"),
+    )
+
+    analysis_utils.plot_reuse_bar(
+      reuse_rates=human_data["human"]["reuse_rates"],
+      save_path=os.path.join(save_dir, "reuse_bar.pdf"),
+    )
 
   if display_figs:
     from IPython.display import display
 
     display(fig)
-
-  # Close stats file at the end
-  # analysis_utils.print_relevant_stats(stats_file)
-  stats_file.close()
-  if verbosity > 0:
-    with open(os.path.join(save_dir, "stats.txt"), "r") as f:
-      print(f.read())
 
 
 def start_results(
@@ -449,11 +447,6 @@ def start_results(
   save_dir = save_dir or data_configs.JAXMAZE_RESULTS_DIR
   save_dir = os.path.join(save_dir, f"3.start_tell_reuse={tell_reuse}")
   os.makedirs(save_dir, exist_ok=True)
-  # Default to ['avg_rt'] if no filter columns specified
-
-  stats_file = open(os.path.join(save_dir, "3.start_stats.txt"), "w")
-  stats_file.write("Intermediary Start Manipulation Statistical Analysis\n")
-  stats_file.write("===============================\n\n")
 
   ##################
   # get all episodes for users who achieved at least 16 successes during training
@@ -500,7 +493,6 @@ def start_results(
     colors=colors,
     ylabel="$\Delta$ Log RT",
     xlabels=xlabels,
-    stats_file=stats_file,
     ax=ax,
     ylim=ylim,
     use_median=median,
@@ -515,8 +507,6 @@ def start_results(
     from IPython.display import display
 
     display(fig)
-  # analysis_utils.print_relevant_stats(stats_file)
-  stats_file.close()
 
 
 def juncture_results(
@@ -552,11 +542,6 @@ def juncture_results(
   os.makedirs(save_dir, exist_ok=True)
   # Default to ['avg_rt'] if no filter columns specified
   filter_columns = filter_columns or []
-
-  # Open stats file
-  stats_filename = os.path.join(save_dir, "4.juncture_stats.txt")
-  stats_file = open(stats_filename, "w")
-  stats_file.write("Juncture Manipulation Statistical Analysis\n\n")
 
   user_df, first_100_users = analysis_utils.filter_users_by_success_by_tell_reuse(
     user_df.filter(manipulation="juncture"),
@@ -616,19 +601,15 @@ def juncture_results(
 
   # Collect data for each condition
   for idx, (setting, tell_reuse) in enumerate(options):
-    stats_file.write(f"\n\n=================={setting}===================\n")
     difference_df = analysis_utils.compute_condition_difference_df(
       user_df.filter(setting=setting, tell_reuse=tell_reuse),
       measures=[measure],
     )
-    stats_file.write(f"\n\nRT Analysis for tell_reuse={tell_reuse}\n")
-    stats_file.write("-----------------------------------------\n")
 
     # Get statistics for this condition
     results = analysis_utils.power_analysis_rt_differences(
       difference_df,
       measure,
-      stats_file=stats_file,
       setting=str((idx, setting, tell_reuse)),
     )
 
@@ -709,13 +690,6 @@ def juncture_results(
     from IPython.display import display
 
     display(fig)
-
-  # Close stats file at the end
-  # analysis_utils.print_relevant_stats(stats_file)
-  stats_file.close()
-  if verbosity > 0:
-    with open(stats_filename, "r") as f:
-      print(f.read())
 
 
 if __name__ == "__main__":

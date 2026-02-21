@@ -719,10 +719,6 @@ def distance(x1, x2):
   return jnp.sqrt(jnp.sum((x1 - x2) ** 2, axis=0))
 
 
-
-
-
-
 async def env_stage_display_fn(
   stage: EnvStage,
   container: ui.element,
@@ -878,7 +874,7 @@ def make_env_stage(
     msg_display_time=100,
     metadata=metadata,
     preprocess_timestep=reduce_timestep_size,
-    precompile=DEBUG == 0,
+    precompile=DEBUG == 0 and PRECOMPILE,
   )
 
 

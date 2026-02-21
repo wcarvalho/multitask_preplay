@@ -42,7 +42,7 @@ def get_grid(maze_str):
 
 
 def render_maze(maze_str, goal=None, ax=None, include_spawn=True, **kwargs):
-  level_init = utils.from_str(maze_str, char2key)
+  level_init = utils.from_str(maze_str, char2key, return_map_init=False)
   image = renderer.create_image_from_grid(
     *level_init,
     image_dict,
@@ -105,7 +105,7 @@ def render_path(
   star_at_start=False,
   **kwargs,
 ):
-  level_init = utils.from_str(maze_str, char2key)
+  level_init = utils.from_str(maze_str, char2key, return_map_init=False)
   image = renderer.create_image_from_grid(
     *level_init,
     image_dict,
@@ -207,7 +207,7 @@ if __name__ == "__main__":
   ########################################################
   # Two Paths Manipulation
   ########################################################
-  def plot_two_paths(ax, reversal):
+  def plot_two_paths(ax, reversal, ):
     render_path(
       utils.reverse(mazes.big_m3_maze1, *reversal),
       goal=task_objects[0],

@@ -36,7 +36,13 @@ Open `jupyter lab` from the root directory.
 
 Use the following notebooks for getting plots:
 * **JaxMaze analysis**: `figures/jaxmaze_results.ipynb`
+  * relies on `analysis/jaxmaze_analysis.py`
+
 * **Craftax analysis**: `figures/craftax_cogsci_results.ipynb`
+  * relies on `analysis/craftax_analysis.py`
+
+
+Common analysis functions are in `analysis/analysis_utils.py`
 
 Running these notebooks will automatically download any necessary data. You can also view this data and the preregistration for the JaxMaze experiments at the Open Science Foundation repositories
 * JaxMaze: https://doi.org/10.17605/OSF.IO/M53QH

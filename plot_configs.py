@@ -57,13 +57,14 @@ model_order = [
   "human",
   "human_success",
   "human_terminate",
-  "qlearning",
-  "dyna",
-  "usfa",
-  # "dynaq_shared",
   "preplay",
   "bfs",
   "dfs",
+  "qlearning",
+  "dyna",
+  "usfa",
+  "her"
+  # "dynaq_shared",
 ]
 
 

@@ -3,6 +3,7 @@ import os
 import os.path
 import sys
 
+sys.path.insert(0, ".")
 sys.path.append("simulations")
 
 import jax
@@ -11,8 +12,6 @@ import nicewebrl
 import numpy as np
 from flax import serialization
 import polars as pl
-from simulations import craftax_experiment_configs  # human
-from simulations import craftax_simulation_configs  # model. derivative of human configs
 from data_processing.utils import (
   get_in_episode,
   total_reward,
@@ -21,18 +20,14 @@ from data_processing.utils import (
   get_overlap_dicts_model,
   get_overlap_dicts_human,
 )
-from simulations.craftax_web_env import (
-  EnvParams,
-  CraftaxSymbolicWebEnvNoAutoReset,
-  task_onehot,
-)
-from simulations.craftax_utils import astar
 
 ################################################
-# Cache Optimal Test Paths and lengths
+# Cache Optimal Test Paths and lengths (lazy-loaded)
 ################################################
 
-OPTIMAL_TEST_PATHS = {}
+_OPTIMAL_TEST_PATHS = None
+_OPTIMAL_TEST_LENGTHS = None
+_world_seed_to_idx = None
 
 
 def make_start_position(start_positions):
@@ -40,40 +35,69 @@ def make_start_position(start_positions):
   return start_position.at[: len(start_positions)].set(jnp.asarray(start_positions))
 
 
-for config in craftax_experiment_configs.PATHS_CONFIGS:
-  # Create cache path
-  cache_dir = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    "simulations",
-    "craftax_cache",
-    "optimal_paths",
-  )
-  os.makedirs(cache_dir, exist_ok=True)
-  world_seed = config.world_seed
-  cache_file = os.path.join(cache_dir, f"path_world={world_seed}_eval.npy")
+def _compute_optimal_test_paths():
+  global _OPTIMAL_TEST_PATHS, _OPTIMAL_TEST_LENGTHS
+  if _OPTIMAL_TEST_PATHS is not None:
+    return
+  from simulations import craftax_experiment_configs
+  from simulations.craftax_web_env import EnvParams, CraftaxSymbolicWebEnvNoAutoReset
+  from simulations.craftax_utils import astar
 
-  # Try to load from cache
-  if os.path.exists(cache_file):
-    path = np.load(cache_file)
-  else:
-    # Calculate path and save to cache
-    env_params = craftax_experiment_configs.make_block_env_params(
-      config, EnvParams()
-    ).replace(
-      # goal_locations=config.test_object_location,
-      # current_goal=jnp.asarray(config.test_objects[0], dtype=jnp.int32),
-      start_positions=make_start_position(config.start_eval_positions),
+  _OPTIMAL_TEST_PATHS = {}
+  for config in craftax_experiment_configs.PATHS_CONFIGS:
+    cache_dir = os.path.join(
+      os.path.dirname(os.path.dirname(__file__)),
+      "simulations",
+      "craftax_cache",
+      "optimal_paths",
     )
-    env = CraftaxSymbolicWebEnvNoAutoReset()
-    obs, state = env.reset(jax.random.PRNGKey(0), env_params)
-    goal_position = config.test_object_location
-    path, _ = astar(state, goal_position)
-    path = np.array(path)
+    os.makedirs(cache_dir, exist_ok=True)
+    world_seed = config.world_seed
+    cache_file = os.path.join(cache_dir, f"path_world={world_seed}_eval.npy")
 
-    np.save(cache_file, path)
-    print(f"Cached optimal path for {config.world_seed} in {cache_file}")
-  OPTIMAL_TEST_PATHS[config.world_seed] = path
-OPTIMAL_TEST_LENGTHS = {k: len(v) - 1 for k, v in OPTIMAL_TEST_PATHS.items()}
+    if os.path.exists(cache_file):
+      path = np.load(cache_file)
+    else:
+      env_params = craftax_experiment_configs.make_block_env_params(
+        config, EnvParams()
+      ).replace(
+        start_positions=make_start_position(config.start_eval_positions),
+      )
+      env = CraftaxSymbolicWebEnvNoAutoReset()
+      obs, state = env.reset(jax.random.PRNGKey(0), env_params)
+      goal_position = config.test_object_location
+      path, _ = astar(state, goal_position)
+      path = np.array(path)
+
+      np.save(cache_file, path)
+      print(f"Cached optimal path for {config.world_seed} in {cache_file}")
+    _OPTIMAL_TEST_PATHS[config.world_seed] = path
+  _OPTIMAL_TEST_LENGTHS = {k: len(v) - 1 for k, v in _OPTIMAL_TEST_PATHS.items()}
+
+
+def _compute_world_seed_to_idx():
+  global _world_seed_to_idx
+  if _world_seed_to_idx is not None:
+    return
+  from simulations import craftax_experiment_configs
+
+  _world_seed_to_idx = {
+    config.world_seed: idx
+    for idx, config in enumerate(craftax_experiment_configs.PATHS_CONFIGS)
+  }
+
+
+def __getattr__(name):
+  if name == "OPTIMAL_TEST_PATHS":
+    _compute_optimal_test_paths()
+    return _OPTIMAL_TEST_PATHS
+  if name == "OPTIMAL_TEST_LENGTHS":
+    _compute_optimal_test_paths()
+    return _OPTIMAL_TEST_LENGTHS
+  if name == "world_seed_to_idx":
+    _compute_world_seed_to_idx()
+    return _world_seed_to_idx
+  raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 ################################################
@@ -137,11 +161,15 @@ def deserialize_timestep(datum, example_timestep):
 
 
 def get_task_object(timesteps: nicewebrl.TimeStep):
+  from simulations import craftax_experiment_configs
+
   goal = int(timesteps.state.current_goal[0])
   return craftax_experiment_configs.GOAL_TO_BLOCK[goal]
 
 
 def make_task_vector(timesteps: nicewebrl.TimeStep):
+  from simulations.craftax_web_env import task_onehot
+
   current_goal = timesteps.state.current_goal[0]
   task_w = task_onehot(current_goal)
   return task_w
@@ -242,7 +270,8 @@ def make_human_episode_row_data(
   #####################
   ## add optimal path length - with caching
   #####################
-  optimal_length = OPTIMAL_TEST_LENGTHS[int(row["world_seed"])]
+  _compute_optimal_test_paths()
+  optimal_length = _OPTIMAL_TEST_LENGTHS[int(row["world_seed"])]
   row["optimal_length"] = optimal_length
   path_length = len(get_agent_position(timesteps)) - 1
   row["suboptimal_path"] = path_length >= 2 * optimal_length
@@ -484,12 +513,11 @@ def finish_preparing_human_dataframe(df: pl.DataFrame) -> pl.DataFrame:
 ################################################
 # Model Data
 ################################################
-world_seed_to_idx = {}
-for idx, config in enumerate(craftax_experiment_configs.PATHS_CONFIGS):
-  world_seed_to_idx[config.world_seed] = idx
 
 
 def dummy_config():
+  from simulations import craftax_simulation_configs
+
   return dict(
     task_config=craftax_simulation_configs.TRAIN_EVAL_CONFIGS,
     eval=True,
@@ -500,27 +528,35 @@ def dummy_config():
 
 
 def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False):
-  del debug
+  from simulations import craftax_simulation_configs
+
   train_configs = craftax_simulation_configs.TRAIN_EVAL_CONFIGS
   test_configs = craftax_simulation_configs.TEST_CONFIGS
 
-  def generate_craftax_episodes(configs, is_eval=False, nepisodes=1):
+  def generate_craftax_episodes(configs, rng, is_eval=False):
     episodes_list = []
     configs_list = []
     nparams = configs.world_seed.shape[0]
     for i in range(nparams):
+      rng, rng_subkey = jax.random.split(rng)
       env_params = craftax_simulation_configs.make_multigoal_env_params(
         jax.tree_util.tree_map(lambda x: x[i : i + 1], configs)
       )
-      episodes = algorithm.eval_fn(rng, env_params)
+      episodes = algorithm.eval_fn(rng_subkey, env_params)
       episodes = episodes._replace(positions=get_agent_position(episodes.timesteps))
       # Split episodes
       task_config = jax.tree_util.tree_map(lambda x: x[0], env_params.task_configs)
+      nepisodes = episodes.actions.shape[0]
+
       for j in range(nepisodes):
         # minimize space requirements
         episode = jax.tree_util.tree_map(lambda x: x[j], episodes)
         in_episode = get_in_episode(episode.timesteps)
         episode = jax.tree_util.tree_map(lambda x: x[in_episode], episode)
+        # strip transitions to save memory (duplicates timesteps + extras not used downstream)
+        episode = episode._replace(transitions=None)
+        # reduce map arrays from 9 levels to 1, int32→uint8, drop observation
+        episode = episode._replace(timesteps=reduce_timestep_size(episode.timesteps))
         episodes_list.append(episode)
         configs_list.append(
           dict(
@@ -534,11 +570,13 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False
     return episodes_list, configs_list
 
   # Generate episodes from both train and test configs
+  rng, rng_train = jax.random.split(rng)
   train_episodes, train_configs_info = generate_craftax_episodes(
-    train_configs, is_eval=False
+    train_configs, rng_train, is_eval=False
   )
+  rng, rng_test = jax.random.split(rng)
   test_episodes, test_configs_info = generate_craftax_episodes(
-    test_configs, is_eval=True
+    test_configs, rng_test, is_eval=True
   )
   all_episodes = train_episodes + test_episodes
   all_configs = train_configs_info + test_configs_info
@@ -546,10 +584,11 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False
 
 
 def make_model_episode_row_data(episode, metadata):
+  _compute_world_seed_to_idx()
   task_config = metadata["task_config"]
 
   def make_name(world_seed, eval):
-    name = f"paths_{world_seed_to_idx[world_seed]}"
+    name = f"paths_{_world_seed_to_idx[world_seed]}"
     if eval:
       name += "_eval1"
     else:
@@ -577,7 +616,7 @@ def make_model_episode_row_data(episode, metadata):
     # idiosyncratic
     world_seed=int(task_config.world_seed),
     # maze=int(task_config.world_seed),
-    task_vector=str(episode.timesteps.observation.task_w[0]),
+    task_vector=str(make_task_vector(episode.timesteps)),
   )
   row = fix_row(row)
   return row

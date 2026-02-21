@@ -29,7 +29,7 @@ flyctl logs --config flyio_configs/jaxmaze-preplay.toml
 
 We show an example where the participant will not know the evaluation goal. You just need to change that environment variable if you want a different experiment.
 
-Before running experiments, run `python experiments/craftax/extract_craftax_cache.py` to copy caches into a local directory
+Before running experiments, run `python experiments/craftax/extract_craftax_cache.py` to copy caches into a local directory. When uploading with Docker, we will copy the caches to avoid a computing the caches online (this takes a lot of time and memory).
 
 ```bash
 # create configuration file

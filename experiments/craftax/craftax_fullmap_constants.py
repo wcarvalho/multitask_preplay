@@ -9,7 +9,8 @@ from craftax.environment_base.util import load_compressed_pickle, save_compresse
 from craftax.craftax import constants as original_constants
 from importlib.util import find_spec
 import shutil
-from configs import CRAFTAX_CACHE_DIR as CACHE_DIR
+
+from experiments.craftax.configs import CRAFTAX_CACHE_DIR as CACHE_DIR
 
 original_constant_directory = os.path.dirname(original_constants.__file__)
 
@@ -25,6 +26,7 @@ INVENTORY_OBS_HEIGHT = 4
 TEXTURE_CACHE_FILE = os.path.join(
   original_constant_directory, "assets", "fullmap_texture_cache_48.pbz2"
 )
+
 
 def restore_texture_cache_if_needed():
   """Restore texture cache files from local cache if they don't exist in the package directory."""

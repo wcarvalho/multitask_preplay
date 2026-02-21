@@ -9,7 +9,10 @@ import os
 import pickle
 import inspect
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(_project_root)
+sys.path.append(os.path.join(_project_root, "simulations"))
+
 import data_configs
 from typing import Tuple
 
@@ -17,13 +20,11 @@ import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+import seaborn as sns
 import os.path
 from analysis import analysis_utils
 
 from nicewebrl import DataFrame
-from simulations import craftax_utils
-from simulations import craftax_experiment_configs
-from experiments.craftax import craftax_experiment_structure as experiment
 from IPython.display import HTML, display
 
 import plot_configs
@@ -31,34 +32,12 @@ import data_configs
 from plot_configs import model_colors
 
 
-OPTIMAL_TEST_PATHS = {}
-for config in craftax_experiment_configs.PATHS_CONFIGS:
-  # Create cache path
-  cache_dir = os.path.join(data_configs.CACHE_DIR, "craftax/optimal_paths")
-  os.makedirs(cache_dir, exist_ok=True)
-  cache_file = os.path.join(cache_dir, f"path_{hash(str(config))}.npy")
+def __getattr__(name):
+  if name in ("OPTIMAL_TEST_PATHS", "OPTIMAL_TEST_LENGTHS"):
+    from data_processing import utils_craftax
 
-  # Try to load from cache
-  if os.path.exists(cache_file):
-    path = np.load(cache_file)
-  else:
-    # Calculate path and save to cache
-    env_params = craftax_experiment_configs.make_block_env_params(
-      config, experiment.default_params
-    ).replace(
-      # goal_locations=config.test_object_location,
-      # current_goal=jnp.asarray(config.test_objects[0], dtype=jnp.int32),
-      start_positions=experiment.make_start_position(config.start_eval_positions),
-    )
-    timestep = experiment.jax_web_env.reset(jax.random.PRNGKey(0), env_params)
-    goal_position = config.test_object_location
-    path, _ = craftax_utils.astar(timestep.state, goal_position)
-    path = np.array(path)
-
-    np.save(cache_file, path)
-  OPTIMAL_TEST_PATHS[config.world_seed] = path
-
-OPTIMAL_TEST_LENGTHS = {k: len(v) - 1 for k, v in OPTIMAL_TEST_PATHS.items()}
+    return getattr(utils_craftax, name)
+  raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def filter_to_str(filter: dict):
@@ -120,6 +99,8 @@ def filter_to_str(filter: dict):
 
 
 def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
+  from simulations import craftax_utils
+
   user_df = df.filter(user_id=user_id)
   test_mazes = user_df["maze"].unique()
   test_mazes = [t for t in test_mazes if "eval" in t]
@@ -199,6 +180,8 @@ def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
       title += (
         f"\nOverlap: {test_df['overlap'][0]:.2f}. Reuse: {bool(test_df['reuse'][0])}"
       )
+      from data_processing.utils_craftax import OPTIMAL_TEST_LENGTHS
+
       title += f"\nOptimal Path Length: {OPTIMAL_TEST_LENGTHS[world_seed]}"
       axs[2].set_title(title, fontsize=13)
 
@@ -215,7 +198,7 @@ def visualize_user_path_reuse(df: DataFrame, user_id: int, idx=None, **kwargs):
 def plot_success_rate_path_reuse_metrics(
   df: DataFrame,
   model_df: DataFrame = None,
-  stats_file=None,
+  experiment_name: str = None,
   ax=None,
   reuse_column: str = "reuse",
   title="Success Rate and Path Reuse",
@@ -224,22 +207,24 @@ def plot_success_rate_path_reuse_metrics(
   legend_ncol: int = 1,
   overlap_threshold: float = 0.15,
   cosine_threshold: float = None,
-) -> Tuple[plt.Figure, plt.Axes]:
+  center: str = "mean",
+) -> Tuple[plt.Figure, plt.Axes, dict]:
   """Plot success rate vs path reuse as a 2D scatter plot with error bars.
 
   Args:
       df (DataFrame): DataFrame containing human data
       model_df (DataFrame, optional): DataFrame containing model data. If None, only plots human data.
-      stats_file (file, optional): File to write statistics to
+      experiment_name (str, optional): Name for stats tracking in paper_stats.yaml
       ax (plt.Axes, optional): Matplotlib axes to plot on. If None, creates new figure
       reuse_column (str, optional): Column name for path reuse metric
       title (str, optional): Plot title
       figsize (tuple, optional): Figure size if creating new figure
       legend_loc (str, optional): Location of the legend
       legend_ncol (int, optional): Number of columns in the legend
+      center (str, optional): Center measure ("mean" or "median")
 
   Returns:
-      tuple: (fig, ax) containing the figure and axes object
+      tuple: (fig, ax, all_data) containing the figure, axes, and data dict
   """
 
   # Create figure if needed
@@ -267,9 +252,10 @@ def plot_success_rate_path_reuse_metrics(
       df=filtered_df,
       overlap_threshold=overlap_threshold,
       reuse_column=reuse_column,
-      stats_file=stats_file,
+      experiment_name=experiment_name,
       label=label,
       cosine_threshold=cosine_threshold,
+      center=center,
     )
     all_data[label] = human_data["human"]
 
@@ -278,8 +264,9 @@ def plot_success_rate_path_reuse_metrics(
       model_df=model_df.filter(eval=True),
       overlap_threshold=overlap_threshold,
       reuse_column=reuse_column,
-      stats_file=stats_file,
+      experiment_name=experiment_name,
       cosine_threshold=cosine_threshold,
+      center=center,
     )
     all_data.update(model_data)
 
@@ -383,13 +370,13 @@ def plot_success_rate_path_reuse_metrics(
     fontsize=analysis_utils.DEFAULT_LEGEND_SIZE,
   )
 
-  return fig, ax
+  return fig, ax, all_data
 
 
 def plot_success_rate_path_reuse_metrics_efficiency(
   df: DataFrame,
   model_df: DataFrame = None,
-  stats_file=None,
+  experiment_name: str = None,
   ax=None,
   reuse_column: str = "reuse",
   title="Success Rate and Path Reuse",
@@ -405,7 +392,7 @@ def plot_success_rate_path_reuse_metrics_efficiency(
   Args:
       df (DataFrame): DataFrame containing human data
       model_df (DataFrame, optional): DataFrame containing model data. If None, only plots human data.
-      stats_file (file, optional): File to write statistics to
+      experiment_name (str, optional): Name for stats tracking in paper_stats.yaml
       ax (plt.Axes, optional): Matplotlib axes to plot on. If None, creates new figure
       reuse_column (str, optional): Column name for path reuse metric
       title (str, optional): Plot title
@@ -491,7 +478,7 @@ def plot_success_rate_path_reuse_metrics_efficiency(
       df=filtered_df,
       overlap_threshold=overlap_threshold,
       reuse_column=reuse_column,
-      stats_file=stats_file,
+      experiment_name=experiment_name,
       label=label,
       cosine_threshold=cosine_threshold,
     )
@@ -503,7 +490,7 @@ def plot_success_rate_path_reuse_metrics_efficiency(
       model_df=model_df.filter(eval=True),
       overlap_threshold=overlap_threshold,
       reuse_column=reuse_column,
-      stats_file=stats_file,
+      experiment_name=experiment_name,
       cosine_threshold=cosine_threshold,
     )
     all_data.update(model_data)
@@ -631,7 +618,6 @@ def plot_efficiency(
       ax (array of plt.Axes, optional): Array of 2 matplotlib axes. If None, creates new figure
       figsize (tuple, optional): Figure size if creating new figure
       title (str, optional): Overall figure title
-      stats_file (file, optional): File to write statistics to
       bar_width (float, optional): Width of bars
       ylabel (str, optional): Y-axis label
       show_values (bool, optional): Whether to show percentage values on bars
@@ -730,6 +716,14 @@ def plot_efficiency(
   return fig, axes
 
 
+def get_path_reuse_eval_data(user_df):
+  """Return filtered (user_df, model_df) for craftax path reuse experiment."""
+  sub_df, _ = analysis_utils.filter_users_by_success_by_tell_reuse(
+    user_df.filter(eval_shares_start_pos=True, eval=True)
+  )
+  return sub_df
+
+
 def path_reuse_manipulation_analysis(
   user_df: DataFrame,
   model_df: DataFrame,
@@ -741,6 +735,7 @@ def path_reuse_manipulation_analysis(
   legend_loc="upper left",
   overlap_threshold: float = 0.15,
   cosine_threshold: float = None,
+  center: str = None,
 ):
   ############################################################
   # Create stats file
@@ -769,33 +764,57 @@ def path_reuse_manipulation_analysis(
     )
   )
 
-  stats_file = os.path.join(save_dir, "5.craftax_path_reuse_stats.txt")
-  stats_file = open(stats_file, "w")
-  fig, ax = plot_success_rate_path_reuse_metrics(
+  experiment_name = "5.craftax_path_reuse_stats"
+  fig, ax, all_data = plot_success_rate_path_reuse_metrics(
     df=user_df,
     model_df=model_df,
-    stats_file=stats_file,
+    experiment_name=experiment_name,
     title=title,
     reuse_column=reuse_column,
     figsize=(6, 4),
     legend_loc=legend_loc,
     overlap_threshold=overlap_threshold,
     cosine_threshold=cosine_threshold,
+    center=center,
   )
-  stats_file.close()
 
   if save_figs:
     fig.savefig(
       os.path.join(save_dir, "success_path_reuse.pdf"), bbox_inches="tight", dpi=300
     )
 
-  stats_file = os.path.join(save_dir, "5.craftax_path_reuse_stats_efficiency.txt")
-  stats_file = open(stats_file, "w")
+  # Plot path reuse rate histograms (2-column: known vs unknown eval goal)
+  known_label = "Human (known eval goal)"
+  unknown_label = "Human (unknown eval goal)"
+  fig_hist, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(8, 4), sharey=True)
+  for ax_h, label, panel_title in [
+    (ax_left, known_label, "Known Eval Goal"),
+    (ax_right, unknown_label, "Unknown Eval Goal"),
+  ]:
+    rates = all_data[label]["reuse_rates"]
+    sns.histplot(
+      rates * 100,
+      kde=False,
+      ax=ax_h,
+      bins=np.arange(0, 110, 10),
+      stat="count",
+    )
+    ax_h.set_title(panel_title, fontsize=analysis_utils.DEFAULT_TITLE_SIZE)
+    ax_h.set_ylabel("Counts", fontsize=analysis_utils.DEFAULT_LABEL_SIZE)
+    ax_h.set_xlabel("", fontsize=analysis_utils.DEFAULT_LABEL_SIZE)
+    ax_h.set_xlim(-5, 105)
+  fig_hist.tight_layout()
+  if save_figs:
+    fig_hist.savefig(
+      os.path.join(save_dir, "path_reuse_histogram.pdf"),
+      bbox_inches="tight",
+      dpi=300,
+    )
 
   # fig, ax = plot_success_rate_path_reuse_metrics_efficiency(
   #  df=user_df,
   #  model_df=model_df,
-  #  stats_file=stats_file,
+  #  experiment_name="5.craftax_path_reuse_stats_efficiency",
   #  title=title,
   #  reuse_column=reuse_column,
   #  figsize=(6, 4),
@@ -808,7 +827,6 @@ def path_reuse_manipulation_analysis(
   #  fig.savefig(
   #    os.path.join(save_dir, "success_path_reuse_efficiency.pdf"), bbox_inches="tight", dpi=300
   #  )
-  # stats_file.close()
 
   # fig, ax = plot_efficiency(
   #  df=user_df,

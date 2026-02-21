@@ -1,7 +1,10 @@
 from datasets import Dataset, DatasetDict
 import os
+import sys
 from huggingface_hub import HfApi
 import polars as pl
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import data_configs
 from data_processing.process_user_data import (
@@ -46,7 +49,7 @@ jaxmaze_models = ["qlearning", "usfa", "dyna", "preplay", "bfs", "dfs"]
 save_df(
   human_df=get_jaxmaze_human_data(),
   models=jaxmaze_models,
-  model_path=data_configs.JAXMAZE_DATA_DIR,
+  model_path=data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
   dataset_name=data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME,
   commit_message="v1",
 )

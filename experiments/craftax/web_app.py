@@ -11,7 +11,9 @@ import traceback
 from datetime import datetime
 
 from experiments.gcs import save_to_gcs_with_retries
-from experiments.craftax.craftax_fullmap_constants import restore_texture_cache_if_needed
+from experiments.craftax.craftax_fullmap_constants import (
+  restore_texture_cache_if_needed,
+)
 
 import nicewebrl
 from nicewebrl.logging import setup_logging, get_logger
@@ -55,7 +57,6 @@ loader_logger = get_logger("craftax_loader")
 # Global variables for tracking load state
 load_start_time = None
 load_error = None
-
 
 
 async def load_craftax_module():

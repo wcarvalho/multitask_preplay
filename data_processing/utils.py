@@ -1,9 +1,12 @@
 import os
 import os.path
+import sys
 import json
 from glob import glob
 from typing import NamedTuple, Callable
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Third-party imports
 import polars as pl
@@ -38,23 +41,25 @@ def download_data(
 
 
 def download_jaxmaze_data():
+  print("Data will be downloaded or saved to", data_configs.JAXMAZE_MODEL_DATA_DIR)
   download_data(
-    data_dir=data_configs.JAXMAZE_DATA_DIR,
+    data_dir=data_configs.JAXMAZE_MODEL_DATA_DIR,
     dataset_name=f"{data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME}_human",
   )
   download_data(
-    data_dir=data_configs.JAXMAZE_DATA_DIR,
+    data_dir=data_configs.JAXMAZE_MODEL_DATA_DIR,
     dataset_name=f"{data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME}_models",
   )
 
 
 def download_craftax_data():
+  print("Data will be downloaded or saved to", data_configs.CRAFTAX_MODEL_DATA_DIR)
   download_data(
-    data_dir=data_configs.CRAFTAX_DATA_DIR,
+    data_dir=data_configs.CRAFTAX_MODEL_DATA_DIR,
     dataset_name=f"{data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME}_human",
   )
   download_data(
-    data_dir=data_configs.CRAFTAX_DATA_DIR,
+    data_dir=data_configs.CRAFTAX_MODEL_DATA_DIR,
     dataset_name=f"{data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME}_models",
   )
 
@@ -267,6 +272,74 @@ def get_overlap_dicts_human(
   return reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict
 
 
+def _debug_plot_nan_overlap(
+  train_map,
+  test_map,
+  train_episode,
+  test_episode,
+  row,
+  overlap,
+  idx,
+  block_name,
+  train_maze,
+  test_maze,
+):
+  """Debug plot when overlap is NaN during processing."""
+  import matplotlib.pyplot as plt
+  from matplotlib.patches import Patch
+
+  fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+  algo = row.get("algo", "?")
+  seed = row.get("user_id", "?")
+  world = row.get("world", "?")
+  episode_idx = row.get("global_episode_idx", "?")
+
+  # Panel 1: train map
+  ax = axes[0]
+  ax.imshow(np.array(train_map), cmap="Blues", interpolation="nearest")
+  train_cells = int((np.array(train_map) > 0).sum())
+  ax.set_title(
+    f"Train map (cells={train_cells})\npositions={len(train_episode.positions)}"
+  )
+
+  # Panel 2: test map
+  ax = axes[1]
+  ax.imshow(np.array(test_map), cmap="Reds", interpolation="nearest")
+  test_cells = int((np.array(test_map) > 0).sum())
+  ax.set_title(
+    f"Test map (cells={test_cells})\npositions={len(test_episode.positions)}"
+  )
+
+  # Panel 3: combined overlap
+  ax = axes[2]
+  combined = np.zeros_like(np.array(train_map), dtype=np.int32)
+  combined += (np.array(train_map) > 0).astype(np.int32) * 1
+  combined += (np.array(test_map) > 0).astype(np.int32) * 2
+  cmap = plt.cm.colors.ListedColormap(["white", "blue", "red", "purple"])
+  bounds = [-0.5, 0.5, 1.5, 2.5, 3.5]
+  norm = plt.cm.colors.BoundaryNorm(bounds, cmap.N)
+  ax.imshow(combined, cmap=cmap, norm=norm, interpolation="nearest")
+  ax.set_title(f"Overlap={overlap:.4f}\nidx={idx}, block={block_name}")
+  ax.legend(
+    handles=[
+      Patch(facecolor="blue", label="Train only"),
+      Patch(facecolor="red", label="Test only"),
+      Patch(facecolor="purple", label="Shared"),
+    ],
+    loc="upper right",
+    fontsize=8,
+  )
+
+  fig.suptitle(
+    f"NaN DEBUG | algo={algo} | seed={seed} | world={world} | ep={episode_idx}\n"
+    f"train_maze={train_maze} | test_maze={test_maze}",
+    fontsize=11,
+  )
+  plt.tight_layout()
+  plt.show()
+
+
 def get_overlap_dicts_model(
   df,
   train_maze,
@@ -311,7 +384,7 @@ def get_overlap_dicts_model(
     # Create map for training episodes
     train_maps = create_train_maps_fn(train.episodes)
     test_maps = create_test_maps_fn(test.episodes)
-
+    import ipdb; ipdb.set_trace()
     # Process each test episode
     for idx, row in enumerate(test._df.iter_rows(named=True)):
       global_index = row["global_episode_idx"]
@@ -321,6 +394,22 @@ def get_overlap_dicts_model(
       train_map = train_maps[idx]
       overlap = compute_overlap(train_map, test_map)
       overlap_mean = overlap.mean()
+      if np.isnan(overlap):
+        _debug_plot_nan_overlap(
+          train_map=train_map,
+          test_map=test_map,
+          train_episode=train.episodes[idx],
+          test_episode=test.episodes[idx],
+          row=row,
+          overlap=overlap,
+          idx=idx,
+          block_name=block_name,
+          train_maze=train_maze,
+          test_maze=test_maze,
+        )
+        import ipdb
+
+        ipdb.set_trace()
 
       # Store the reuse value
       episode_id = (test_maze, global_index)
@@ -342,6 +431,7 @@ def add_reuse_dicts_to_df(
   all_overlap_dicts,
   all_corresponding_train_episode_idx,
   all_cosine_dicts,
+  all_approach_direction_dicts=None,
 ):
   """Add reuse and overlap columns to a DataFrame using the provided dictionaries.
 
@@ -349,6 +439,9 @@ def add_reuse_dicts_to_df(
       df (pl.DataFrame): The DataFrame to modify
       all_reuse_dicts (list of dicts): List of dictionaries mapping (maze, global_episode_idx) to reuse values
       all_overlap_dicts (list of dicts): List of dictionaries mapping (maze, global_episode_idx) to overlap values
+      all_corresponding_train_episode_idx (list of dicts): List of dictionaries mapping to train episode index
+      all_cosine_dicts (list of dicts): List of dictionaries mapping to cosine similarity
+      all_approach_direction_dicts (list of dicts, optional): List of dictionaries mapping to approach direction
 
   Returns:
       pl.DataFrame: The modified DataFrame with reuse and overlap columns
@@ -361,44 +454,74 @@ def add_reuse_dicts_to_df(
     k: v for d in all_corresponding_train_episode_idx for k, v in d.items()
   }
   final_cosine_dict = {k: v for d in all_cosine_dicts for k, v in d.items()}
-  return df.with_columns(
-    [
-      # For reuse column
+
+  # Handle approach direction (optional, only for jaxmaze human data)
+  if all_approach_direction_dicts is not None:
+    final_approach_direction_dict = {
+      k: v for d in all_approach_direction_dicts for k, v in d.items()
+    }
+  else:
+    final_approach_direction_dict = {}
+
+  columns = [
+    # ===========
+    # For reuse column
+    # ===========
+    pl.struct(["world", "global_episode_idx"])
+    .map_elements(
+      lambda s: final_reuse_dict.get((s["world"], s["global_episode_idx"]), -1),
+      return_dtype=pl.Int32,
+    )
+    .alias("reuse"),
+    # ===========
+    # For overlap column
+    # ===========
+    pl.struct(["world", "global_episode_idx"])
+    .map_elements(
+      lambda s: final_overlap_dict.get(
+        (s["world"], s["global_episode_idx"]), float("nan")
+      ),
+      return_dtype=pl.Float64,
+    )
+    .alias("overlap"),
+    # ===========
+    # For corresponding train episode index column
+    # ===========
+    pl.struct(["world", "global_episode_idx"])
+    .map_elements(
+      lambda s: final_corresponding_train_episode_idx.get(
+        (s["world"], s["global_episode_idx"]), -1
+      ),
+      return_dtype=pl.Int32,
+    )
+    .alias("corresponding_train_episode_idx"),
+    # ===========
+    # For cosine similarity column
+    # ===========
+    pl.struct(["world", "global_episode_idx"])
+    .map_elements(
+      lambda s: final_cosine_dict.get(
+        (s["world"], s["global_episode_idx"]), float("nan")
+      ),
+      return_dtype=pl.Float64,
+    )
+    .alias("train_test_cosine"),
+  ]
+
+  # Add approach direction column if we have data for it
+  if final_approach_direction_dict:
+    columns.append(
       pl.struct(["world", "global_episode_idx"])
       .map_elements(
-        lambda s: final_reuse_dict.get((s["world"], s["global_episode_idx"]), -1),
-        return_dtype=pl.Int32,
-      )
-      .alias("reuse"),
-      # For overlap column
-      pl.struct(["world", "global_episode_idx"])
-      .map_elements(
-        lambda s: final_overlap_dict.get(
-          (s["world"], s["global_episode_idx"]), float("nan")
+        lambda s: final_approach_direction_dict.get(
+          (s["world"], s["global_episode_idx"]), "unknown"
         ),
-        return_dtype=pl.Float64,
+        return_dtype=pl.String,
       )
-      .alias("overlap"),
-      # For corresponding train episode index column
-      pl.struct(["world", "global_episode_idx"])
-      .map_elements(
-        lambda s: final_corresponding_train_episode_idx.get(
-          (s["world"], s["global_episode_idx"]), -1
-        ),
-        return_dtype=pl.Int32,
-      )
-      .alias("corresponding_train_episode_idx"),
-      # For cosine similarity column
-      pl.struct(["world", "global_episode_idx"])
-      .map_elements(
-        lambda s: final_cosine_dict.get(
-          (s["world"], s["global_episode_idx"]), float("nan")
-        ),
-        return_dtype=pl.Float64,
-      )
-      .alias("train_test_cosine"),
-    ]
-  )
+      .alias("approach_direction")
+    )
+
+  return df.with_columns(columns)
 
 
 def reorder_columns(df, front_cols):

@@ -3,7 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import sys
 import json
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tqdm.notebook import tqdm
 from plot_configs import default_colors, model_colors

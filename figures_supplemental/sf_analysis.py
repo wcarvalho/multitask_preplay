@@ -2,12 +2,13 @@ import sys
 import os
 
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
 sys.path.append(os.path.join(parent_dir, "simulations"))
 import matplotlib.pyplot as plt
 import numpy as np
 import jax.numpy as jnp
 
-from data_configs import DIRECTORY, JAXMAZE_SF_DIR
+from data_configs import DATA_DIRECTORY, JAXMAZE_SF_DIR
 from analysis.housemaze_model_data import get_usfa_data
 from nicewebrl.dataframe import concat_list
 from analysis import housemaze_utils
@@ -23,9 +24,9 @@ def get_sf_df(
   **kwargs,
 ):
   if in_path is None:
-    data_dir = os.path.join(DIRECTORY, "jaxmaze_model_data")
+    data_dir = os.path.join(DATA_DIRECTORY, "jaxmaze_model_data")
     in_path = f"{data_dir}/final/sf/seed=*"
-  out_path = out_path or os.path.join(DIRECTORY, "sf_analysis")
+  out_path = out_path or os.path.join(DATA_DIRECTORY, "sf_analysis")
 
   sf_dfs = []
   for eval_task_support in support_set:

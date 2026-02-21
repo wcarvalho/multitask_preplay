@@ -5,13 +5,19 @@ Call from root directory with:
 python data_processing/process_model_data.py --env jaxmaze --df
 python data_processing/process_model_data.py --env craftax --df
 
+800 episodes per model:
+- 10 seeds
+- 4 worlds
+- train task + eval task
 
 """
 
+import gc
 import os
 import os.path
 import sys
 
+sys.path.insert(0, ".")
 sys.path.append("simulations")
 
 from glob import glob
@@ -45,8 +51,6 @@ from data_processing import utils_jaxmaze
 from data_processing import utils_craftax
 from data_processing.utils import get_in_episode, reorder_columns
 from data_processing.utils import EpisodeData, load_episode_data
-from simulations.craftax_web_env import CraftaxMultiGoalSymbolicWebEnvNoAutoReset
-from simulations import craftax_simulation_configs
 from simulations.networks import CategoricalHouzemazeObsEncoder
 from data_processing.utils import add_reuse_dicts_to_df
 from tqdm.auto import tqdm
@@ -267,7 +271,7 @@ def load_algorithm(
   make_optimizer: vbb.MakeOptimizerFn,
   make_actor: vbb.MakeActorFn,
   num_episodes: int = 10,
-  max_steps: int = 600,
+  max_steps: int = 300,
   path: Optional[str] = None,
   model_filename: Optional[str] = None,
   model_name: Optional[str] = None,
@@ -654,7 +658,7 @@ def load_dyna_craftax_algorithm(
     agent_params=agent_params,
     env=env,
     example_env_params=example_env_params,
-    make_agent=dyna.make_agent,
+    make_agent=dyna.make_craftax_agent,
     num_episodes=num_episodes,
     max_steps=max_steps,
     make_optimizer=dyna.make_optimizer,
@@ -931,10 +935,10 @@ def generate_all_episodes_data(
     filename = f"{path}/{model_filename}.safetensors"
     if not os.path.exists(filename):
       continue
+
     params = load_algorithm_ckpt_params(filename)
     with open(f"{path}/{model_filename}.config", "rb") as f:
       config = pickle.load(f)
-    # remove trailing / from path
     algorithm = load_algorithm_fn(
       config=config,
       agent_params=params,
@@ -943,15 +947,18 @@ def generate_all_episodes_data(
       path=path,
     )
 
-    # update parameters for this ckpt
-    # train_state = algorithm.train_state.replace(params=params)
-    # algorithm = algorithm.replace(train_state=train_state)
     seed = int(path.split("seed=")[-1])
     rng = jax.random.PRNGKey(seed)
     extras["seed"] = seed
     episodes, episode_configs = generate_algorithm_episodes(algorithm, rng, extras)
     all_episodes.extend(episodes)
     all_episode_configs.extend(episode_configs)
+
+    # free JIT caches and algorithm between seeds
+    del algorithm, params, config
+    gc.collect()
+    jax.clear_caches()
+
   return all_episodes, all_episode_configs
 
 
@@ -1109,8 +1116,8 @@ def load_jaxmaze_environment(
 
 
 def get_jaxmaze_model_data(
-  input_data_path: str = data_configs.JAXMAZE_DATA_DIR,
-  output_data_path: str = data_configs.JAXMAZE_DATA_DIR,
+  input_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
+  output_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only: bool = True,
@@ -1198,6 +1205,7 @@ def get_jaxmaze_model_data(
 
 
 def load_craftax_environment(landmark_features=False):
+  from simulations.craftax_web_env import CraftaxMultiGoalSymbolicWebEnvNoAutoReset
   static_env_params = (
     CraftaxMultiGoalSymbolicWebEnvNoAutoReset.default_static_params().replace(
       landmark_features=landmark_features
@@ -1206,6 +1214,7 @@ def load_craftax_environment(landmark_features=False):
   env = CraftaxMultiGoalSymbolicWebEnvNoAutoReset(static_env_params)
   env = nicewebrl.TimestepWrapper(env, autoreset=False)
 
+  from simulations import craftax_simulation_configs
   example_env_params = craftax_simulation_configs.default_params
   dummy_rng = jax.random.PRNGKey(42)
   example_timestep = env.reset(dummy_rng, example_env_params)
@@ -1214,8 +1223,8 @@ def load_craftax_environment(landmark_features=False):
 
 
 def get_craftax_model_data(
-  input_data_path: str = data_configs.CRAFTAX_DATA_DIR,
-  output_data_path: str = data_configs.CRAFTAX_DATA_DIR,
+  input_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
+  output_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only: bool = True,

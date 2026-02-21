@@ -32,6 +32,36 @@ manipulation_int_to_str = {
 manipulation_str_to_int = {v: k for k, v in manipulation_int_to_str.items()}
 
 
+def compute_approach_direction(positions, block_name: str) -> str:
+  """Compute if agent approached goal from left or right.
+
+  This determines whether the agent came from the "left" or "right" side
+  when approaching the goal, accounting for maze rotations.
+
+  Args:
+      positions: numpy array of shape [T, 2] with (row, col) positions
+      block_name: e.g. "reverse(Y=False,X=False)"
+
+  Returns:
+      "left", "right", or "unknown"
+  """
+  if len(positions) < 2:
+    return "unknown"
+
+  final_x = int(positions[-2, 1])  # x-coord of second-to-last position
+  goal_x = int(positions[-1, 1])  # x-coord of goal position
+
+  # Parse X reversal from block_name
+  x_reversed = "X=True" in block_name
+
+  if x_reversed:
+    came_from_left = (goal_x - final_x) < 0
+  else:
+    came_from_left = (goal_x - final_x) > 0
+
+  return "left" if came_from_left else "right"
+
+
 ################################################
 # Human Data
 ################################################
@@ -219,14 +249,15 @@ def compute_overlap(map1: np.ndarray, map2: np.ndarray):
   return overlap
 
 
-def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
+def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict, dict, dict, dict]:
   """Add a 'reuse' column to the DataFrame indicating whether each episode reused paths.
 
   Args:
       df (DataFrame): Input DataFrame
 
   Returns:
-      tuple[dict, dict]: Dictionaries for reuse and overlap values.
+      tuple[dict, dict, dict, dict, dict]: Dictionaries for reuse, overlap,
+          corresponding_train_episode_idx, cosine, and approach_direction values.
   """
 
   # Create a dictionary to store reuse values
@@ -234,6 +265,7 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
   all_overlap_dict = {}
   all_corresponding_train_episode_idx = {}
   all_cosine_dict = {}
+  all_approach_direction_dict = {}
 
   reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
     get_overlap_dicts_human(
@@ -248,6 +280,20 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
   all_overlap_dict.update(overlap_dict)
   all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
   all_cosine_dict.update(cosine_dict)
+
+  # Compute approach direction for big_m3_maze1 (paths manipulation) eval episodes
+  test_maze = "big_m3_maze1"
+  block_names = df.filter(world=test_maze)["block_name"].unique().to_list()
+  for block_name in block_names:
+    test_episodes = df.filter(world=test_maze, block_name=block_name, eval=True)
+    if len(test_episodes) == 0:
+      continue
+    for idx, row in enumerate(test_episodes._df.iter_rows(named=True)):
+      global_index = row["global_episode_idx"]
+      episode = test_episodes.episodes[idx]
+      direction = compute_approach_direction(episode.positions, block_name)
+      episode_id = (test_maze, global_index)
+      all_approach_direction_dict[episode_id] = direction
 
   reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
     get_overlap_dicts_human(
@@ -268,6 +314,7 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict]:
     all_overlap_dict,
     all_corresponding_train_episode_idx,
     all_cosine_dict,
+    all_approach_direction_dict,
   )
 
 
@@ -384,11 +431,9 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False
     train_object = env_params.reset_params.train_objects[0, 0]
     test_object = env_params.reset_params.test_objects[0, 0]
 
-    is_train = env_params.reset_params.train
+    is_train = env_params.training
     rng, rng_subkey = jax.random.split(rng)
     if is_train:
-      if debug:
-        continue  # skip train episodes in debug mode
       collect_data(env_params, train_object, rng_=rng_subkey, is_eval=False)
     else:
       collect_data(env_params, test_object, rng_=rng_subkey, is_eval=True)
@@ -439,7 +484,9 @@ def fix_row(row):
 
   new_row["world"] = new_row.pop("world_seed")
   reversal = ast.literal_eval(new_row["block_name"])
-  new_row["block_name"] = f"reverse(H={bool(reversal[0])},W={bool(reversal[1])})"
+  horizonal = reversal[0]
+  vertical = reversal[1]
+  new_row["block_name"] = f"reverse(Y={bool(vertical)},X={bool(horizonal)})"
 
   new_row["task_object_id"] = new_row.pop("task")
   new_row["task_set"] = new_row.pop("room")

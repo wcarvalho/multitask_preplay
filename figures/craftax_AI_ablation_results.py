@@ -7,8 +7,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import sys
 import json
 from tqdm.auto import tqdm
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data_configs import CRAFTAX_AI_DIR
 import plot_configs as configs

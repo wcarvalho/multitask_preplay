@@ -11,8 +11,10 @@ import os
 import os.path
 import sys
 
-sys.path.append("simulations")
-
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(_project_root)
+sys.path.append(os.path.join(_project_root, "simulations"))
+os.environ["PRECOMPILE"] = "0"
 
 import json
 from glob import glob
@@ -398,6 +400,8 @@ def generate_all_episodes_df(
     "final_rt": lambda e: e.reaction_times[-1],
     "final_log_rt": lambda e: get_log_rt(e)[-1],
     "reaction_times": lambda e: str(e.reaction_times[:-1]),
+    "actions": lambda e: str(e.actions[:-1]),
+    "positions": lambda e: str(e.positions),
   }
 
   # Initialize computed values
@@ -490,13 +494,24 @@ def generate_all_episodes_df(
   all_overlap_dicts = []
   all_corresponding_train_episode_idx = []
   all_cosine_dicts = []
+  all_approach_direction_dicts = []
   for user_id in tqdm(
     all_episode_df["user_id"].unique().to_list(), desc="Processing reuse per user"
   ):
     user_df_nicewebrl = temp_df.filter(user_id=user_id)
-    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
-      env_utils.add_reuse_columns(user_df_nicewebrl)
-    )
+    result = env_utils.add_reuse_columns(user_df_nicewebrl)
+    # Handle both 4-tuple (craftax) and 5-tuple (jaxmaze) returns
+    if len(result) == 5:
+      (
+        reuse_dict,
+        overlap_dict,
+        corresponding_train_episode_idx,
+        cosine_dict,
+        approach_direction_dict,
+      ) = result
+      all_approach_direction_dicts.append(approach_direction_dict)
+    else:
+      reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = result
     all_reuse_dicts.append(reuse_dict)
     all_overlap_dicts.append(overlap_dict)
     all_corresponding_train_episode_idx.append(corresponding_train_episode_idx)
@@ -509,6 +524,7 @@ def generate_all_episodes_df(
     all_overlap_dicts,
     all_corresponding_train_episode_idx,
     all_cosine_dicts,
+    all_approach_direction_dicts if all_approach_direction_dicts else None,
   )
   all_episode_df = reorder_columns(
     all_episode_df,
@@ -715,9 +731,9 @@ def get_human_data(
 
 def get_jaxmaze_human_data(
   input_data_path: str = os.path.join(
-    data_configs.JAXMAZE_USER_DIR, data_configs.JAXMAZE_HUMAN_DATA_PATTERN
+    data_configs.JAXMAZE_HUMAN_RAW_DATA_DIR, data_configs.JAXMAZE_HUMAN_DATA_PATTERN
   ),
-  output_data_path: str = data_configs.JAXMAZE_DATA_DIR,
+  output_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
   overwrite_episode_data: bool = False,
   overwrite_episode_df: bool = False,
   load_df_only: bool = True,
@@ -777,9 +793,9 @@ def get_jaxmaze_human_data(
 
 def get_craftax_human_data(
   input_data_path: str = os.path.join(
-    data_configs.CRAFTAX_USER_DIR, data_configs.CRAFTAX_HUMAN_DATA_PATTERN
+    data_configs.CRAFTAX_HUMAN_RAW_DATA_DIR, data_configs.CRAFTAX_HUMAN_DATA_PATTERN
   ),
-  output_data_path: str = data_configs.CRAFTAX_DATA_DIR,
+  output_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only: bool = True,
@@ -857,7 +873,7 @@ if __name__ == "__main__":
       f"Processing Craftax data (episodes={overwrite_episode_data}, df={overwrite_episode_df}, debug={debug_mode})"
     )
     human_data_path = os.path.join(
-      data_configs.CRAFTAX_USER_DIR, data_configs.CRAFTAX_HUMAN_DATA_PATTERN
+      data_configs.CRAFTAX_HUMAN_RAW_DATA_DIR, data_configs.CRAFTAX_HUMAN_DATA_PATTERN
     )
     human_data_df = get_craftax_human_data(
       input_data_path=human_data_path,

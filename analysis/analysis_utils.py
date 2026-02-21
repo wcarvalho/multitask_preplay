@@ -4,6 +4,7 @@ Functions for
 (2) doing power analysis
 """
 
+from io import StringIO
 import sys
 import os
 
@@ -50,6 +51,10 @@ DEFAULT_LEGEND_SIZE = 10.5
 from tqdm.auto import tqdm
 
 
+def positions_from_str(x: str):
+  return np.loadtxt(StringIO(x.replace("[", "").replace("]", "")), dtype=int)
+
+
 def get_polars_df(df: Union[DataFrame, pl.DataFrame]) -> pl.DataFrame:
   """Check if the dataframe is compatible with the analysis functions."""
   if isinstance(df, pl.DataFrame):
@@ -60,17 +65,9 @@ def get_polars_df(df: Union[DataFrame, pl.DataFrame]) -> pl.DataFrame:
     raise ValueError(f"Unsupported dataframe type: {type(df)}")
 
 
-def get_base_filename(filepath):
-  # Get filename without path
-  filename = os.path.basename(filepath)
-  # Remove extension
-  base_filename = os.path.splitext(filename)[0]
-  return base_filename
-
-
-def add_to_file(stats_file, algo, label, text):
-  # Get the base filename without extension
-  base_filename = get_base_filename(stats_file.name)
+def add_to_file(experiment_name, algo, label, text):
+  if experiment_name is None:
+    return
 
   # Path to the YAML file
   yaml_file = data_configs.PAPER_STATS_FILE
@@ -85,7 +82,7 @@ def add_to_file(stats_file, algo, label, text):
         # Handle case where file exists but is empty or invalid
         pass
 
-  experiment = base_filename
+  experiment = experiment_name
   experiment_data = data.get(experiment, {})
   data[experiment] = experiment_data
 
@@ -100,15 +97,14 @@ def add_to_file(stats_file, algo, label, text):
     yaml.dump(data, f, default_flow_style=False)
 
 
-def print_relevant_stats(stats_file):
+def print_relevant_stats(experiment_name):
   yaml_file = data_configs.PAPER_STATS_FILE
   # Load existing YAML if it exists
   if os.path.exists(yaml_file):
     with open(yaml_file, "r") as f:
       data = yaml.safe_load(f)
 
-  base_filename = get_base_filename(stats_file.name)
-  experiment_data = data.get(base_filename, {})
+  experiment_data = data.get(experiment_name, {})
   pprint(experiment_data, indent=2)
 
 
@@ -365,7 +361,7 @@ def plot_bar_rt_comparison(
   ylabel=None,
   colors=None,
   reuse_column: str = "reuse",
-  stats_file=None,
+  experiment_name: str = None,
   n_simulations: int = 1000,
   rereun_analysis: bool = False,
   include_raw_data: bool = False,
@@ -408,7 +404,7 @@ def plot_bar_rt_comparison(
   print(f"Filtered {len_before - len_after} rows with null success or reuse")
 
   power_results = None
-  if stats_file is not None:
+  if experiment_name is not None:
     import os
     import pickle
 
@@ -422,7 +418,9 @@ def plot_bar_rt_comparison(
       print(f"Loading cached results from {cache_path}")
       with open(cache_path, "rb") as f:
         power_results = pickle.load(f)
-        add_rt_power_results_to_stats_file(power_results, stats_file, label=rt_column)
+        add_rt_power_results_to_stats_file(
+          power_results, experiment_name, label=rt_column
+        )
 
   # Run analysis if no cached results
   if power_results is None:
@@ -431,7 +429,7 @@ def plot_bar_rt_comparison(
         df,
         measure=rt_column,
         reuse_column=reuse_column,
-        stats_file=stats_file,
+        experiment_name=experiment_name,
         n_simulations=n_simulations,
         compute_n_for_desired_power=compute_n_for_desired_power,
       )
@@ -440,14 +438,14 @@ def plot_bar_rt_comparison(
         df,
         measure=rt_column,
         reuse_column=reuse_column,
-        stats_file=stats_file,
+        experiment_name=experiment_name,
         n_simulations=n_simulations,
       )
     else:
       raise ValueError(f"Unknown rt_column: {rt_column}")
 
     # Save results to cache if cache_file is provided
-    if stats_file is not None:
+    if experiment_name is not None:
       import os
       import pickle
 
@@ -562,7 +560,7 @@ def plot_rt_differences(
   ax: plt.Axes = None,
   colors=None,
   ylabel="Log RT Difference (Cond2 - Cond1)",
-  stats_file=None,
+  experiment_name: str = None,
   xlabels=None,
   include_raw_data: bool = False,
   ylim: Tuple[float, float] = None,
@@ -582,7 +580,7 @@ def plot_rt_differences(
   all_diffs = []
   for measure in measures:
     results = power_analysis_rt_differences(
-      difference_df, measure, stats_file=stats_file
+      difference_df, measure, experiment_name=experiment_name
     )
     means.append(results["mean"])
     sems.append(results["se"])
@@ -739,67 +737,56 @@ def get_human_success_rate_path_reuse_data(
   df: DataFrame,
   overlap_threshold: float,
   reuse_column: str = "reuse",
-  stats_file: str = None,
+  experiment_name: str = None,
   label: str = "",
   cosine_threshold: float = None,
+  center: str = "mean",
+  mu: float = 0.5,
 ) -> dict:
   # Add boolean "reuse" column based on overlap threshold
   df = add_reuse_column(df, reuse_column, overlap_threshold, cosine_threshold)
 
-  # Calculate human success statistics
-  human_success_stats = compute_binary_measure_statistics(df, "user_id", "success")
-
   # Calculate human reuse statistics
-  human_reuse_stats = compute_binary_measure_statistics(df, "user_id", reuse_column)
+  human_reuse_stats = compute_binary_measure_statistics(
+    df, "user_id", reuse_column, center=center, mu=mu
+  )
+
+  # Calculate human success statistics
+  human_success_stats = compute_binary_measure_statistics(
+    df, "user_id", "success", center=center, mu=mu
+  )
 
   # Add stats to file
-  if stats_file:
-    add_to_file(
-      stats_file,
-      algo="1.human data",
-      label=f"success_{label}",
-      text=human_success_stats["paper_result"],
-    )
+  add_to_file(
+    experiment_name,
+    algo="1.human data",
+    label=f"success_{label}",
+    text=human_success_stats["paper_result"],
+  )
 
-    add_to_file(
-      stats_file,
-      algo="1.human data",
-      label=f"reuse_{label}",
-      text=human_reuse_stats["paper_result"],
-    )
+  add_to_file(
+    experiment_name,
+    algo="1.human data",
+    label=f"reuse_{label}",
+    text=human_reuse_stats["paper_result"],
+  )
 
   # Prepare human data for plotting
   return {
     "human": {
-      # Choose values based on normality test
-      "success": 100
-      * (
-        human_success_stats["mean"]
-        if human_success_stats["normality"]["is_normal"]
-        else human_success_stats["median"]
-      ),
-      "reuse": 100
-      * (
-        human_reuse_stats["mean"]
-        if human_reuse_stats["normality"]["is_normal"]
-        else human_reuse_stats["median"]
-      ),
-      # Choose error metrics based on normality test
-      "success_error": 100
-      * (
-        human_success_stats["se"]
-        if human_success_stats["normality"]["is_normal"]
-        else np.array(human_success_stats["median_ci"])
-      ),
-      "reuse_error": 100
-      * (
-        human_reuse_stats["se"]
-        if human_reuse_stats["normality"]["is_normal"]
-        else np.array(human_reuse_stats["median_ci"])
-      ),
-      # Store normality info for reference
+      "success": 100 * human_success_stats["center_value"],
+      "reuse": 100 * human_reuse_stats["center_value"],
+      "success_error": 100 * human_success_stats["se"]
+      if human_success_stats["normality"]["is_normal"]
+      else 100 * np.array(human_success_stats["ci"]),
+      "reuse_error": 100 * human_reuse_stats["se"]
+      if human_reuse_stats["normality"]["is_normal"]
+      else 100 * np.array(human_reuse_stats["ci"]),
       "success_is_normal": human_success_stats["normality"]["is_normal"],
       "reuse_is_normal": human_reuse_stats["normality"]["is_normal"],
+      # Per-user rates for histogram plotting
+      "success_rates": human_success_stats["rates"],
+      "reuse_rates": human_reuse_stats["rates"],
     }
   }
 
@@ -808,8 +795,10 @@ def get_model_success_rate_path_reuse_data(
   model_df: DataFrame,
   overlap_threshold: float,
   reuse_column: str = "reuse",
-  stats_file: str = None,
+  experiment_name: str = None,
   cosine_threshold: float = None,
+  center: str = "mean",
+  mu: float = 0.5,
 ) -> dict:
   if model_df is None:
     return {}
@@ -835,56 +824,40 @@ def get_model_success_rate_path_reuse_data(
       continue
 
     # Compute success statistics
-    success_stats = compute_binary_measure_statistics(algo_df, "user_id", "success")
+    success_stats = compute_binary_measure_statistics(
+      algo_df, "user_id", "success", center=center, mu=mu
+    )
 
     # Compute reuse statistics
-    reuse_stats = compute_binary_measure_statistics(algo_df, "user_id", reuse_column)
+    reuse_stats = compute_binary_measure_statistics(
+      algo_df, "user_id", reuse_column, center=center, mu=mu
+    )
 
     # Add to stats file
-    if stats_file:
-      add_to_file(
-        stats_file,
-        algo=algo,
-        label="success",
-        text=success_stats["paper_result"],
-      )
+    add_to_file(
+      experiment_name,
+      algo=algo,
+      label="success",
+      text=success_stats["paper_result"],
+    )
 
-      add_to_file(
-        stats_file,
-        algo=algo,
-        label="reuse",
-        text=reuse_stats["paper_result"],
-      )
+    add_to_file(
+      experiment_name,
+      algo=algo,
+      label="reuse",
+      text=reuse_stats["paper_result"],
+    )
 
     # Add to model_data dictionary for plotting
     model_data[algo] = {
-      # Choose values based on normality test
-      "success": 100
-      * (
-        success_stats["mean"]
-        if success_stats["normality"]["is_normal"]
-        else success_stats["median"]
-      ),
-      "reuse": 100
-      * (
-        reuse_stats["mean"]
-        if reuse_stats["normality"]["is_normal"]
-        else reuse_stats["median"]
-      ),
-      # Choose error metrics based on normality test
-      "success_error": 100
-      * (
-        success_stats["se"]
-        if success_stats["normality"]["is_normal"]
-        else np.array(success_stats["median_ci"])
-      ),
-      "reuse_error": 100
-      * (
-        reuse_stats["se"]
-        if reuse_stats["normality"]["is_normal"]
-        else np.array(reuse_stats["median_ci"])
-      ),
-      # Store normality info for reference
+      "success": 100 * success_stats["center_value"],
+      "reuse": 100 * reuse_stats["center_value"],
+      "success_error": 100 * success_stats["se"]
+      if success_stats["normality"]["is_normal"]
+      else 100 * np.array(success_stats["ci"]),
+      "reuse_error": 100 * reuse_stats["se"]
+      if reuse_stats["normality"]["is_normal"]
+      else 100 * np.array(reuse_stats["ci"]),
       "success_is_normal": success_stats["normality"]["is_normal"],
       "reuse_is_normal": reuse_stats["normality"]["is_normal"],
     }
@@ -893,56 +866,122 @@ def get_model_success_rate_path_reuse_data(
 
 
 def get_center(data, key):
-  # Format error bars based on normality
-  if data[f"{key}_is_normal"]:
-    # For normal data, use symmetric standard error
-    return data[f"{key}_mean"]
-  else:
-    return data[f"{key}_median"]
+  return data[key]
 
 
 def get_err(data, key):
-  # Format error bars based on normality
-  if data[f"{key}_is_normal"]:
+  if data.get(f"{key}_is_normal", False):
     # For normal data, use symmetric standard error
-    err = data[f"{key}_error"]
-  else:
-    # For non-normal data, use asymmetric confidence intervals
-    reuse_ci = data[f"{key}_error"]
-    # Check if the CI is properly formatted as [lower, upper]
-    if isinstance(reuse_ci, np.ndarray) and reuse_ci.size == 2:
-      lower_reuse_ci = data[key] - reuse_ci[0]
-      upper_reuse_ci = reuse_ci[1] - data[key]
-      err = np.array([[lower_reuse_ci, upper_reuse_ci]]).T
-    else:
-      # Fallback to symmetric error if CI format is unexpected
-      err = reuse_ci
-  return err
+    return data[f"{key}_error"]
+  # For non-normal data, use asymmetric confidence intervals
+  ci = data[f"{key}_error"]
+  if isinstance(ci, np.ndarray) and ci.size == 2:
+    lower = data[key] - ci[0]
+    upper = ci[1] - data[key]
+    return np.array([[lower, upper]]).T
+  return ci
+
+
+def plot_human_rate_histograms(
+  reuse_rates: dict,
+  save_path: str = None,
+  figsize=(5, 4),
+  title: str = "Distribution of Path Reuse",
+  bins=None,
+):
+  """Plot histogram of per-user reuse rates.
+
+  Args:
+      reuse_rates: Dict mapping label -> numpy array of per-user reuse rates.
+      save_path: Path to save the figure. If None, figure is not saved.
+      figsize: Figure size.
+
+  Returns:
+      tuple: (fig, ax)
+  """
+  fig, ax = plt.subplots(figsize=figsize)
+
+  for label, rates in reuse_rates.items():
+    sns.histplot(
+      rates * 100,
+      kde=False,
+      label=label,
+      ax=ax,
+      alpha=0.5,
+      stat="count",
+      bins=bins if bins is not None else np.arange(0, 110, 10),
+    )
+  ax.set_xlabel("Per-user Path Reuse (%)", fontsize=DEFAULT_LABEL_SIZE)
+  ax.set_ylabel("Count", fontsize=DEFAULT_LABEL_SIZE)
+  ax.set_title(title, fontsize=DEFAULT_TITLE_SIZE)
+  ax.set_xlim(-5, 105)
+  if len(reuse_rates) > 1:
+    ax.legend(fontsize=DEFAULT_LEGEND_SIZE)
+
+  fig.tight_layout()
+  if save_path:
+    fig.savefig(save_path, bbox_inches="tight", dpi=300)
+  return fig, ax
+
+
+def plot_reuse_bar(
+  reuse_rates: np.ndarray,
+  save_path: str = None,
+  figsize=(4, 4),
+  title: str = "Reuse vs No Reuse",
+):
+  """Plot a simple 2-bar chart showing number of users with reuse=0 vs reuse=1.
+
+  Args:
+      reuse_rates: Per-user reuse rates (0-1).
+      save_path: Path to save the figure.
+      figsize: Figure size.
+
+  Returns:
+      tuple: (fig, ax)
+  """
+  n_no_reuse = np.sum(reuse_rates == 0)
+  n_reuse = np.sum(reuse_rates > 0)
+
+  fig, ax = plt.subplots(figsize=figsize)
+  bars = ax.bar(
+    ["No Reuse", "Reuse"],
+    [n_no_reuse, n_reuse],
+    color=[default_colors["new_path"], default_colors["reuse"]],
+    edgecolor="black",
+    linewidth=0.5,
+  )
+  ax.set_ylabel("Number of Users", fontsize=DEFAULT_LABEL_SIZE)
+  ax.set_title(title, fontsize=DEFAULT_TITLE_SIZE)
+  ax.tick_params(axis="both", labelsize=DEFAULT_LABEL_SIZE - 2)
+
+  fig.tight_layout()
+  if save_path:
+    fig.savefig(save_path, bbox_inches="tight", dpi=300)
+  return fig, ax
 
 
 def plot_success_rate_path_reuse_metrics(
   df: DataFrame,
   model_df: DataFrame = None,
-  stats_file=None,
+  experiment_name: str = None,
   ax=None,
   reuse_column: str = "reuse",
-  path_deviance_column: str = None,
   title="Success Rate and Path Reuse",
   figsize=(8, 8),  # Changed to square figure for better 2D visualization
-  include_raw_data: bool = True,
-  min_circle_size: int = 10,
-  max_circle_size: int = 100,
   legend_loc: str = "lower right",
   legend_ncol: int = 1,
   overlap_threshold: float = 0.7,
   point_size=25,
+  center: str = "mean",
+  mu: float = 0.5,
 ) -> Tuple[plt.Figure, plt.Axes]:
   """Plot success rate vs path reuse as a 2D scatter plot with error bars.
 
   Args:
       df (DataFrame): DataFrame containing human data
       model_df (DataFrame, optional): DataFrame containing model data. If None, only plots human data.
-      stats_file (file, optional): File to write statistics to
+      experiment_name (str, optional): Name for stats tracking in paper_stats.yaml
       ax (plt.Axes, optional): Matplotlib axes to plot on. If None, creates new figure
       reuse_column (str, optional): Column name for path reuse metric
       path_deviance_column (str, optional): Column name for path length deviance
@@ -966,14 +1005,18 @@ def plot_success_rate_path_reuse_metrics(
     df=df,
     overlap_threshold=overlap_threshold,
     reuse_column=reuse_column,
-    stats_file=stats_file,
+    experiment_name=experiment_name,
+    center=center,
+    mu=mu,
   )
 
   model_data = get_model_success_rate_path_reuse_data(
     model_df=model_df,
     overlap_threshold=overlap_threshold,
     reuse_column=reuse_column,
-    stats_file=stats_file,
+    experiment_name=experiment_name,
+    center=center,
+    mu=mu,
   )
 
   all_data = {**human_data, **model_data}
@@ -986,37 +1029,8 @@ def plot_success_rate_path_reuse_metrics(
   for key in ordered_keys:
     data = all_data[key]
 
-    # Format error bars based on normality
-    if data["reuse_is_normal"]:
-      # For normal data, use symmetric standard error
-      xerr = data["reuse_error"]
-    else:
-      # For non-normal data, use asymmetric confidence intervals
-      reuse_ci = data["reuse_error"]
-      # Check if the CI is properly formatted as [lower, upper]
-      if isinstance(reuse_ci, np.ndarray) and reuse_ci.size == 2:
-        lower_reuse_ci = data["reuse"] - reuse_ci[0]
-        upper_reuse_ci = reuse_ci[1] - data["reuse"]
-        xerr = np.array([[lower_reuse_ci, upper_reuse_ci]]).T
-      else:
-        # Fallback to symmetric error if CI format is unexpected
-        xerr = reuse_ci
-
-    # Similarly for success
-    if data["success_is_normal"]:
-      # For normal data, use symmetric standard error
-      yerr = data["success_error"]
-    else:
-      # For non-normal data, use asymmetric confidence intervals
-      success_ci = data["success_error"]
-      # Check if the CI is properly formatted as [lower, upper]
-      if isinstance(success_ci, np.ndarray) and success_ci.size == 2:
-        lower_success_ci = data["success"] - success_ci[0]
-        upper_success_ci = success_ci[1] - data["success"]
-        yerr = np.array([[lower_success_ci, upper_success_ci]]).T
-      else:
-        # Fallback to symmetric error if CI format is unexpected
-        yerr = success_ci
+    xerr = get_err(data, "reuse")
+    yerr = get_err(data, "success")
 
     ax.errorbar(
       data["reuse"],
@@ -1068,7 +1082,7 @@ def plot_success_rate_path_reuse_metrics(
       fontsize=DEFAULT_LEGEND_SIZE,
     )
 
-  return fig, ax
+  return fig, ax, human_data
 
 
 ######################################
@@ -1269,7 +1283,7 @@ def compute_binary_measure_statistics(
   measure: str,
   mu: float = 0.5,
   alpha: float = 0.05,
-  confidence=0.95,
+  center: str = "mean",
 ):
   """Calculate statistics for binary proportion data with appropriate normality testing.
 
@@ -1279,6 +1293,7 @@ def compute_binary_measure_statistics(
       measure: Column containing binary measure (0/1 values)
       mu: null hypothesis value (default: 0.5)
       alpha: significance level for tests (default: 0.05)
+      center: which statistic to use as center and bootstrap ("mean" or "median")
 
   Returns:
       dict containing mean, median, standard error, confidence intervals, and test results
@@ -1308,34 +1323,43 @@ def compute_binary_measure_statistics(
   se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
 
   alpha = 0.05
+  # Select center value based on center parameter
+  if center == "mean":
+    center_value = p_obs
+  elif center == "median":
+    center_value = p_median
+  else:
+    raise NotImplementedError(center)
+
   if is_normal:
     # For normal data: use parametric approach with mean
     se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
     ci_low = p_obs - stats.norm.ppf(1 - alpha / 2) * se
     ci_high = p_obs + stats.norm.ppf(1 - alpha / 2) * se
   else:
-    # For non-normal data: use bootstrap for median CI
+    # For non-normal data: use bootstrap CI for the selected center statistic
     bootstrap_samples = 10000
-    bootstrap_means = []
+    bootstrap_stats = []
     n_trials = group_means["n_trials"].to_numpy()
+    stat_fn = np.mean if center == "mean" else np.median
     for _ in range(bootstrap_samples):
       # Sample indices with replacement
       idx = np.random.choice(n_groups, size=n_groups, replace=True)
-      # Calculate weighted mean using the sampled rates and their corresponding n_trials
-      # sampled_rates = rates[idx]
-      # sampled_trials = n_trials[idx]
+      bootstrap_stats.append(stat_fn(rates[idx]))
 
-      # weighted_mean = np.sum(sampled_rates * sampled_trials) / np.sum(sampled_trials)
-      # bootstrap_means.append(weighted_mean)
-      bootstrap_means.append(np.median(rates[idx]))
+    bootstrap_stats = np.asarray(bootstrap_stats)
 
     # Percentile method for confidence intervals
-    ci_low = np.percentile(bootstrap_means, alpha / 2 * 100)
-    ci_high = np.percentile(bootstrap_means, (1 - alpha / 2) * 100)
-    if ci_high < p_median:
-      ci_high = p_median
-    if ci_low > p_median:
-      ci_low = p_median
+    ci_low = np.percentile(bootstrap_stats, alpha / 2 * 100)
+    ci_high = np.percentile(bootstrap_stats, (1 - alpha / 2) * 100)
+
+    # Clamp CI to contain the selected center value
+    if ci_high < center_value:
+      print(f"ci_high: {ci_high} -> center_value")
+      ci_high = center_value
+    if ci_low > center_value:
+      print(f"ci_low: {ci_low} -> center_value")
+      ci_low = center_value
 
   ci_low = max(0.0, ci_low)  # Lower bound can't be below 0%
   ci_high = min(1.0, ci_high)  # Upper bound can't exceed 100%
@@ -1380,9 +1404,12 @@ def compute_binary_measure_statistics(
     "n_groups": n_groups,
     "mean": p_obs,
     "median": p_median,
-    "median_ci": (ci_low, ci_high),
+    "center_value": center_value,
+    "ci": (ci_low, ci_high),
+    "median_ci": (ci_low, ci_high),  # backward compat
     "se": se,
     "sd": sd,
+    "rates": rates,
     "normality": {"is_normal": is_normal, "p_value": normality_p},
     "test": {"name": test_name, "statistic": test_stat, "p_value": p_value, "df": df},
     "effect_size": effect_size,
@@ -1396,7 +1423,8 @@ def power_analysis_path_reuse(
   mu: float = 0.5,
   alpha: float = 0.05,
   plot: bool = False,
-  stats_file=None,
+  experiment_name: str = None,
+  center: str = "mean",
 ):
   """Analyze binary proportion data using appropriate statistical test based on normality.
 
@@ -1405,28 +1433,28 @@ def power_analysis_path_reuse(
       mu: null hypothesis value (default: 0.5)
       alpha: significance level for tests (default: 0.05)
       plot: whether to show diagnostic plots (default: False)
-      stats_file: optional file handle to write stats output
+      experiment_name: optional string name for stats tracking in paper_stats.yaml
   """
   # Use the new statistics function
-  results = compute_binary_measure_statistics(df, "user_id", measure, mu, alpha)
+  results = compute_binary_measure_statistics(
+    df, "user_id", measure, mu, alpha, center=center
+  )
 
-  # Print summary
-  if stats_file:
-    stats_file.write(results["paper_result"] + "\n")
+  # Add stats to yaml
+  add_to_file(
+    experiment_name, algo="1.human data", label=measure, text=results["paper_result"]
+  )
+
+  # Add W value if it's a Wilcoxon test
+  if results["test"]["name"] == "Wilcoxon signed-rank test":
+    w_stat = results["test"]["statistic"]
+    p_value = results["test"]["p_value"]
     add_to_file(
-      stats_file, algo="1.human data", label=measure, text=results["paper_result"]
+      experiment_name,
+      algo="1.human data",
+      label=f"{measure} w-p values",
+      text=f"W-value={w_stat:.3f}, p={p_value:.2g}",
     )
-
-    # Add W value if it's a Wilcoxon test
-    if results["test"]["name"] == "Wilcoxon signed-rank test":
-      w_stat = results["test"]["statistic"]
-      p_value = results["test"]["p_value"]
-      add_to_file(
-        stats_file,
-        algo="1.human data",
-        label=f"{measure} w-p values",
-        text=f"W-value={w_stat:.3f}, p={p_value:.2g}",
-      )
 
   if plot:
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
@@ -1487,7 +1515,8 @@ def power_analysis_path_reuse(
     .to_numpy(),
     "mean": results["mean"],
     "median": results["median"],
-    "median_ci": np.array(results["median_ci"]),
+    "ci": np.array(results["ci"]),
+    "median_ci": np.array(results["median_ci"]),  # backward compat
     "se": results["se"],
     "normality": results["normality"],
     "test": results["test"],
@@ -1500,7 +1529,7 @@ def power_analysis_rt_across_groups(
   measure: str,
   reuse_column: str = "reuse",
   alpha=0.05,
-  stats_file=None,
+  experiment_name: str = None,
   n_simulations=500,
   power_levels=[0.8],
   compute_n_for_desired_power: bool = False,
@@ -1513,7 +1542,7 @@ def power_analysis_rt_across_groups(
           - reuse: boolean indicating condition
           - rt: response time measurement (in log seconds)
       alpha: Significance level (default: 0.05)
-      stats_file: Optional file handle to write stats output
+      experiment_name: Optional string name for stats tracking in paper_stats.yaml
 
   Returns:
       dict containing analysis results
@@ -1573,7 +1602,7 @@ def power_analysis_rt_across_groups(
   if ci_low2 > median2:
     ci_low2 = median2
 
-  if stats_file is None:
+  if experiment_name is None:
     return {
       "descriptive": {
         "means": {"no_reuse": mean1, "reuse": mean2},
@@ -1680,41 +1709,25 @@ def power_analysis_rt_across_groups(
   paper_result = f"beta = {b1:.2f}, SE = {se:.2f}, t({df}) = {t_val:.2f}, p = {p_val:.2g}, 95% CI [{ci[0]:.2f}, {ci[1]:.2f}]"
 
   add_to_file(
-    stats_file, algo="1.human data", label=f"{measure}_rt_difference", text=paper_result
+    experiment_name,
+    algo="1.human data",
+    label=f"{measure}_rt_difference",
+    text=paper_result,
   )
 
   # Add medians and CIs to the stats file
   add_to_file(
-    stats_file,
+    experiment_name,
     algo="1.human data",
     label=f"{measure}_no_reuse_median_RT",
     text=f"Median = {median1:.2f} [95% CI: {ci_low1:.2f}, {ci_high1:.2f}]",
   )
   add_to_file(
-    stats_file,
+    experiment_name,
     algo="1.human data",
     label=f"{measure}_reuse_median_RT",
     text=f"Median = {median2:.2f} [95% CI: {ci_low2:.2f}, {ci_high2:.2f}]",
   )
-
-  if stats_file:
-    stats_file.write("\nLinear Mixed Effects Model Results:\n")
-    stats_file.write("================================\n")
-    stats_file.write(str(result.summary()) + "\n\n")
-
-    stats_file.write("Group Medians with 95% CIs:\n")
-    stats_file.write(
-      f"No Reuse: {median1:.3f} [95% CI: {ci_low1:.3f}, {ci_high1:.3f}]\n"
-    )
-    stats_file.write(
-      f"Reuse: {median2:.3f} [95% CI: {ci_low2:.3f}, {ci_high2:.3f}]\n\n"
-    )
-
-    stats_file.write("<<<<<FOR PAPER>>>>>\n")
-    stats_file.write(f"{paper_result}\n")
-    stats_file.write(f"Current power: {current_power:.3f}\n")
-    for power, n in n_required.items():
-      stats_file.write(f"Required sample size for {power * 100}% power: {n}\n")
 
   return results
 
@@ -1723,7 +1736,7 @@ def power_analysis_path_length_across_groups(
   df: pl.DataFrame,
   measure: str,
   alpha: float = 0.05,
-  stats_file=None,
+  experiment_name: str = None,
   reuse_column: str = "reuse",
   n_simulations: int = 500,
 ):
@@ -1735,7 +1748,7 @@ def power_analysis_path_length_across_groups(
           - reuse: boolean indicating condition
           - path_length: length of path taken
       alpha: Significance level (default: 0.05)
-      stats_file: Optional file handle to write stats output
+      experiment_name: Optional string name for stats tracking in paper_stats.yaml
       n_simulations: Number of simulations for power analysis
 
   Returns:
@@ -1803,7 +1816,7 @@ def power_analysis_path_length_across_groups(
   if ci_low2 > median2:
     ci_low2 = median2
 
-  if stats_file is None:
+  if experiment_name is None:
     return {
       "descriptive": {
         "means": {"no_reuse": mean1, "reuse": mean2},
@@ -1890,36 +1903,6 @@ def power_analysis_path_length_across_groups(
     },
   }
 
-  if stats_file:
-    stats_file.write("\nLinear Mixed Effects Model Results (Path Length):\n")
-    stats_file.write("=========================================\n")
-    stats_file.write(str(result.summary()) + "\n\n")
-
-    stats_file.write("Sample Sizes:\n")
-    stats_file.write(f"\tNo Reuse: {n1} users\n")
-    stats_file.write(f"\tReuse: {n2} users\n")
-    stats_file.write(
-      f"\tTrials per user: {len(data) // len(data['user_id'].unique())}\n\n"
-    )
-
-    stats_file.write("Means:\n")
-    stats_file.write(f"\tNo Reuse: {mean1:.3f}\n")
-    stats_file.write(f"\tReuse: {mean2:.3f}\n")
-    stats_file.write(f"\tReuse: {mean2:.3f}\n")
-    stats_file.write(f"\tDifference: {mean2 - mean1:.3f}\n\n")
-
-    stats_file.write("Medians:\n")
-    stats_file.write(f"\tNo Reuse: {median1:.3f}\n")
-    stats_file.write(f"\tReuse: {median2:.3f}\n")
-    stats_file.write(f"\tDifference: {median2 - median1:.3f}\n\n")
-
-    stats_file.write(f"Effect size: {effect_size:.3f}\n\n")
-
-    stats_file.write("Power Analysis:\n")
-    stats_file.write(f"Current power: {current_power:.3f}\n")
-    for power, n in n_required.items():
-      stats_file.write(f"Required sample size for {power * 100}% power: {n}\n")
-
   return results
 
 
@@ -1982,7 +1965,7 @@ def power_analysis_rt_differences(
   difference_df: pl.DataFrame,
   measure: str,
   alpha: float = 0.05,
-  stats_file=None,
+  experiment_name: str = None,
   setting: str = "",
 ) -> dict:
   """Analyze RT differences between conditions with appropriate statistical tests.
@@ -1991,7 +1974,7 @@ def power_analysis_rt_differences(
       difference_df: DataFrame containing RT differences and user/reversal info
       measure: Name of RT measure column being analyzed
       alpha: significance level for tests (default: 0.05)
-      stats_file: optional file handle to write stats output
+      experiment_name: optional string name for stats tracking in paper_stats.yaml
 
   Returns:
       dict containing test results and effect size
@@ -2107,7 +2090,7 @@ def power_analysis_rt_differences(
 
     # Create paper result for non-normal case with Z values
   add_to_file(
-    stats_file,
+    experiment_name,
     algo="1.human data",
     label=f"{measure}_rt_difference_{setting}",
     text=paper_result,
@@ -2131,7 +2114,7 @@ def power_analysis_rt_differences(
 def plot_success_rate_efficient_reuse_metrics(
   df: DataFrame,
   model_df: DataFrame = None,
-  stats_file=None,
+  experiment_name: str = None,
   ax=None,
   reuse_columns: List[str] = [
     "efficient_reuse_1.25",
@@ -2148,7 +2131,7 @@ def plot_success_rate_efficient_reuse_metrics(
   Args:
       df (DataFrame): DataFrame containing human data
       model_df (DataFrame, optional): DataFrame containing model data. If None, only plots human data.
-      stats_file (file, optional): File to write statistics to
+      experiment_name (str, optional): Name for stats tracking in paper_stats.yaml
       ax (plt.Axes, optional): Matplotlib axes to plot on. If None, creates new figure
       reuse_columns (List[str], optional): List of efficient reuse column names to plot
       title (str, optional): Plot title
@@ -2184,7 +2167,12 @@ def plot_success_rate_efficient_reuse_metrics(
   # Calculate statistics for each reuse metric
   for reuse_column in reuse_columns:
     results = power_analysis_path_reuse(
-      df, measure=reuse_column, mu=0.5, alpha=0.05, plot=False, stats_file=stats_file
+      df,
+      measure=reuse_column,
+      mu=0.5,
+      alpha=0.05,
+      plot=False,
+      experiment_name=experiment_name,
     )
 
     # Extract threshold value from column name (e.g., "efficient_reuse_1.25" -> "1.25")
@@ -2244,14 +2232,14 @@ def plot_success_rate_efficient_reuse_metrics(
   return fig, ax
 
 
-def add_rt_power_results_to_stats_file(power_results, stats_file, label: str):
-  """Add RT power analysis results to stats file.
+def add_rt_power_results_to_stats_file(power_results, experiment_name, label: str):
+  """Add RT power analysis results to paper_stats.yaml.
 
   Args:
       power_results: Dictionary containing power analysis results
-      stats_file: File handle to write statistics to
+      experiment_name: String name for stats tracking in paper_stats.yaml
   """
-  if stats_file is None or power_results is None:
+  if experiment_name is None or power_results is None:
     return
 
   # Add descriptive statistics
@@ -2270,13 +2258,13 @@ def add_rt_power_results_to_stats_file(power_results, stats_file, label: str):
       ci_low2, ci_high2 = median_cis["reuse"]
 
       add_to_file(
-        stats_file,
+        experiment_name,
         algo="1.human data",
         label=f"{label}_no_reuse_median_RT",
         text=f"Median = {median1:.2f} [95% CI: {ci_low1:.2f}, {ci_high1:.2f}]",
       )
       add_to_file(
-        stats_file,
+        experiment_name,
         algo="1.human data",
         label=f"{label}_reuse_median_RT",
         text=f"Median = {median2:.2f} [95% CI: {ci_low2:.2f}, {ci_high2:.2f}]",
@@ -2319,7 +2307,7 @@ def add_rt_power_results_to_stats_file(power_results, stats_file, label: str):
       paper_result = f"beta = {b1:.2f}, SE = {se:.2f}, t({df}) = {statistic:.2f}, p = {p_value:.2g}, 95% CI [{ci_lower:.2f}, {ci_upper:.2f}]"
 
       add_to_file(
-        stats_file,
+        experiment_name,
         algo="1.human data",
         label=f"{label}_rt_difference",
         text=paper_result,

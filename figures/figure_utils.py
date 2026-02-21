@@ -1,10 +1,14 @@
 import os
+import sys
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import data_configs
 
 
 def save_figure(fig, filename, directory=None):
-  directory = directory or f"{data_configs.DIRECTORY}/figures"
+  directory = directory or f"{data_configs.DATA_DIRECTORY}/figures"
   filename = os.path.join(directory, f"{filename}.pdf")
   base_dir = os.path.dirname(filename)
   os.makedirs(base_dir, exist_ok=True)
