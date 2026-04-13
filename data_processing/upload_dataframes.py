@@ -49,26 +49,26 @@ jaxmaze_models = ["qlearning", "usfa", "dyna", "preplay", "bfs", "dfs"]
 save_df(
   human_df=get_jaxmaze_human_data(),
   models=jaxmaze_models,
-  model_path=data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
+  model_path=data_configs.JAXMAZE_MODEL_DATA_DIR,
   dataset_name=data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME,
   commit_message="v1",
 )
 
-########################
-## Craftax
-########################
-# human_df = get_craftax_human_data()
-# craftax_models = [
-#  "qlearning",
-#  "usfa",
-#  "dyna",
-#  "preplay",
-# ]
+#######################
+# Craftax
+#######################
+ human_df = get_craftax_human_data()
+ craftax_models = [
+  "qlearning",
+  "usfa",
+  "dyna",
+  "preplay",
+ ]
 
-# save_df(
-#  human_df=get_craftax_human_data(),
-#  models=craftax_models,
-#  model_path=data_configs.CRAFTAX_DATA_DIR,
-#  dataset_name=data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME,
-#  commit_message="v1",
-# )
+ save_df(
+  human_df=get_craftax_human_data(),
+  models=craftax_models,
+  model_path=data_configs.CRAFTAX_DATA_DIR,
+  dataset_name=data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME,
+  commit_message="v1",
+ )

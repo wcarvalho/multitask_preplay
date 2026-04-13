@@ -454,22 +454,28 @@ def add_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> tuple:
   all_overlap_dict = {}
   all_corresponding_train_episode_idx = {}
   all_cosine_dict = {}
+  all_skipped_blocks = []
 
   for world in df["world"].unique():
-    reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
-      get_overlap_dicts_human(
-        df,
-        train_maze=world,
-        test_maze=world,
-        overlap_threshold=0.15,
-        create_train_maps_fn=partial(create_maps, add_error=True),
-        create_test_maps_fn=partial(create_maps, add_error=False),
-      )
+    (
+      reuse_dict,
+      overlap_dict,
+      corresponding_train_episode_idx,
+      cosine_dict,
+      skipped_blocks,
+    ) = get_overlap_dicts_human(
+      df,
+      train_maze=world,
+      test_maze=world,
+      overlap_threshold=0.15,
+      create_train_maps_fn=partial(create_maps, add_error=True),
+      create_test_maps_fn=partial(create_maps, add_error=False),
     )
     all_reuse_dict.update(reuse_dict)
     all_overlap_dict.update(overlap_dict)
     all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
     all_cosine_dict.update(cosine_dict)
+    all_skipped_blocks.extend(skipped_blocks)
 
   # Return the dictionaries directly instead of converting to Series
   return (
@@ -477,6 +483,7 @@ def add_reuse_columns(df: nicewebrl.DataFrame, overlap_threshold=0.15) -> tuple:
     all_overlap_dict,
     all_corresponding_train_episode_idx,
     all_cosine_dict,
+    all_skipped_blocks,
   )
 
 
@@ -610,6 +617,8 @@ def make_model_episode_row_data(episode, metadata):
     total_reward=float(total_reward(episode)),
     success=float(success(episode)),
     path_length=int(path_length(episode)),
+    positions=str(np.asarray(episode.positions)),
+    actions=str(np.asarray(episode.actions[:-1])),
     seed=metadata["seed"],
     user_id=metadata["seed"],  # reflecting human data format
     maze=make_name(int(task_config.world_seed), metadata["eval"]),

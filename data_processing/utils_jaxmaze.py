@@ -240,16 +240,9 @@ def create_maps(episode_data_list, start_pos=0):
   return np.array(maps)
 
 
-def compute_overlap(map1: np.ndarray, map2: np.ndarray):
-  """map1: HxW, map2: HxW"""
-  """Calculate the overlap between two maps."""
-  shared_length = ((map2 + map1) * map2 > 1).sum()
-  map2_length = (map2 > 0).sum()
-  overlap = shared_length / map2_length
-  return overlap
-
-
-def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict, dict, dict, dict]:
+def add_reuse_columns(
+  df: nicewebrl.DataFrame,
+) -> tuple[dict, dict, dict, dict, dict, list]:
   """Add a 'reuse' column to the DataFrame indicating whether each episode reused paths.
 
   Args:
@@ -266,20 +259,26 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict, dict, dict, 
   all_corresponding_train_episode_idx = {}
   all_cosine_dict = {}
   all_approach_direction_dict = {}
+  all_skipped_blocks = []
 
-  reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
-    get_overlap_dicts_human(
-      df,
-      train_maze="big_m3_maze1",
-      test_maze="big_m3_maze1",
-      create_train_maps_fn=create_maps,
-      overlap_threshold=0.5,
-    )
+  (
+    reuse_dict,
+    overlap_dict,
+    corresponding_train_episode_idx,
+    cosine_dict,
+    skipped_blocks,
+  ) = get_overlap_dicts_human(
+    df,
+    train_maze="big_m3_maze1",
+    test_maze="big_m3_maze1",
+    create_train_maps_fn=create_maps,
+    overlap_threshold=0.5,
   )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
   all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
   all_cosine_dict.update(cosine_dict)
+  all_skipped_blocks.extend(skipped_blocks)
 
   # Compute approach direction for big_m3_maze1 (paths manipulation) eval episodes
   test_maze = "big_m3_maze1"
@@ -295,19 +294,24 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict, dict, dict, 
       episode_id = (test_maze, global_index)
       all_approach_direction_dict[episode_id] = direction
 
-  reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = (
-    get_overlap_dicts_human(
-      df,
-      train_maze="big_m1_maze3",
-      test_maze="big_m1_maze3_shortcut",
-      create_train_maps_fn=create_maps,
-      overlap_threshold=0.7,
-    )
+  (
+    reuse_dict,
+    overlap_dict,
+    corresponding_train_episode_idx,
+    cosine_dict,
+    skipped_blocks,
+  ) = get_overlap_dicts_human(
+    df,
+    train_maze="big_m1_maze3",
+    test_maze="big_m1_maze3_shortcut",
+    create_train_maps_fn=create_maps,
+    overlap_threshold=0.7,
   )
   all_reuse_dict.update(reuse_dict)
   all_overlap_dict.update(overlap_dict)
   all_corresponding_train_episode_idx.update(corresponding_train_episode_idx)
   all_cosine_dict.update(cosine_dict)
+  all_skipped_blocks.extend(skipped_blocks)
 
   return (
     all_reuse_dict,
@@ -315,6 +319,7 @@ def add_reuse_columns(df: nicewebrl.DataFrame) -> tuple[dict, dict, dict, dict, 
     all_corresponding_train_episode_idx,
     all_cosine_dict,
     all_approach_direction_dict,
+    all_skipped_blocks,
   )
 
 
@@ -469,6 +474,8 @@ def make_model_episode_row_data(episode, metadata):
     total_reward=float(total_reward(episode)),
     success=float(success(episode)),
     path_length=int(path_length(episode)),
+    positions=str(np.asarray(episode.positions)),
+    actions=str(np.asarray(episode.actions[:-1])),
     seed=metadata["seed"],
     user_id=metadata["seed"],  # reflecting human data format
     # idiosyncratic
@@ -561,7 +568,7 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
       train_maze="big_m3_maze1",
       test_maze="big_m3_maze1",
       overlap_threshold=0.5,
-      create_maps_fn=create_maps,
+      create_train_maps_fn=create_maps,
     )
   )
   all_reuse_dict.update(reuse_dict)
@@ -575,7 +582,7 @@ def add_model_reuse_columns(df: nicewebrl.DataFrame) -> tuple:
       train_maze="big_m1_maze3",
       test_maze="big_m1_maze3_shortcut",
       overlap_threshold=0.7,
-      create_maps_fn=create_maps,
+      create_train_maps_fn=create_maps,
     )
   )
   all_reuse_dict.update(reuse_dict)

@@ -49,34 +49,15 @@ from housemaze.human_dyna import web_env
 import data_configs
 from data_processing import utils_jaxmaze
 from data_processing import utils_craftax
-from data_processing.utils import get_in_episode, reorder_columns
+from data_processing.utils import reorder_columns
 from data_processing.utils import EpisodeData, load_episode_data
-from simulations.networks import CategoricalHouzemazeObsEncoder
+from simulations.networks import CategoricalJaxmazeObsEncoder
 from data_processing.utils import add_reuse_dicts_to_df
 from tqdm.auto import tqdm
 
 ################################################################
 # Helper functions
 ################################################################
-
-
-def success(e: EpisodeData):
-  in_episode = get_in_episode(e.timesteps)
-  rewards = e.timesteps.reward[in_episode]
-  # return rewards
-  assert rewards.ndim == 1, "this is only defined over vector, e.g. 1 episode"
-  success = rewards > 0.5
-  return success.any().astype(np.float32)
-
-
-def path_length(e: EpisodeData):
-  in_episode = get_in_episode(e.timesteps)
-  return sum(in_episode)
-
-
-def total_reward(e: EpisodeData):
-  in_episode = get_in_episode(e.timesteps)
-  return e.timesteps.reward[in_episode].sum()
 
 
 def make_epsilon_greedy_actor(config, agent, rng, epsilon: float = 0.2):
@@ -419,7 +400,7 @@ def load_algorithm(
 
 def get_jaxmaze_obs_encoder(config: dict):
   return functools.partial(
-    CategoricalHouzemazeObsEncoder,
+    CategoricalJaxmazeObsEncoder,
     num_categories=10000,
     embed_hidden_dim=config["EMBED_HIDDEN_DIM"],
     mlp_hidden_dim=config["MLP_HIDDEN_DIM"],
@@ -703,10 +684,11 @@ def load_algorithm_ckpt_params(filename: str):
 
 def generate_model_data(
   input_glob_pattern: str,
-  output_data_path: str,
+  processing_data_path: str,
   example_timestep,
   env_name: str,
   model_name: str,
+  output_data_path: str = None,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only=True,
@@ -737,32 +719,27 @@ def generate_model_data(
   Returns:
     Either a DataFrame of episode info or a DataFrame with episode data
   """
+  if output_data_path is None:
+    output_data_path = processing_data_path
+
   ################################################################
   # Load data paths
   ################################################################
 
-  if debug:
-    all_episodes_data_filename = os.path.join(
-      output_data_path, "debug", f"{model_name}_episodes.safetensor"
-    )
-    all_episode_metadata_filename = os.path.join(
-      output_data_path, "debug", f"{model_name}_episode_metadata.safetensor"
-    )
-    all_episodes_df_filename = os.path.join(
-      output_data_path, "debug", f"{model_name}_episode_df.parquet"
-    )
-  else:
-    all_episodes_data_filename = os.path.join(
-      output_data_path, "final", f"{model_name}_episodes.safetensor"
-    )
-    all_episode_metadata_filename = os.path.join(
-      output_data_path, "final", f"{model_name}_episode_metadata.safetensor"
-    )
-    all_episodes_df_filename = os.path.join(
-      output_data_path, "final", f"{model_name}_episode_df.parquet"
-    )
+  subfolder = "debug" if debug else "final"
+
+  all_episodes_data_filename = os.path.join(
+    processing_data_path, subfolder, f"{model_name}_episodes.safetensor"
+  )
+  all_episode_metadata_filename = os.path.join(
+    processing_data_path, subfolder, f"{model_name}_episode_metadata.safetensor"
+  )
+  all_episodes_df_filename = os.path.join(
+    output_data_path, subfolder, f"{model_name}_episode_df.parquet"
+  )
 
   os.makedirs(os.path.dirname(all_episodes_data_filename), exist_ok=True)
+  os.makedirs(os.path.dirname(all_episodes_df_filename), exist_ok=True)
   # --------------------------------
   # don't want to overwrite anything
   # --------------------------------
@@ -803,8 +780,10 @@ def generate_model_data(
         example_config = utils_jaxmaze.dummy_config()
       else:
         example_config = utils_craftax.dummy_config()
+      from serialization import lenient_from_bytes
+
       attempt1 = serialization.from_bytes(None, serialized_data)
-      all_episode_metadata = serialization.from_bytes(
+      all_episode_metadata = lenient_from_bytes(
         [example_config] * len(attempt1), serialized_data
       )
 
@@ -930,7 +909,7 @@ def generate_all_episodes_data(
 
   all_episodes = []
   all_episode_configs = []
-  for path in paths:
+  for path in tqdm(paths, desc=f"{model_name} episodes"):
     path = path.rstrip("/")
     filename = f"{path}/{model_filename}.safetensors"
     if not os.path.exists(filename):
@@ -974,7 +953,11 @@ def generate_all_episodes_df(all_episode_data, all_episode_metadata, env_name: s
     raise ValueError(f"Unknown environment: {env_name}")
 
   all_episode_row_data = []
-  for episode_data, episode_metadata in zip(all_episode_data, all_episode_metadata):
+  for episode_data, episode_metadata in tqdm(
+    zip(all_episode_data, all_episode_metadata),
+    total=len(all_episode_data),
+    desc="Building episode df",
+  ):
     row_data = env_utils.make_model_episode_row_data(
       episode=episode_data,
       metadata=episode_metadata,
@@ -1043,11 +1026,12 @@ def generate_all_episodes_df(all_episode_data, all_episode_metadata, env_name: s
 def generate_all_model_data(
   env_name: str,
   input_data_path: str,
-  output_data_path: str,
+  processing_data_path: str,
   model_to_input_glob,
   model_to_env_objects,
   model_to_load_algorithm,
   model_to_extras: dict = None,
+  output_data_path: str = None,
   overwrite_episode_data: bool = False,
   overwrite_episode_df: bool = False,
   load_df_only: bool = True,
@@ -1062,6 +1046,7 @@ def generate_all_model_data(
     print(f"Generating model data for {model_name}")
     model_df = generate_model_data(
       input_glob_pattern=model_to_input_glob[model_name],
+      processing_data_path=processing_data_path,
       output_data_path=output_data_path,
       example_timestep=example_timestep,
       env_name=env_name,
@@ -1117,7 +1102,8 @@ def load_jaxmaze_environment(
 
 def get_jaxmaze_model_data(
   input_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
-  output_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
+  processing_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
+  output_data_path: str = data_configs.JAXMAZE_MODEL_DATA_DIR,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only: bool = True,
@@ -1191,6 +1177,7 @@ def get_jaxmaze_model_data(
   return generate_all_model_data(
     env_name="jaxmaze",
     input_data_path=input_data_path,
+    processing_data_path=processing_data_path,
     output_data_path=output_data_path,
     model_to_input_glob=model_to_input_glob,
     model_to_env_objects=model_to_env_objects,
@@ -1206,6 +1193,7 @@ def get_jaxmaze_model_data(
 
 def load_craftax_environment(landmark_features=False):
   from simulations.craftax_web_env import CraftaxMultiGoalSymbolicWebEnvNoAutoReset
+
   static_env_params = (
     CraftaxMultiGoalSymbolicWebEnvNoAutoReset.default_static_params().replace(
       landmark_features=landmark_features
@@ -1215,6 +1203,7 @@ def load_craftax_environment(landmark_features=False):
   env = nicewebrl.TimestepWrapper(env, autoreset=False)
 
   from simulations import craftax_simulation_configs
+
   example_env_params = craftax_simulation_configs.default_params
   dummy_rng = jax.random.PRNGKey(42)
   example_timestep = env.reset(dummy_rng, example_env_params)
@@ -1224,7 +1213,8 @@ def load_craftax_environment(landmark_features=False):
 
 def get_craftax_model_data(
   input_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
-  output_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
+  processing_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
+  output_data_path: str = data_configs.CRAFTAX_MODEL_DATA_DIR,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only: bool = True,
@@ -1264,6 +1254,7 @@ def get_craftax_model_data(
   return generate_all_model_data(
     env_name="craftax",
     input_data_path=input_data_path,
+    processing_data_path=processing_data_path,
     output_data_path=output_data_path,
     model_to_input_glob=model_to_input_glob,
     model_to_env_objects=model_to_env_objects,

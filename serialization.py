@@ -5,8 +5,72 @@ If a serialized object has missing fields present in the example object, the mis
 """
 
 import dataclasses
+import re
 from flax import serialization
 import jax
+
+
+def lenient_from_bytes(target, data):
+  """Like flax's from_bytes but skips unknown fields with a warning."""
+  state_dict = serialization.from_bytes(None, data)
+  if isinstance(target, list) and isinstance(state_dict, dict):
+    # flax serializes lists as dicts with string keys {"0": ..., "1": ...}
+    cleaned = {
+      str(i): _clean_state_dict(t, state_dict[str(i)], path=f"[{i}]")
+      for i, t in enumerate(target)
+    }
+  else:
+    cleaned = _clean_state_dict(target, state_dict)
+  result = serialization.from_state_dict(target, cleaned)
+  for pattern, count in _warned_fields.items():
+    if count > 1:
+      print(f"\033[91m  ... '{pattern}' dropped {count} times total\033[0m")
+  _warned_fields.clear()
+  return result
+
+
+_warned_fields = {}
+
+
+def _clean_state_dict(target, state, path=""):
+  """Recursively remove keys from state that don't exist in target."""
+  if isinstance(state, dict):
+    # figure out which keys the target expects
+    if hasattr(target, "__dataclass_fields__"):
+      expected = set(target.__dataclass_fields__.keys())
+    elif isinstance(target, dict):
+      expected = set(target.keys())
+    else:
+      # leaf-like target but dict state — just return state
+      return state
+
+    cleaned = {}
+    for k, v in state.items():
+      if k not in expected:
+        # deduplicate warnings by stripping indices from path
+        pattern = re.sub(r"\[\d+\]", "[*]", f"{path}.{k}")
+        _warned_fields[pattern] = _warned_fields.get(pattern, 0) + 1
+        if _warned_fields[pattern] == 1:
+          print(f"\033[91mWarning: dropping unknown field '{path}.{k}'\033[0m")
+        continue
+      # get the sub-target for recursion
+      if hasattr(target, "__dataclass_fields__"):
+        sub_target = getattr(target, k)
+      else:
+        sub_target = target[k]
+      cleaned[k] = _clean_state_dict(sub_target, v, path=f"{path}.{k}")
+    return cleaned
+
+  if isinstance(state, (list, tuple)):
+    if isinstance(target, (list, tuple)) and len(target) == len(state):
+      return type(state)(
+        _clean_state_dict(t, s, path=f"{path}[{i}]")
+        for i, (t, s) in enumerate(zip(target, state))
+      )
+    return state
+
+  # leaf
+  return state
 
 
 class SerializationWrapper:
@@ -57,6 +121,8 @@ class SerializationWrapper:
 
   def _from_state_dict(self, x, state):
     """Use example object values for missing fields."""
+    if state is None:
+      return None
     state = state.copy()
     updates = {}
 

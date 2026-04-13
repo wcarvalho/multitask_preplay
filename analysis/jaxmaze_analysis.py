@@ -77,25 +77,31 @@ def filter_users_by_success(df, analysis_name=None, **kwargs):
   return df, unique_user_ids
 
 
-def get_path_reuse_eval_data(user_df, tell_reuse=1):
+def get_path_reuse_eval_data(user_df, tell_reuse=1, eval_only=True):
   """Return filtered (user_df, model_df) for path reuse experiment."""
-  eval_filter = dict(manipulation="paths", world="big_m3_maze1", eval=True)
+  eval_filter = dict(manipulation="paths", world="big_m3_maze1")
+  if eval_only:
+    eval_filter["eval"] = True
+    eval_filter["eval_shares_start_pos"] = True
   sub_df, _ = filter_users_by_success(
-    user_df.filter(tell_reuse=tell_reuse, eval_shares_start_pos=True, **eval_filter),
+    user_df.filter(tell_reuse=tell_reuse, **eval_filter),
     analysis_name="path_reuse_results",
   )
   return sub_df
 
 
-def get_shortcut_eval_data(user_df, tell_reuse=1):
+def get_shortcut_eval_data(user_df, tell_reuse=1, eval_only=True):
   """Return filtered (user_df, model_df) for shortcut experiment."""
+  filter_kwargs = dict(
+    manipulation="shortcut",
+    #world="big_m1_maze3_shortcut",
+    tell_reuse=tell_reuse,
+  )
+  if eval_only:
+    filter_kwargs["eval"] = True
+    filter_kwargs["eval_shares_start_pos"] = True
   sub_df, _ = filter_users_by_success(
-    user_df.filter(
-      manipulation="shortcut",
-      world="big_m1_maze3_shortcut",
-      tell_reuse=tell_reuse,
-      eval_shares_start_pos=True,
-    ),
+    user_df.filter(**filter_kwargs),
     analysis_name="shortcut_results",
   )
   return sub_df

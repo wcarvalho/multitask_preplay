@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Third-party imports
 import polars as pl
-from datasets import load_dataset
 from absl import logging
 from flax import serialization, struct
 from serialization import SerializationWrapper
@@ -19,49 +18,6 @@ import jax.numpy as jnp
 
 import numpy as np
 import data_configs
-
-
-def download_data(
-  data_dir: str,
-  dataset_name: str,
-):
-  dataset = load_dataset(f"wcarvalho/{dataset_name}")
-
-  # Create directories
-  os.makedirs(os.path.join(data_dir, "final"), exist_ok=True)
-
-  # Save each split as CSV
-  for split_name, split_data in dataset.items():
-    filename = os.path.join(data_dir, "final", f"{split_name}_episode_df.parquet")
-    if os.path.exists(filename):
-      print(f"Skipping {split_name} data because it already exists")
-      continue
-    split_data.to_pandas().to_parquet(filename)
-    print(f"Saved {split_name} data to {filename}")
-
-
-def download_jaxmaze_data():
-  print("Data will be downloaded or saved to", data_configs.JAXMAZE_MODEL_DATA_DIR)
-  download_data(
-    data_dir=data_configs.JAXMAZE_MODEL_DATA_DIR,
-    dataset_name=f"{data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME}_human",
-  )
-  download_data(
-    data_dir=data_configs.JAXMAZE_MODEL_DATA_DIR,
-    dataset_name=f"{data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME}_models",
-  )
-
-
-def download_craftax_data():
-  print("Data will be downloaded or saved to", data_configs.CRAFTAX_MODEL_DATA_DIR)
-  download_data(
-    data_dir=data_configs.CRAFTAX_MODEL_DATA_DIR,
-    dataset_name=f"{data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME}_human",
-  )
-  download_data(
-    data_dir=data_configs.CRAFTAX_MODEL_DATA_DIR,
-    dataset_name=f"{data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME}_models",
-  )
 
 
 class EpisodeData(NamedTuple):
@@ -116,7 +72,7 @@ def success(e: EpisodeData):
 
 
 def path_length(e: EpisodeData):
-  in_episode = get_in_episode(e.timesteps)
+  in_episode = get_in_episode(e.timesteps)[:-1]
   return sum(in_episode)
 
 
@@ -220,6 +176,7 @@ def get_overlap_dicts_human(
   reuse_dict = {}
   corresponding_train_episode_idx = {}
   cosine_dict = {}
+  skipped_blocks = []
 
   if create_test_maps_fn is None:
     create_test_maps_fn = create_train_maps_fn
@@ -244,6 +201,7 @@ def get_overlap_dicts_human(
     )
 
     if len(train.episodes) == 0:
+      skipped_blocks.append(block_name)
       continue
 
     # Create map for training episodes
@@ -269,7 +227,13 @@ def get_overlap_dicts_human(
         train.episodes[best_idx].positions, test.episodes[idx].positions
       )
 
-  return reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict
+  return (
+    reuse_dict,
+    overlap_dict,
+    corresponding_train_episode_idx,
+    cosine_dict,
+    skipped_blocks,
+  )
 
 
 def _debug_plot_nan_overlap(
@@ -384,7 +348,7 @@ def get_overlap_dicts_model(
     # Create map for training episodes
     train_maps = create_train_maps_fn(train.episodes)
     test_maps = create_test_maps_fn(test.episodes)
-    import ipdb; ipdb.set_trace()
+
     # Process each test episode
     for idx, row in enumerate(test._df.iter_rows(named=True)):
       global_index = row["global_episode_idx"]

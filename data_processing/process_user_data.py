@@ -17,6 +17,7 @@ sys.path.append(os.path.join(_project_root, "simulations"))
 os.environ["PRECOMPILE"] = "0"
 
 import json
+import logging
 from glob import glob
 from collections import defaultdict
 from typing import List
@@ -432,17 +433,26 @@ def generate_all_episodes_df(
     eval_start_positions = group_df.filter(eval=True)["start_pos"].unique()
     train_start_positions = group_df.filter(eval=False)["start_pos"].unique()
 
-    shares_start_pos = False  # Default to False
-    # Only proceed if both series are non-empty
+    # 1. Group-level: does ANY train episode share a start_pos with ANY eval episode?
+    shares_start_pos = False
     if len(eval_start_positions) > 0 and len(train_start_positions) > 0:
-      # Check if any eval_start_position is present in train_start_positions
       shares_start_pos = any(
         pos in train_start_positions for pos in eval_start_positions
       )
-
-    return group_df.with_columns(
+    group_df = group_df.with_columns(
       pl.lit(shares_start_pos).alias("eval_shares_start_pos")
     )
+
+    # 2. Per-row (train only): does THIS train episode share its start_pos with the eval episode?
+    eval_start_list = eval_start_positions.to_list()
+    group_df = group_df.with_columns(
+      pl.when(pl.col("eval") == False)
+      .then(pl.col("start_pos").is_in(eval_start_list))
+      .otherwise(pl.lit(None))
+      .alias("shares_start_with_eval")
+    )
+
+    return group_df
 
   # Use apply instead of map_groups
   group_keys = ["manipulation", "user_id", "block_name"]
@@ -495,27 +505,54 @@ def generate_all_episodes_df(
   all_corresponding_train_episode_idx = []
   all_cosine_dicts = []
   all_approach_direction_dicts = []
+  all_skipped_blocks = []
   for user_id in tqdm(
     all_episode_df["user_id"].unique().to_list(), desc="Processing reuse per user"
   ):
     user_df_nicewebrl = temp_df.filter(user_id=user_id)
     result = env_utils.add_reuse_columns(user_df_nicewebrl)
-    # Handle both 4-tuple (craftax) and 5-tuple (jaxmaze) returns
-    if len(result) == 5:
+    # Handle both 5-tuple (craftax) and 6-tuple (jaxmaze) returns
+    if len(result) == 6:
       (
         reuse_dict,
         overlap_dict,
         corresponding_train_episode_idx,
         cosine_dict,
         approach_direction_dict,
+        skipped_blocks,
       ) = result
       all_approach_direction_dicts.append(approach_direction_dict)
     else:
-      reuse_dict, overlap_dict, corresponding_train_episode_idx, cosine_dict = result
+      (
+        reuse_dict,
+        overlap_dict,
+        corresponding_train_episode_idx,
+        cosine_dict,
+        skipped_blocks,
+      ) = result
     all_reuse_dicts.append(reuse_dict)
     all_overlap_dicts.append(overlap_dict)
     all_corresponding_train_episode_idx.append(corresponding_train_episode_idx)
     all_cosine_dicts.append(cosine_dict)
+    all_skipped_blocks.extend((user_id, b) for b in skipped_blocks)
+
+  # Drop blocks where overlap couldn't be computed (no task_set=0 train with matching start_pos)
+  if all_skipped_blocks:
+    drop_df = pl.DataFrame(
+      {
+        "user_id": [k[0] for k in all_skipped_blocks],
+        "block_name": [k[1] for k in all_skipped_blocks],
+      }
+    ).unique()
+    n_before = len(all_episode_df)
+    all_episode_df = all_episode_df.join(
+      drop_df, on=["user_id", "block_name"], how="anti"
+    )
+    n_dropped = n_before - len(all_episode_df)
+    logging.warning(
+      f"Dropping {len(drop_df)} blocks ({n_dropped} rows) "
+      f"with no task_set=0 train episode sharing start_pos with eval"
+    )
 
   # Use our utility function to add the columns
   all_episode_df = add_reuse_dicts_to_df(

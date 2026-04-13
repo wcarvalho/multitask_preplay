@@ -716,10 +716,14 @@ def plot_efficiency(
   return fig, axes
 
 
-def get_path_reuse_eval_data(user_df):
+def get_path_reuse_eval_data(user_df, eval_only=True):
   """Return filtered (user_df, model_df) for craftax path reuse experiment."""
+  filter_kwargs = {}
+  if eval_only:
+    filter_kwargs["eval"] = True
+    filter_kwargs["eval_shares_start_pos"] = True
   sub_df, _ = analysis_utils.filter_users_by_success_by_tell_reuse(
-    user_df.filter(eval_shares_start_pos=True, eval=True)
+    user_df.filter(**filter_kwargs)
   )
   return sub_df
 

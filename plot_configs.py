@@ -33,6 +33,7 @@ model_colors = {
   "qlearning": default_colors["light gray"],
   # "dynaq_shared": default_colors["dark gray"],
   # "dyna": default_colors["dark gray"],
+  "her": default_colors["reddish purple"],
   "dyna": default_colors["bluish green"],
   "preplay": default_colors["vermillion"],
   "bfs": default_colors["pretty blue"],
@@ -46,6 +47,7 @@ model_names = {
   "qlearning": "Universal Value Function",
   "usfa": "Universal Landmark Successor Features",
   "dyna": "Dyna",
+  "her": "Hindsight Experience Replay",
   "dynaq_shared": "Multitask preplay",
   "preplay": "Multitask Preplay",
   "bfs": "Breadth-first search",
@@ -57,11 +59,11 @@ model_order = [
   "human",
   "human_success",
   "human_terminate",
-  "preplay",
   "bfs",
   "dfs",
-  "qlearning",
+  "preplay",
   "dyna",
+  "qlearning",
   "usfa",
   "her"
   # "dynaq_shared",
@@ -114,4 +116,11 @@ measure_to_ylabel = {
   "max_init_post_rt": "seconds",
   "max_end_rt": "seconds",
   "max_final_rt": "seconds",
+}
+
+
+experiment_to_name = {
+  "paths" : "Two Paths",
+  "shortcut": "Shortcut",
+  "shortcut": "Shortcut",
 }

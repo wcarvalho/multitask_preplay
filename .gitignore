@@ -1,6 +1,7 @@
 *data
 .vscode
 archive
+**/huggingface_token.txt
 
 configs/*toml
 *cache*

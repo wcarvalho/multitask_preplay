@@ -17,17 +17,12 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import matplotlib.pyplot as plt
 from analysis import vis_utils
-
-# from data_processing import utils_jaxmaze as utils
-from data_processing.utils_jaxmaze import create_maps, compute_overlap
 from figures import figure_utils
 import data_configs
-import nicewebrl
-import numpy as np
 
 
 def visualize_examples_by_reuse(
-  df: nicewebrl.DataFrame,
+  df,
   manipulation_id: int,
   threshold: float,
   model: str,
@@ -81,10 +76,10 @@ def visualize_examples_by_reuse(
         world=test_maze,
       ).sort("overlap", descending=True)
 
-      if len(test_initial.episodes) == 0:
+      if len(test_initial) == 0:
         continue
       # Process each test episode one by one
-      ntest = len(test_initial.episodes)
+      ntest = len(test_initial)
       for test_episode_idx in range(min(n_search, ntest)):
         # Get values for filtering
         start_pos_val = test_initial["start_pos"].to_list()[test_episode_idx]
@@ -112,16 +107,11 @@ def visualize_examples_by_reuse(
           global_episode_idx=corresponding_train_episode_idx,
         )
 
-        if len(train.episodes) == 0 or len(test.episodes) == 0:
+        if len(train) == 0 or len(test) == 0:
           continue
 
-        # Calculate overlap
-        # just use 1 example
-        train_map = create_maps([train.episodes[0]]).sum(0)
-        test_map = create_maps([test.episodes[0]]).sum(0)
-
-        overlap_value = compute_overlap(train_map, test_map).mean()
-        df_overlap_value = test["overlap"].to_list()[0]
+        # Use precomputed overlap from DataFrame
+        overlap_value = test["overlap"].to_list()[0]
         reuse = int(overlap_value >= threshold)
 
         samples.append(
@@ -130,7 +120,6 @@ def visualize_examples_by_reuse(
             "train": train,
             "test": test,
             "overlap": overlap_value,
-            "df_overlap": df_overlap_value,
             "reuse": reuse,
             "filters": filters,  # Store filters for reference
             "block_name": block_name_val,
@@ -166,15 +155,16 @@ def visualize_examples_by_reuse(
     train_filtered = sample["train"]
     test_filtered = sample["test"]
     overlap_value = sample["overlap"]
-    df_overlap_value = sample["df_overlap"]
     reuse_value = sample["reuse"]
     block_name = sample["block_name"]
 
     # Create a new figure for each example
     fig, axs = plt.subplots(1, 2, figsize=(10, 5))
 
-    vis_utils.render_path(train_filtered.episodes[0], ax=axs[0])
-    vis_utils.render_path(test_filtered.episodes[0], ax=axs[1])
+    train_row = train_filtered.row(0, named=True)
+    test_row = test_filtered.row(0, named=True)
+    vis_utils.visualize_jaxmaze_row(train_row, ax_image=axs[0])
+    vis_utils.visualize_jaxmaze_row(test_row, ax_image=axs[1])
 
     train_success = train_filtered["success"].to_list()[0]
     test_success = test_filtered["success"].to_list()[0]
@@ -186,7 +176,7 @@ def visualize_examples_by_reuse(
       axs[0].set_title(f"Train ({model_key}: {k}, success: {train_success})")
 
     axs[1].set_title(
-      f"Test (success: {test_success}, overlap: {overlap_value:.3f}, df_overlap: {df_overlap_value:.3f}, reuse: {reuse_value})"
+      f"Test (success: {test_success}, overlap: {overlap_value:.3f}, reuse: {reuse_value})"
     )
 
     fig.tight_layout()
@@ -204,15 +194,16 @@ def visualize_examples_by_reuse(
     train_filtered = sample["train"]
     test_filtered = sample["test"]
     overlap_value = sample["overlap"]
-    df_overlap_value = sample["df_overlap"]
     reuse_value = sample["reuse"]
     block_name = sample["block_name"]
 
     # Create a new figure for each example
     fig, axs = plt.subplots(1, 2, figsize=(10, 5))
 
-    vis_utils.render_path(train_filtered.episodes[0], ax=axs[0])
-    vis_utils.render_path(test_filtered.episodes[0], ax=axs[1])
+    train_row = train_filtered.row(0, named=True)
+    test_row = test_filtered.row(0, named=True)
+    vis_utils.visualize_jaxmaze_row(train_row, ax_image=axs[0])
+    vis_utils.visualize_jaxmaze_row(test_row, ax_image=axs[1])
 
     train_success = train_filtered["success"].to_list()[0]
     test_success = test_filtered["success"].to_list()[0]
@@ -224,7 +215,7 @@ def visualize_examples_by_reuse(
       axs[0].set_title(f"Train ({model_key}: {k}, success: {train_success})")
 
     axs[1].set_title(
-      f"Test (success: {test_success}, overlap: {overlap_value:.3f}, df_overlap: {df_overlap_value:.3f}, reuse: {reuse_value})"
+      f"Test (success: {test_success}, overlap: {overlap_value:.3f}, reuse: {reuse_value})"
     )
 
     fig.tight_layout()
@@ -309,7 +300,7 @@ if __name__ == "__main__":
   if requested_models:
     print("Loading model data...")
     model_df = process_model_data.get_jaxmaze_model_data(
-      load_df_only=False,
+      load_df_only=True,
       models=requested_models,
     )
 
@@ -341,8 +332,7 @@ if __name__ == "__main__":
   if "human" in args.models:
     print("Loading human data...")
     user_df = process_user_data.get_jaxmaze_human_data(
-      # overwrite_episode_df=True,
-      load_df_only=False,
+      load_df_only=True,
     )
 
     # Process human data for each manipulation and threshold

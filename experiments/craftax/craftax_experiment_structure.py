@@ -371,6 +371,17 @@ static_env_params = static_env_params.replace(
   map_size=(48, 48),
   num_levels=1,
 )
+
+# Load pre-generated world states for JAX version reproducibility
+from simulations.craftax_world_cache import load_all_cached_states, get_cache_dir
+
+_cached_states = load_all_cached_states(get_cache_dir(), static_env_params)
+if _cached_states is not None:
+  static_env_params = static_env_params.replace(
+    cached_world_states=_cached_states,
+  )
+  print(f"Loaded {len(_cached_states)} cached world states")
+
 jax_env = CraftaxSymbolicWebEnvNoAutoReset(
   static_env_params=static_env_params,
 )

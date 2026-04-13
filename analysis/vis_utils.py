@@ -51,7 +51,10 @@ def parse_positions_string(s: str) -> np.ndarray:
 
 def _parse_row_field(row, field: str, parser):
   """Get a field from a row (dict or polars row) and parse it."""
-  val = row[field] if isinstance(row, dict) else row[field]
+  try:
+    val = row[field] if isinstance(row, dict) else row[field]
+  except (KeyError, IndexError):
+    return None
   if val is None or (isinstance(val, str) and val.lower() == "none"):
     return None
   if isinstance(val, str):
@@ -391,3 +394,96 @@ def render_path(episode_data, from_model=True, ax=None):
   renderer.place_arrows_on_image(
     img, positions, actions, maze_height, maze_width, arrow_scale=5, ax=ax
   )
+
+
+if __name__ == "__main__":
+  import polars as pl
+
+  SAVE_DIR = "/tmp/multitask_preplay"
+  os.makedirs(SAVE_DIR, exist_ok=True)
+
+  # --- JaxMaze ---
+  jm_human_path = os.path.join(
+    data_configs.JAXMAZE_MODEL_DATA_DIR, "final", "human_data_episode_df.parquet"
+  )
+  if os.path.exists(jm_human_path):
+    df = pl.read_parquet(jm_human_path)
+    # Human sample: pick an eval success row
+    sample = df.filter(pl.col("eval") & (pl.col("success") == 1))
+    if len(sample) > 0:
+      row = sample.row(0, named=True)
+      fig, _ = visualize_jaxmaze_row(row, title="JaxMaze Human (eval, success)")
+      path = os.path.join(SAVE_DIR, "jaxmaze_human_sample.png")
+      fig.savefig(path, bbox_inches="tight", dpi=150)
+      plt.close(fig)
+      print(f"Saved {path}")
+
+  # JaxMaze model
+  for model in ["preplay"]:
+    mpath = os.path.join(
+      data_configs.JAXMAZE_MODEL_DATA_DIR, "final", f"{model}_episode_df.parquet"
+    )
+    if not os.path.exists(mpath):
+      continue
+    mdf = pl.read_parquet(mpath)
+    if "positions" not in mdf.columns:
+      print(
+        f"JaxMaze {model} df missing positions column — re-run process_model_data.py --env jaxmaze --df"
+      )
+      continue
+    sample = mdf.filter(pl.col("eval") & (pl.col("success") == 1))
+    if len(sample) > 0:
+      row = sample.row(0, named=True)
+      fig, _ = visualize_jaxmaze_row(
+        row, title=f"JaxMaze Model ({model}, eval, success)"
+      )
+      path = os.path.join(SAVE_DIR, "jaxmaze_model_sample.png")
+      fig.savefig(path, bbox_inches="tight", dpi=150)
+      plt.close(fig)
+      print(f"Saved {path}")
+      break
+
+  # --- Craftax ---
+  cx_human_path = os.path.join(
+    data_configs.CRAFTAX_MODEL_DATA_DIR, "final", "human_data_episode_df.parquet"
+  )
+  if os.path.exists(cx_human_path):
+    df = pl.read_parquet(cx_human_path)
+    sample = df.filter(pl.col("eval") & (pl.col("success") == 1))
+    if len(sample) > 0:
+      row = sample.row(0, named=True)
+      # Craftax uses 'world' column with string values like '3', '15', etc.
+      # but visualize_craftax_row expects 'world_seed' (int)
+      if "world_seed" not in row or row["world_seed"] is None:
+        row = dict(row)
+        row["world_seed"] = int(row["world"])
+      fig, _ = visualize_craftax_row(row, title="Craftax Human (eval, success)")
+      path = os.path.join(SAVE_DIR, "craftax_human_sample.png")
+      fig.savefig(path, bbox_inches="tight", dpi=150)
+      plt.close(fig)
+      print(f"Saved {path}")
+
+  # Craftax model
+  for model in ["preplay"]:
+    mpath = os.path.join(
+      data_configs.CRAFTAX_MODEL_DATA_DIR, "final", f"{model}_episode_df.parquet"
+    )
+    if not os.path.exists(mpath):
+      continue
+    mdf = pl.read_parquet(mpath)
+    if "positions" not in mdf.columns:
+      print(
+        f"Craftax {model} df missing positions column — re-run process_model_data.py --env craftax --df"
+      )
+      continue
+    sample = mdf.filter(pl.col("eval") & (pl.col("success") == 1))
+    if len(sample) > 0:
+      row = sample.row(0, named=True)
+      fig, _ = visualize_craftax_row(
+        row, title=f"Craftax Model ({model}, eval, success)"
+      )
+      path = os.path.join(SAVE_DIR, "craftax_model_sample.png")
+      fig.savefig(path, bbox_inches="tight", dpi=150)
+      plt.close(fig)
+      print(f"Saved {path}")
+      break
