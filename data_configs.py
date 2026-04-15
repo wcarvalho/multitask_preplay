@@ -1,4 +1,6 @@
-import os.path
+import os
+import socket
+from pathlib import Path
 
 
 GOOGLE_CREDENTIALS = "datastore-key.json"
@@ -9,16 +11,85 @@ CRAFTAX_BUCKET = "craftax-human-dyna"
 JAXMAZE_HUMAN_DATA_PATTERN = "*final*v2*debug=0*.json"
 CRAFTAX_HUMAN_DATA_PATTERN = "*final*v2*debug=0*.json"
 
-RESULTS_DIRECTORY = os.environ.get(
-  "MULTITASK_PREPLAY_DATA_DIR",
-  os.path.join(os.path.dirname(os.path.abspath(__file__)), "preplay_results"),
+PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECTS_ROOT = PROJECT_ROOT.parent
+HOSTNAME = socket.getfqdn().lower()
+IS_SERVER = str(PROJECT_ROOT).startswith("/n/") or "rc.fas.harvard.edu" in HOSTNAME
+
+
+def _choose_existing_dir(candidates: list[Path], fallback: Path) -> str:
+  for candidate in candidates:
+    if candidate.exists():
+      return str(candidate)
+  return str(fallback)
+
+
+def _resolve_directory(
+  *,
+  primary_env_var: str,
+  legacy_env_var: str | None,
+  candidates: list[Path],
+  fallback: Path,
+) -> str:
+  configured = os.environ.get(primary_env_var)
+  if configured:
+    return str(Path(configured).expanduser())
+
+  if legacy_env_var:
+    legacy_value = os.environ.get(legacy_env_var)
+    if legacy_value:
+      return str(Path(legacy_value).expanduser())
+
+  return _choose_existing_dir(candidates, fallback)
+
+
+def _result_candidates() -> tuple[list[Path], Path]:
+  if IS_SERVER:
+    candidates = [
+      PROJECT_ROOT / "preplay_results",
+      PROJECT_ROOT / "plots" / "output",
+    ]
+    return candidates, candidates[0]
+
+  candidates = [
+    Path("/Volumes/Crucial X9/data-backup/git/research/preplay_results"),
+    PROJECT_ROOT / "preplay_results",
+    PROJECT_ROOT / "plots" / "output",
+  ]
+  return candidates, candidates[0]
+
+def _raw_data_candidates() -> tuple[list[Path], Path]:
+  if IS_SERVER:
+    candidates = [
+      PROJECTS_ROOT / "raw_preplay_data",
+      Path("/n/holylfs06/LABS/kempner_fellow_wcarvalho/raw_preplay_data"),
+      PROJECT_ROOT / "preplay_results",
+    ]
+    return candidates, candidates[0]
+
+  candidates = [
+    Path("/Volumes/Crucial X9/data-backup/git/research/preplay_results"),
+    PROJECTS_ROOT / "raw_preplay_data",
+    PROJECT_ROOT / "preplay_results",
+  ]
+  return candidates, candidates[0]
+
+
+_RESULT_CANDIDATES, _RESULT_FALLBACK = _result_candidates()
+_RAW_DATA_CANDIDATES, _RAW_DATA_FALLBACK = _raw_data_candidates()
+
+RESULTS_DIRECTORY = _resolve_directory(
+  primary_env_var="MULTITASK_PREPLAY_RESULTS_DIR",
+  legacy_env_var="MULTITASK_PREPLAY_DATA_DIR",
+  candidates=_RESULT_CANDIDATES,
+  fallback=_RESULT_FALLBACK,
 )
 
-DATA_DIRECTORY = os.environ.get(
-  "MULTITASK_PREPLAY_DATA_DIR",
-  os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "raw_preplay_data"
-  ),
+DATA_DIRECTORY = _resolve_directory(
+  primary_env_var="MULTITASK_PREPLAY_RAW_DATA_DIR",
+  legacy_env_var="MULTITASK_PREPLAY_DATA_DIR",
+  candidates=_RAW_DATA_CANDIDATES,
+  fallback=_RAW_DATA_FALLBACK,
 )
 
 

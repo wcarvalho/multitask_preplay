@@ -6,8 +6,10 @@ If a serialized object has missing fields present in the example object, the mis
 
 import dataclasses
 import re
-from flax import serialization
+
 import jax
+import numpy as np
+from flax import serialization
 
 
 def lenient_from_bytes(target, data):
@@ -60,6 +62,16 @@ def _clean_state_dict(target, state, path=""):
         sub_target = target[k]
       cleaned[k] = _clean_state_dict(sub_target, v, path=f"{path}.{k}")
     return cleaned
+
+  # Array state, list target — split array to match target structure
+  if isinstance(target, (list, tuple)) and isinstance(state, np.ndarray):
+    target_sizes = [np.asarray(t).size for t in target]
+    flat = state.flatten()
+    if sum(target_sizes) == flat.size:
+      print(f"\033[91mWarning: reshaping array to list at '{path}'\033[0m")
+      parts = np.split(flat, np.cumsum(target_sizes[:-1]))
+      target_shapes = [np.asarray(t).shape for t in target]
+      return {str(i): p.reshape(s) for i, (p, s) in enumerate(zip(parts, target_shapes))}
 
   if isinstance(state, (list, tuple)):
     if isinstance(target, (list, tuple)) and len(target) == len(state):

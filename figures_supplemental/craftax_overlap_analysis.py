@@ -17,10 +17,12 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
-import jax
-from simulations import craftax_utils
+from analysis.vis_utils import (
+  get_craftax_env_image,
+  craftax_actions_from_path,
+  craftax_place_arrows_on_image,
+)
 from tqdm import tqdm
-import numpy as np
 
 # from data_processing import utils_craftax as utils
 from data_processing.utils_craftax import create_maps, OPTIMAL_TEST_PATHS
@@ -39,17 +41,16 @@ except ImportError:
   JUPYTER_AVAILABLE = False
 
 
-def make_image_path_panel(episode, ax, title):
-  first_state = jax.tree_util.tree_map(lambda x: x[0], episode.timesteps.state)
-  image = craftax_utils.render_fn(first_state, show_agent=False)
+def make_image_path_panel(episode, ax, title, world_seed):
+  image, maze_height, maze_width = get_craftax_env_image(int(world_seed))
   path = episode.positions
-  actions = craftax_utils.actions_from_path(path)
-  craftax_utils.place_arrows_on_image(
+  actions = craftax_actions_from_path(path)
+  craftax_place_arrows_on_image(
     image=image,
     positions=path,
     actions=actions,
-    maze_height=first_state.map.shape[1],
-    maze_width=first_state.map.shape[2],
+    maze_height=maze_height,
+    maze_width=maze_width,
     ax=ax,
     display_image=True,
     arrow_color="red",
@@ -230,12 +231,8 @@ def visualize_computations(data, model=None, threshold=None, cosine_threshold=0.
     test_title = f"World {sample_world_seed} - " + test_title
 
   # Row 0: Path visualizations
-  # Column 0: Best train path
-  with jax.disable_jit():
-    make_image_path_panel(train.episodes[0], axes[0, 0], train_title)
-
-    # Column 1: Test path
-    make_image_path_panel(test.episodes[0], axes[0, 1], test_title)
+  make_image_path_panel(train.episodes[0], axes[0, 0], train_title, sample_world_seed)
+  make_image_path_panel(test.episodes[0], axes[0, 1], test_title, sample_world_seed)
 
   # Row 1: Heat maps
   # Column 0: Best train map

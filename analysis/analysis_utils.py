@@ -353,6 +353,46 @@ def bar_plot_error(
   return fig, ax
 
 
+def _add_significance_stars(ax, p_value, x0=0, x1=1):
+  """Add significance bracket and stars between two bars.
+
+  Args:
+      ax: matplotlib axis
+      p_value: p-value from statistical test
+      x0, x1: x positions of the two bars
+  """
+  if p_value < 0.001:
+    text = "***"
+  elif p_value < 0.01:
+    text = "**"
+  elif p_value < 0.05:
+    text = "*"
+  else:
+    text = "n.s."
+
+  y_min, y_max = ax.get_ylim()
+  y_range = y_max - y_min
+  bracket_y = y_max - 0.08 * y_range
+  text_y = bracket_y + 0.02 * y_range
+  tick_height = 0.02 * y_range
+
+  ax.plot(
+    [x0, x0, x1, x1],
+    [bracket_y - tick_height, bracket_y, bracket_y, bracket_y - tick_height],
+    color="black",
+    linewidth=1.2,
+  )
+  ax.text(
+    (x0 + x1) / 2,
+    text_y,
+    text,
+    ha="center",
+    va="bottom",
+    fontsize=14,
+    color="black",
+  )
+
+
 def plot_bar_rt_comparison(
   df,
   rt_column,
@@ -370,6 +410,7 @@ def plot_bar_rt_comparison(
   overlap_threshold: float = 0.7,
   use_median: bool = True,
   use_box_plot: bool = True,
+  show_significance: bool = True,
 ):
   """Plot comparison of response times between multiple conditions.
 
@@ -549,6 +590,12 @@ def plot_bar_rt_comparison(
     y_min, y_max = ylim
     y_range = y_max - y_min
     ax.set_ylim(y_min - 0.1 * y_range, y_max + 0.1 * y_range)
+
+  if (
+    show_significance and power_results is not None and "test_results" in power_results
+  ):
+    p_value = power_results["test_results"]["p_value"]
+    _add_significance_stars(ax, p_value)
 
   return ax
 

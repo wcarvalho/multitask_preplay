@@ -842,9 +842,10 @@ def get_craftax_human_data(
   """Get human data for Craftax environment."""
   import experiments.craftax.craftax_experiment_structure as experiment
 
-  example_web_timestep = experiment.jax_web_env.reset(
-    jax.random.PRNGKey(0), experiment.dummy_params
-  )
+  with jax.disable_jit():
+    example_web_timestep = experiment.jax_web_env.reset(
+      jax.random.PRNGKey(0), experiment.dummy_params
+    )
 
   # Call the common human data function
   return get_human_data(

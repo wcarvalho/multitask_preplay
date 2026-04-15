@@ -5,6 +5,9 @@ archive
 
 configs/*toml
 *cache*
+!experiments/craftax/craftax_cache/
+!experiments/craftax/craftax_cache/texture_cache.pbz2
+!experiments/craftax/craftax_cache/fullmap_texture_cache_48.pbz2
 *datastore-key.json
 
 # flyctl launch added from .gitignore

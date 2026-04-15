@@ -10,7 +10,7 @@ from craftax.craftax import constants as original_constants
 from importlib.util import find_spec
 import shutil
 
-from experiments.craftax.configs import CRAFTAX_CACHE_DIR as CACHE_DIR
+from experiments.craftax.configs import CRAFTAX_CACHE_DIR as CACHE_DIR, check_cache
 
 original_constant_directory = os.path.dirname(original_constants.__file__)
 
@@ -29,53 +29,9 @@ TEXTURE_CACHE_FILE = os.path.join(
 
 
 def restore_texture_cache_if_needed():
-  """Restore texture cache files from local cache if they don't exist in the package directory."""
-  # Get paths for texture cache files
-  original_constants_directory = os.path.join(
-    os.path.dirname(find_spec("craftax.craftax.constants").origin), "assets"
-  )
-  TEXTURE_CACHE_FILE = os.path.join(original_constants_directory, "texture_cache.pbz2")
-  FULLMAP_TEXTURE_CACHE_FILE = os.path.join(
-    original_constants_directory, "fullmap_texture_cache_48.pbz2"
-  )
-
-  # Local cache paths
-  local_regular_cache = os.path.join(CACHE_DIR, "texture_cache.pbz2")
-  local_fullmap_cache = os.path.join(CACHE_DIR, "fullmap_texture_cache_48.pbz2")
+  """Restore texture cache files before fullmap textures are imported."""
   print(f"Cache dir: {CACHE_DIR}")
-  if not os.path.exists(local_regular_cache):
-    print(f"No local regular map cache: {local_regular_cache}")
-  if not os.path.exists(local_fullmap_cache):
-    print(f"No local full map cache: {local_fullmap_cache}")
-
-  # Create the destination directories if they don't exist
-  os.makedirs(os.path.dirname(TEXTURE_CACHE_FILE), exist_ok=True)
-  os.makedirs(os.path.dirname(FULLMAP_TEXTURE_CACHE_FILE), exist_ok=True)
-
-  # Copy texture cache files if needed
-  if not os.path.exists(TEXTURE_CACHE_FILE) and os.path.exists(local_regular_cache):
-    print(f"Restoring texture cache from {local_regular_cache} to {TEXTURE_CACHE_FILE}")
-    shutil.copy2(local_regular_cache, TEXTURE_CACHE_FILE)
-    print("Regular cache file restored successfully!")
-  else:
-    if os.path.exists(TEXTURE_CACHE_FILE):
-      print(f"regular map cache already exists in craftax library")
-    else:
-      print(f"Need to make {TEXTURE_CACHE_FILE}")
-
-  if not os.path.exists(FULLMAP_TEXTURE_CACHE_FILE) and os.path.exists(
-    local_fullmap_cache
-  ):
-    print(
-      f"Restoring fullmap texture cache from {local_fullmap_cache} to {FULLMAP_TEXTURE_CACHE_FILE}"
-    )
-    shutil.copy2(local_fullmap_cache, FULLMAP_TEXTURE_CACHE_FILE)
-    print("Fullmap cache file restored successfully!")
-  else:
-    if os.path.exists(FULLMAP_TEXTURE_CACHE_FILE):
-      print(f"full map cache already exists in craftax library")
-    else:
-      print(f"Need to make {FULLMAP_TEXTURE_CACHE_FILE}")
+  check_cache()
 
 
 restore_texture_cache_if_needed()

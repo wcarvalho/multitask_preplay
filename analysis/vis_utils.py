@@ -63,10 +63,125 @@ def _parse_row_field(row, field: str, parser):
 
 
 ######################################
+# Craftax action/arrow helpers (pure numpy, no craftax imports)
+######################################
+
+# Action values matching craftax.craftax.constants.Action
+_ACTION_NOOP = 0
+_ACTION_LEFT = 1
+_ACTION_RIGHT = 2
+_ACTION_UP = 3
+_ACTION_DOWN = 4
+
+
+def craftax_actions_from_path(path):
+  """Convert a sequence of positions to action indices. Pure numpy."""
+  if path is None or len(path) < 2:
+    return np.array([_ACTION_NOOP])
+
+  actions = []
+  for i in range(1, len(path)):
+    prev_pos = path[i - 1]
+    curr_pos = path[i]
+    dx = curr_pos[0] - prev_pos[0]
+    dy = curr_pos[1] - prev_pos[1]
+    if dx == 1:
+      actions.append(_ACTION_DOWN)
+    elif dx == -1:
+      actions.append(_ACTION_UP)
+    elif dy == 1:
+      actions.append(_ACTION_RIGHT)
+    elif dy == -1:
+      actions.append(_ACTION_LEFT)
+    else:
+      actions.append(_ACTION_NOOP)
+
+  actions.append(_ACTION_NOOP)
+  return np.array(actions)
+
+
+def craftax_place_arrows_on_image(
+  image,
+  positions,
+  actions,
+  maze_height,
+  maze_width,
+  arrow_scale=5,
+  arrow_color="b",
+  start_color="w",
+  ax=None,
+  display_image=True,
+  show_path_length=True,
+  line_thickness=1.0,
+):
+  """Draw path arrows on a Craftax map image. Pure matplotlib/numpy."""
+  image_height, image_width, _ = image.shape
+  scale_y = image_height / maze_height
+  scale_x = image_width / maze_width
+  offset_y = 0
+  offset_x = 0
+
+  if ax is None:
+    fig, ax = plt.subplots(1, figsize=(5, 5))
+
+  if display_image:
+    ax.imshow(image)
+
+  if show_path_length and len(positions) > 3:
+    text_idx = len(positions) - 3
+    text_y = offset_y + (positions[text_idx][0] + 0.5) * scale_y
+    text_x = offset_x + (positions[text_idx][1] + 0.5) * scale_x
+    ax.text(
+      text_x + scale_x,
+      text_y - scale_y,
+      f"{len(positions)}",
+      color=arrow_color,
+      fontsize=18,
+      ha="left",
+      va="bottom",
+      weight="bold",
+    )
+
+  for (y, x), action in zip(positions, actions):
+    center_y = offset_y + (y + 0.5) * scale_y
+    center_x = offset_x + (x + 0.5) * scale_x
+
+    if action == _ACTION_UP:
+      dx, dy = 0, -scale_y / 2
+    elif action == _ACTION_DOWN:
+      dx, dy = 0, scale_y / 2
+    elif action == _ACTION_LEFT:
+      dx, dy = -scale_x / 2, 0
+    elif action == _ACTION_RIGHT:
+      dx, dy = scale_x / 2, 0
+    else:
+      continue
+
+    ax.arrow(
+      center_x,
+      center_y,
+      dx,
+      dy,
+      head_width=scale_x / (arrow_scale * 0.7),
+      head_length=scale_y / (arrow_scale * 0.7),
+      width=scale_x / (arrow_scale * 2) * line_thickness,
+      fc=arrow_color,
+      ec=arrow_color,
+    )
+
+  ax.set_xticks([])
+  ax.set_yticks([])
+  return ax
+
+
+######################################
 # JaxMaze image caching
 ######################################
 
-JAXMAZE_IMAGE_CACHE_DIR = os.path.join(data_configs.CACHE_DIR, "jaxmaze_env_images")
+_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JAXMAZE_IMAGE_CACHE_DIR = os.path.join(
+  _PROJECT_DIR, "craftax_cache", "jaxmaze_env_images"
+)
 
 
 def _get_jaxmaze_rotation(block_name: str):
@@ -201,7 +316,9 @@ def visualize_jaxmaze_row(
 # Craftax image caching
 ######################################
 
-CRAFTAX_IMAGE_CACHE_DIR = os.path.join(data_configs.CACHE_DIR, "craftax_env_images")
+CRAFTAX_IMAGE_CACHE_DIR = os.path.join(
+  _PROJECT_DIR, "craftax_cache", "craftax_env_images"
+)
 
 # Lazy-loaded craftax environment (expensive to initialize)
 _craftax_env = None

@@ -240,7 +240,7 @@ if __name__ == "__main__":
   parser.add_argument(
     "--models",
     nargs="+",
-    default=["preplay", "dfs", "human"],
+    default=["human"],
     choices=["human", "preplay", "usfa", "dyna", "qlearning", "bfs", "dfs"],
     help="Models to analyze (can specify multiple). Use 'human' for human data.",
   )

@@ -89,11 +89,13 @@ def get_group_history(
   cache_dir=CACHE_DIR,
   window_size=20,
   refresh=False,
+  filter_key="group",
 ):
   """Fetch time-series data for a wandb group, with caching and smoothing."""
   os.makedirs(cache_dir, exist_ok=True)
   # Include project in cache filename to avoid collisions
-  cache_file = os.path.join(cache_dir, f"{project}_{group}_timeseries.json")
+  safe_name = group.replace("/", "_").replace(",", "_").replace("=", "_")
+  cache_file = os.path.join(cache_dir, f"{project}_{safe_name}_timeseries.json")
 
   if refresh and os.path.exists(cache_file):
     os.remove(cache_file)
@@ -117,7 +119,7 @@ def get_group_history(
   print(f"Fetching runs for group={group}")
   api = wandb.Api()
   # Include finished and crashed runs (crashed runs may still have data)
-  filters = {"group": group, "state": {"$in": ["finished", "crashed"]}}
+  filters = {filter_key: group, "state": {"$in": ["finished", "crashed"]}}
   runs = api.runs(f"{entity}/{project}", filters=filters)
 
   run_data = []
@@ -211,6 +213,72 @@ def _plot_panel(
   ax.xaxis.set_major_formatter(lambda x, pos: f"{x / 1e6:.0f}M")
 
 
+def _plot_bar_panel(
+  ax, datasets, key, step_key, title, show_legend=False, show_ylabel=True
+):
+  """Plot bar chart of best (peak) mean performance for each model."""
+  TITLE_SIZE = 24
+  LABEL_SIZE = 20
+  TICK_SIZE = 18
+  LINE_WIDTH = 2
+
+  # Order models consistently using plot_configs.model_order
+  ordered_keys = [k for k in plot_configs.model_order if k in datasets]
+  # Add any keys not in model_order
+  ordered_keys += [k for k in datasets if k not in ordered_keys]
+
+  labels = []
+  means = []
+  sems = []
+  colors = []
+
+  for model_key in ordered_keys:
+    df = datasets[model_key]
+    if df.empty:
+      continue
+    if key not in df.columns or step_key not in df.columns:
+      print(f"  Warning: {model_key} missing columns {key} or {step_key}")
+      continue
+    valid_df = df.dropna(subset=[key, step_key])
+    if valid_df.empty:
+      continue
+
+    # Find the step with peak mean performance
+    grouped = valid_df.groupby(step_key).agg({key: ["mean", "sem"]})
+    best_idx = grouped[(key, "mean")].idxmax()
+    best_mean = grouped.loc[best_idx, (key, "mean")]
+    best_sem = grouped.loc[best_idx, (key, "sem")]
+
+    labels.append(plot_configs.model_names.get(model_key, model_key))
+    means.append(best_mean)
+    sems.append(best_sem)
+    colors.append(plot_configs.model_colors.get(model_key, "gray"))
+
+  if not labels:
+    return
+
+  x = np.arange(len(labels))
+  ax.bar(
+    x,
+    means,
+    yerr=sems,
+    capsize=5,
+    color=colors,
+    edgecolor="black",
+    linewidth=LINE_WIDTH,
+    width=0.6,
+  )
+
+  ax.set_title(title, fontsize=TITLE_SIZE, fontweight="bold")
+  ax.set_xticks(x)
+  ax.set_xticklabels(labels, fontsize=TICK_SIZE, rotation=45, ha="right")
+  if show_ylabel:
+    ax.set_ylabel("Best Episode Return", fontsize=LABEL_SIZE)
+  ax.tick_params(axis="y", labelsize=TICK_SIZE)
+  ax.grid(True, alpha=0.3, linewidth=0.5, axis="y")
+  ax.set_ylim(0, 1)
+
+
 def plot_train_test(
   project,
   groups,
@@ -219,6 +287,7 @@ def plot_train_test(
   xlim=None,
   refresh=False,
   output_name=None,
+  bar_plot=True,
 ):
   """Plot Train and Test learning curves. Supports multiple test panels."""
   if xlim is None:
@@ -252,35 +321,55 @@ def plot_train_test(
   if n_panels == 1:
     axs = [axs]
 
-  # Plot train panel (with legend and y-label)
-  _plot_panel(
-    axs[0],
-    datasets,
-    train_key,
-    train_step_key,
-    "Train",
-    xlim=xlim,
-    show_legend=True,
-    show_ylabel=True,
-  )
-
-  # Plot test panel(s) (no legend, no y-label)
-  for i, (test_key, test_label) in enumerate(test_panels):
-    _plot_panel(
-      axs[1 + i],
+  if bar_plot:
+    # Bar plots showing best (peak) performance per model
+    _plot_bar_panel(
+      axs[0],
       datasets,
-      test_key,
-      test_step_key,
-      test_label,
-      xlim=xlim,
+      train_key,
+      train_step_key,
+      "Train",
       show_legend=False,
-      show_ylabel=False,
+      show_ylabel=True,
     )
+    for i, (test_key, test_label) in enumerate(test_panels):
+      _plot_bar_panel(
+        axs[1 + i],
+        datasets,
+        test_key,
+        test_step_key,
+        test_label,
+        show_legend=False,
+        show_ylabel=False,
+      )
+  else:
+    # Learning curve plots
+    _plot_panel(
+      axs[0],
+      datasets,
+      train_key,
+      train_step_key,
+      "Train",
+      xlim=xlim,
+      show_legend=True,
+      show_ylabel=True,
+    )
+    for i, (test_key, test_label) in enumerate(test_panels):
+      _plot_panel(
+        axs[1 + i],
+        datasets,
+        test_key,
+        test_step_key,
+        test_label,
+        xlim=xlim,
+        show_legend=False,
+        show_ylabel=False,
+      )
 
   fig.tight_layout()
 
   os.makedirs(save_dir, exist_ok=True)
-  filename = output_name or f"train_test_{project}.png"
+  filename = output_name or f"train_test_{project}.pdf"
   path = os.path.join(save_dir, filename)
   fig.savefig(path, bbox_inches="tight", dpi=300)
   print(f"Saved {path}")
@@ -327,7 +416,13 @@ def main():
   )
   parser.add_argument(
     "--output",
-    help="Output filename (default: train_test_<project>.png)",
+    help="Output filename (default: train_test_<project>.pdf)",
+  )
+  parser.add_argument(
+    "--bar",
+    action=argparse.BooleanOptionalAction,
+    default=True,
+    help="Show bar plots of best performance (default: True). Use --no-bar for learning curves.",
   )
 
   args = parser.parse_args()
@@ -374,6 +469,7 @@ def main():
       xlim=xlim_actual,
       refresh=args.refresh,
       output_name=args.output,
+      bar_plot=args.bar,
     )
 
 

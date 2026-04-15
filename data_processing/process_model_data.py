@@ -420,20 +420,30 @@ def load_qlearning_jaxmaze_algorithm(
   num_episodes: int = 10,
   max_steps: int = 300,
 ):
-  from simulations import qlearning_housemaze
+  try:
+    from simulations import qlearning_housemaze as qlearning_impl
+  except ImportError:
+    from simulations import qlearning_jaxmaze as qlearning_impl
+
+  if hasattr(qlearning_impl, "make_housemaze_agent"):
+    make_agent = functools.partial(
+      qlearning_impl.make_housemaze_agent,
+      ObsEncoderCls=get_jaxmaze_obs_encoder(config),
+    )
+  elif hasattr(qlearning_impl, "make_jaxmaze_agent"):
+    make_agent = qlearning_impl.make_jaxmaze_agent
+  else:
+    raise AttributeError("No qlearning JaxMaze agent factory found in simulations.")
 
   return load_algorithm(
     config=config,
     agent_params=agent_params,
     env=env,
     example_env_params=example_env_params,
-    make_agent=functools.partial(
-      qlearning_housemaze.make_housemaze_agent,
-      ObsEncoderCls=get_jaxmaze_obs_encoder(config),
-    ),
+    make_agent=make_agent,
     num_episodes=num_episodes,
     max_steps=max_steps,
-    make_optimizer=qlearning_housemaze.make_optimizer,
+    make_optimizer=qlearning_impl.make_optimizer,
     make_actor=make_epsilon_greedy_actor,
     path=path,
     model_name="qlearning",
@@ -449,7 +459,10 @@ def load_usfa_jaxmaze_algorithm(
   num_episodes: int = 10,
   max_steps: int = 300,
 ):
-  from simulations import usfa_housemaze as usfa
+  try:
+    from simulations import usfa_housemaze as usfa_impl
+  except ImportError:
+    from simulations import usfa_jaxmaze as usfa_impl
 
   char2idx, groups, task_objects = mazes.get_group_set()
   train_objects = example_env_params.reset_params.train_objects[0]
@@ -461,19 +474,30 @@ def load_usfa_jaxmaze_algorithm(
   test_tasks = jnp.array([eval_task_runner_sf.task_vector(o) for o in test_objects])
   all_tasks = jnp.concatenate((train_tasks, test_tasks), axis=0)
 
+  if hasattr(usfa_impl, "make_housemaze_agent"):
+    make_agent = functools.partial(
+      usfa_impl.make_housemaze_agent,
+      train_tasks=train_tasks,
+      all_tasks=all_tasks,
+    )
+  elif hasattr(usfa_impl, "make_agent"):
+    make_agent = functools.partial(
+      usfa_impl.make_agent,
+      train_tasks=train_tasks,
+      all_tasks=all_tasks,
+    )
+  else:
+    raise AttributeError("No USFA JaxMaze agent factory found in simulations.")
+
   return load_algorithm(
     config=config,
     agent_params=agent_params,
     env=env,
     example_env_params=example_env_params,
-    make_agent=functools.partial(
-      usfa.make_agent,
-      train_tasks=train_tasks,
-      all_tasks=all_tasks,
-    ),
+    make_agent=make_agent,
     num_episodes=num_episodes,
     max_steps=max_steps,
-    make_optimizer=usfa.make_optimizer,
+    make_optimizer=usfa_impl.make_optimizer,
     make_actor=make_epsilon_greedy_actor,
     path=path,
     model_name="usfa",
@@ -515,7 +539,7 @@ def load_preplay_jaxmaze_algorithm(
   num_episodes: int = 10,
   max_steps: int = 300,
 ):
-  from simulations import multitask_preplay_craftax_v2 as multitask_preplay
+  from simulations import multitask_preplay
 
   return load_algorithm(
     config=config,
@@ -678,6 +702,15 @@ def load_preplay_craftax_algorithm(
 def load_algorithm_ckpt_params(filename: str):
   flattened_dict = load_file(filename)
   params = unflatten_dict(flattened_dict, sep=",")
+  module_params = params.get("params", {})
+
+  # Older preplay checkpoints stored the main q-head under `q_fn`.
+  if (
+    "q_fn" in module_params
+    and "main_q_head" not in module_params
+    and "task_fn" in module_params
+  ):
+    module_params["main_q_head"] = module_params.pop("q_fn")
 
   return params
 

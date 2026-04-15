@@ -6,6 +6,13 @@ import sys
 sys.path.insert(0, ".")
 sys.path.append("simulations")
 
+try:
+  from experiments.craftax.configs import check_cache
+
+  check_cache()
+except ModuleNotFoundError:
+  pass
+
 import jax
 import jax.numpy as jnp
 import nicewebrl

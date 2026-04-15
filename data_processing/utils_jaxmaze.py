@@ -11,6 +11,7 @@ import polars as pl
 
 from housemaze.human_dyna import mazes
 from housemaze.human_dyna import experiments as housemaze_experiments
+from housemaze import utils as housemaze_utils
 
 from data_processing.utils import (
   get_in_episode,
@@ -30,6 +31,37 @@ manipulation_int_to_str = {
   4: "juncture",
 }
 manipulation_str_to_int = {v: k for k, v in manipulation_int_to_str.items()}
+
+
+def _ensure_housemaze_bfs_compat():
+  """Coerce JAX array positions before housemaze path search runs.
+
+  Some housemaze builds call BFS with `map_init.agent_pos` as a JAX array, which
+  then fails when BFS tries to insert that position into a Python set.
+  """
+  if getattr(mazes, "_multitask_preplay_bfs_compat", False):
+    return
+
+  original_find_optimal_path = mazes.find_optimal_path
+
+  def _normalize_agent_pos(agent_pos):
+    flat = np.asarray(agent_pos).reshape(-1)
+    return tuple(int(x) for x in flat[:2])
+
+  def patched_find_optimal_path(grid, agent_pos, goal, rng=None):
+    normalized_goal = np.asarray(goal).reshape(-1)
+    if normalized_goal.size == 1:
+      normalized_goal = int(normalized_goal[0])
+    return original_find_optimal_path(
+      np.asarray(grid),
+      _normalize_agent_pos(agent_pos),
+      normalized_goal,
+      rng,
+    )
+
+  mazes.find_optimal_path = patched_find_optimal_path
+  housemaze_utils.find_optimal_path = patched_find_optimal_path
+  mazes._multitask_preplay_bfs_compat = True
 
 
 def compute_approach_direction(positions, block_name: str) -> str:
@@ -390,6 +422,7 @@ def dummy_config():
 
 def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False):
   task_runner = extras.get("task_runner", None)
+  _ensure_housemaze_bfs_compat()
 
   char2idx, groups, task_objects = mazes.get_group_set()
   _, test_params, _, label2name = housemaze_experiments.exp4(
