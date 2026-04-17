@@ -144,17 +144,11 @@ def parse_args():
 # Data loading
 # ------------------------------------------------------------------
 def load_jaxmaze_df():
-  path = os.path.join(
-    data_configs.JAXMAZE_MODEL_RAW_DATA_DIR, "final", "human_data_episode_df.parquet"
-  )
-  return pl.read_parquet(path)
+  return pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
 
 
 def load_craftax_df():
-  path = os.path.join(
-    data_configs.CRAFTAX_MODEL_RAW_DATA_DIR, "final", "human_data_episode_df.parquet"
-  )
-  return pl.read_parquet(path)
+  return pl.read_parquet(data_configs.get_dataframe_path("craftax", "human"))
 
 
 # ------------------------------------------------------------------
@@ -360,12 +354,12 @@ if __name__ == "__main__":
     cx_df = load_craftax_df()
     print(f"  {len(cx_df)} rows, {cx_df['user_id'].n_unique()} users")
 
-    from analysis.analysis_utils import filter_users_by_success_by_tell_reuse
+    from analysis.analysis_utils import filter_users_by_success_and_tell_reuse
 
     cx_grid_fn = _setup_grid_shape_fn("craftax")
 
     cx_filtered = cx_df.filter(eval_shares_start_pos=True)
-    cx_filtered, _ = filter_users_by_success_by_tell_reuse(
+    cx_filtered, _ = filter_users_by_success_and_tell_reuse(
       cx_filtered, analysis_name="permutation_test_simple"
     )
 

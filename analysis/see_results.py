@@ -10,7 +10,7 @@ import polars as pl
 from analysis import analysis_utils
 from analysis import jaxmaze_analysis
 from analysis import craftax_analysis
-from data_processing import process_user_data, process_model_data
+import data_configs
 import plot_configs
 
 
@@ -45,12 +45,12 @@ def compute_model_metrics_by_seed(model_df):
 
 def main():
   print("Loading JaxMaze data...")
-  jm_user_df = process_user_data.get_jaxmaze_human_data(load_df_only=True)
-  jm_model_df = process_model_data.get_jaxmaze_model_data(load_df_only=True)
+  jm_user_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
+  jm_model_df = data_configs.load_dataframes("jaxmaze")
 
   print("Loading Craftax data...")
-  cx_user_df = process_user_data.get_craftax_human_data(load_df_only=True)
-  cx_model_df = process_model_data.get_craftax_model_data(load_df_only=True)
+  cx_user_df = pl.read_parquet(data_configs.get_dataframe_path("craftax", "human"))
+  cx_model_df = data_configs.load_dataframes("craftax")
 
   # Get filtered eval data for each experiment
   print("\n--- Filtering data ---")

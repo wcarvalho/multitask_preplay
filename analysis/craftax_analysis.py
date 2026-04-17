@@ -208,6 +208,7 @@ def plot_success_rate_path_reuse_metrics(
   overlap_threshold: float = 0.15,
   cosine_threshold: float = None,
   center: str = "mean",
+  reuse_condition: str = "combined",
 ) -> Tuple[plt.Figure, plt.Axes, dict]:
   """Plot success rate vs path reuse as a 2D scatter plot with error bars.
 
@@ -256,6 +257,7 @@ def plot_success_rate_path_reuse_metrics(
       label=label,
       cosine_threshold=cosine_threshold,
       center=center,
+      reuse_condition=reuse_condition,
     )
     all_data[label] = human_data["human"]
 
@@ -267,6 +269,7 @@ def plot_success_rate_path_reuse_metrics(
       experiment_name=experiment_name,
       cosine_threshold=cosine_threshold,
       center=center,
+      reuse_condition=reuse_condition,
     )
     all_data.update(model_data)
 
@@ -722,7 +725,7 @@ def get_path_reuse_eval_data(user_df, eval_only=True):
   if eval_only:
     filter_kwargs["eval"] = True
     filter_kwargs["eval_shares_start_pos"] = True
-  sub_df, _ = analysis_utils.filter_users_by_success_by_tell_reuse(
+  sub_df, _ = analysis_utils.filter_users_by_success_and_tell_reuse(
     user_df.filter(**filter_kwargs)
   )
   return sub_df
@@ -761,7 +764,7 @@ def path_reuse_manipulation_analysis(
   ############################################################
 
   # Filter dataframe to only include rows with those user IDs
-  user_df, first_100_users = analysis_utils.filter_users_by_success_by_tell_reuse(
+  user_df, first_100_users = analysis_utils.filter_users_by_success_and_tell_reuse(
     user_df.filter(
       eval_shares_start_pos=True,
       eval=True,
@@ -815,32 +818,32 @@ def path_reuse_manipulation_analysis(
       dpi=300,
     )
 
-  # fig, ax = plot_success_rate_path_reuse_metrics_efficiency(
-  #  df=user_df,
-  #  model_df=model_df,
-  #  experiment_name="5.craftax_path_reuse_stats_efficiency",
-  #  title=title,
-  #  reuse_column=reuse_column,
-  #  figsize=(6, 4),
-  #  legend_loc=legend_loc,
-  #  overlap_threshold=overlap_threshold,
-  #  cosine_threshold=cosine_threshold,
-  # )
+  fig, ax = plot_success_rate_path_reuse_metrics_efficiency(
+    df=user_df,
+    model_df=model_df,
+    experiment_name="5.craftax_path_reuse_stats_efficiency",
+    title=title,
+    reuse_column=reuse_column,
+    figsize=(6, 4),
+    legend_loc=legend_loc,
+    overlap_threshold=overlap_threshold,
+    cosine_threshold=cosine_threshold,
+  )
 
-  # if save_figs:
-  #  fig.savefig(
-  #    os.path.join(save_dir, "success_path_reuse_efficiency.pdf"), bbox_inches="tight", dpi=300
-  #  )
+  if save_figs:
+    fig.savefig(
+      os.path.join(save_dir, "success_path_reuse_efficiency.pdf"),
+      bbox_inches="tight",
+      dpi=300,
+    )
 
-  # fig, ax = plot_efficiency(
-  #  df=user_df,
-  #  title=title,
-  #  figsize=(6, 4),
-  # )
-  # if save_figs:
-  #  fig.savefig(
-  #    os.path.join(save_dir, "efficiency.pdf"), bbox_inches="tight", dpi=300
-  #  )
+    fig, ax = plot_efficiency(
+      df=user_df,
+      title=title,
+      figsize=(6, 4),
+    )
+
+    fig.savefig(os.path.join(save_dir, "efficiency.pdf"), bbox_inches="tight", dpi=300)
 
 
 def plot_non_reuse_frequency_by_world_seed(
@@ -869,7 +872,7 @@ def plot_non_reuse_frequency_by_world_seed(
       figsize (tuple, optional): Figure size. Defaults to (10, 6).
       title (str, optional): Plot title. Defaults to "Frequency of Non-Reuse (reuse=0) by World Seed".
   """
-  user_df, _ = filter_users_by_success_and_tell_reuse(user_df)
+  user_df, _ = analysis_utils.filter_users_by_success_and_tell_reuse(user_df)
   user_df = user_df.with_columns(
     (pl.col("overlap") > overlap_threshold).cast(pl.Float64).alias("reuse")
   )
@@ -882,18 +885,16 @@ def plot_non_reuse_frequency_by_world_seed(
   user_settings = dict(eval=True, tell_reuse=tell_reuse)
   user_counts = (
     user_df.filter(**user_settings)
-    .group_by("world_seed")
+    .group_by("world")
     .agg(count=pl.count())
-    .sort("world_seed")
+    .sort("world")
   )
   user_reuse0 = user_df.filter(reuse=1, **user_settings)
-  user_reuse0_counts = (
-    user_reuse0.group_by("world_seed").agg(count=pl.count()).sort("world_seed")
-  )
+  user_reuse0_counts = user_reuse0.group_by("world").agg(count=pl.count()).sort("world")
 
   # Merge and calculate probabilities
   merged_user = user_counts.join(
-    user_reuse0_counts, on="world_seed", how="left", suffix="_reuse0"
+    user_reuse0_counts, on="world", how="left", suffix="_reuse0"
   )
   merged_user = merged_user.with_columns(
     user_frequency=pl.col("count_reuse0") / pl.col("count")
@@ -903,18 +904,18 @@ def plot_non_reuse_frequency_by_world_seed(
   algo = "preplay"
   model_counts = (
     model_df.filter(algo=algo, **settings)
-    .group_by("world_seed")
+    .group_by("world")
     .agg(count=pl.count())
-    .sort("world_seed")
+    .sort("world")
   )
   model_reuse0 = model_df.filter(reuse=1, **settings, algo=algo)
   model_reuse0_counts = (
-    model_reuse0.group_by("world_seed").agg(count=pl.count()).sort("world_seed")
+    model_reuse0.group_by("world").agg(count=pl.count()).sort("world")
   )
 
   # Merge and calculate probabilities
   merged_model = model_counts.join(
-    model_reuse0_counts, on="world_seed", how="left", suffix="_reuse0"
+    model_reuse0_counts, on="world", how="left", suffix="_reuse0"
   )
   merged_model = merged_model.with_columns(
     model_frequency=pl.col("count_reuse0") / pl.col("count")
@@ -922,16 +923,16 @@ def plot_non_reuse_frequency_by_world_seed(
 
   # --- Combine Data for Plotting ---
   plot_data = (
-    merged_user.select(["world_seed", "user_frequency"])
+    merged_user.select(["world", "user_frequency"])
     .join(
-      merged_model.select(["world_seed", "model_frequency"]),
-      on="world_seed",
+      merged_model.select(["world", "model_frequency"]),
+      on="world",
       how="outer",
     )
-    .sort("world_seed")
+    .sort("world")
   )
 
-  world_seeds = plot_data["world_seed"].to_list()
+  world_seeds = plot_data["world"].to_list()
   user_frequencies = plot_data["user_frequency"].to_numpy()
   model_frequencies = plot_data["model_frequency"].to_numpy()
 

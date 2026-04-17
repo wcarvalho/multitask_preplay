@@ -469,7 +469,7 @@ def generate_algorithm_episodes(algorithm, rng, extras: dict = None, debug=False
     train_object = env_params.reset_params.train_objects[0, 0]
     test_object = env_params.reset_params.test_objects[0, 0]
 
-    is_train = env_params.training
+    is_train = env_params.reset_params.curriculum[0]
     rng, rng_subkey = jax.random.split(rng)
     if is_train:
       collect_data(env_params, train_object, rng_=rng_subkey, is_eval=False)

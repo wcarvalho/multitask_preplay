@@ -752,9 +752,6 @@ def generate_model_data(
   Returns:
     Either a DataFrame of episode info or a DataFrame with episode data
   """
-  if output_data_path is None:
-    output_data_path = processing_data_path
-
   ################################################################
   # Load data paths
   ################################################################
@@ -767,9 +764,16 @@ def generate_model_data(
   all_episode_metadata_filename = os.path.join(
     processing_data_path, subfolder, f"{model_name}_episode_metadata.safetensor"
   )
-  all_episodes_df_filename = os.path.join(
-    output_data_path, subfolder, f"{model_name}_episode_df.parquet"
-  )
+  if debug:
+    all_episodes_df_filename = os.path.join(
+      processing_data_path, "debug", f"{model_name}_episode_df.parquet"
+    )
+  elif output_data_path is not None:
+    all_episodes_df_filename = os.path.join(
+      output_data_path, subfolder, f"{model_name}_episode_df.parquet"
+    )
+  else:
+    all_episodes_df_filename = data_configs.get_dataframe_path(env_name, model_name)
 
   os.makedirs(os.path.dirname(all_episodes_data_filename), exist_ok=True)
   os.makedirs(os.path.dirname(all_episodes_df_filename), exist_ok=True)
@@ -1136,7 +1140,7 @@ def load_jaxmaze_environment(
 def get_jaxmaze_model_data(
   input_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
   processing_data_path: str = data_configs.JAXMAZE_MODEL_RAW_DATA_DIR,
-  output_data_path: str = data_configs.JAXMAZE_MODEL_DATA_DIR,
+  output_data_path: str = None,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only: bool = True,
@@ -1247,7 +1251,7 @@ def load_craftax_environment(landmark_features=False):
 def get_craftax_model_data(
   input_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
   processing_data_path: str = data_configs.CRAFTAX_MODEL_RAW_DATA_DIR,
-  output_data_path: str = data_configs.CRAFTAX_MODEL_DATA_DIR,
+  output_data_path: str = None,
   overwrite_episode_data=False,
   overwrite_episode_df=False,
   load_df_only: bool = True,

@@ -172,20 +172,11 @@ def plot_histogram(ax, overlap_values, title, threshold, color):
 
 def main():
   # Load full JaxMaze dataframe (needed for train episode lookups)
-  jaxmaze_parquet = os.path.join(
-    data_configs.RESULTS_DIRECTORY,
-    "data/jaxmaze/final/human_data_episode_df.parquet",
-  )
-  craftax_parquet = os.path.join(
-    data_configs.RESULTS_DIRECTORY,
-    "data/craftax/final/human_data_episode_df.parquet",
-  )
-
   print("Loading JaxMaze human data...")
-  jaxmaze_df = pl.read_parquet(jaxmaze_parquet)
+  jaxmaze_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
 
   print("Loading Craftax human data...")
-  craftax_df = pl.read_parquet(craftax_parquet)
+  craftax_df = pl.read_parquet(data_configs.get_dataframe_path("craftax", "human"))
 
   # Use the same filtered cohorts as the main analysis (including train episodes for NaN diagnosis)
   print("\nFiltering JaxMaze Two Paths data (canonical cohort)...")

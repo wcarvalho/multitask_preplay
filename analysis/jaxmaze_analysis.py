@@ -94,7 +94,7 @@ def get_shortcut_eval_data(user_df, tell_reuse=1, eval_only=True):
   """Return filtered (user_df, model_df) for shortcut experiment."""
   filter_kwargs = dict(
     manipulation="shortcut",
-    #world="big_m1_maze3_shortcut",
+    # world="big_m1_maze3_shortcut",
     tell_reuse=tell_reuse,
   )
   if eval_only:
@@ -549,7 +549,7 @@ def juncture_results(
   # Default to ['avg_rt'] if no filter columns specified
   filter_columns = filter_columns or []
 
-  user_df, first_100_users = analysis_utils.filter_users_by_success_by_tell_reuse(
+  user_df, first_100_users = analysis_utils.filter_users_by_success_and_tell_reuse(
     user_df.filter(manipulation="juncture"),
     analysis_name="juncture_results",
   )
@@ -598,6 +598,7 @@ def juncture_results(
   all_sems = []
   all_labels = []
   all_colors = []
+  all_pvalues = []
 
   options = options or [
     ("short", 1),
@@ -625,6 +626,7 @@ def juncture_results(
     all_sems.append(results["median_ci"])  # Bootstrapped CI (asymmetric)
     all_labels.append(condition_labels[(setting, tell_reuse)])
     all_colors.append(condition_colors[(setting, tell_reuse)])
+    all_pvalues.append(results["test"]["p_value"])
 
   # Create bar plot with all conditions
   x_pos = np.arange(len(all_means))
@@ -684,6 +686,22 @@ def juncture_results(
   y_range = y_max - y_min
   ax.set_ylim(y_min - 0.1 * y_range, y_max + 0.1 * y_range)
 
+  shared_top = float(np.max(all_sems_array[:, 1]))
+  y_min_cur, y_max_cur = ax.get_ylim()
+  y_range_cur = y_max_cur - y_min_cur
+  text_y = max(shared_top, y_max_cur) + 0.04 * y_range_cur
+  for i, p_value in enumerate(all_pvalues):
+    ax.text(
+      x_pos[i],
+      text_y,
+      analysis_utils._p_value_to_text(p_value),
+      ha="center",
+      va="bottom",
+      fontsize=14,
+      color="black",
+    )
+  ax.set_ylim(y_min_cur, text_y + 0.12 * y_range_cur)
+
   # Adjust layout
   plt.tight_layout()
 
@@ -699,11 +717,10 @@ def juncture_results(
 
 
 if __name__ == "__main__":
-  from data_processing import process_model_data
-  from data_processing import process_user_data
+  import polars as pl
 
-  user_df = process_user_data.get_jaxmaze_human_data()
-  model_df = process_model_data.get_jaxmaze_model_data()
+  user_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
+  model_df = data_configs.load_dataframes("jaxmaze")
 
   save_dir = (data_configs.JAXMAZE_RESULTS_DIR,)
   os.makedirs(save_dir, exist_ok=True)

@@ -12,7 +12,7 @@ import polars as pl
 
 from analysis.get_experiment_data import get_experiment_data
 from analysis.vis_utils import visualize_jaxmaze_row
-from data_processing import process_model_data, process_user_data
+import data_configs
 from plot_configs import model_colors, model_names, model_order
 
 TARGET_BLOCK_NAME = "reverse(Y=False,X=False)"
@@ -395,8 +395,8 @@ if __name__ == "__main__":
   os.makedirs(SAVE_DIR, exist_ok=True)
 
   # ---- JaxMaze ----
-  jaxmaze_user_df = process_user_data.get_jaxmaze_human_data(load_df_only=True)
-  jaxmaze_model_df = process_model_data.get_jaxmaze_model_data()
+  jaxmaze_user_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
+  jaxmaze_model_df = data_configs.load_dataframes("jaxmaze")
 
   for experiment in ["shortcut", "path_reuse"]:
     print(f"\n=== jaxmaze_{experiment} ===")

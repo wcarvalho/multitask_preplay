@@ -117,23 +117,23 @@ def add_reuse_column(
   reuse_column: str,
   overlap_threshold: float,
   cosine_threshold: float = None,
+  reuse_condition: str = "combined",
 ):
   global_episode_idx = df["global_episode_idx"].unique().to_list()
   df = filter_null(df, "overlap")
   if cosine_threshold is not None:
     df = filter_null(df, "train_test_cosine")
-    # overlap > threshold and train_test_cosine > threshold
-    df = df.with_columns(
-      (
-        (pl.col("overlap") > 2 * overlap_threshold)
-        | (
-          (pl.col("overlap") > overlap_threshold)
-          & (pl.col("train_test_cosine") > cosine_threshold)
-        )
-      )
-      .cast(pl.Float64)
-      .alias(reuse_column)
+    cond1 = (pl.col("overlap") > overlap_threshold) & (
+      pl.col("train_test_cosine") > cosine_threshold
     )
+    cond2 = pl.col("overlap") > 2 * overlap_threshold
+    if reuse_condition == "overlap_and_cosine":
+      expr = cond1
+    elif reuse_condition == "double_overlap":
+      expr = cond2
+    else:
+      expr = cond2 | cond1
+    df = df.with_columns(expr.cast(pl.Float64).alias(reuse_column))
   else:
     # overlap > threshold
     df = df.with_columns(
@@ -154,7 +154,7 @@ def num_users(df):
   return len(df["user_id"].unique())
 
 
-def filter_users_by_success_by_tell_reuse(df, analysis_name=None, **kwargs):
+def filter_users_by_success_and_tell_reuse(df, analysis_name=None, **kwargs):
   # Get the calling function name if not provided
   if analysis_name is None:
     analysis_name = inspect.currentframe().f_back.f_code.co_name
@@ -353,26 +353,28 @@ def bar_plot_error(
   return fig, ax
 
 
+def _p_value_to_text(p_value):
+  if p_value < 0.001:
+    return "***"
+  elif p_value < 0.01:
+    return "**"
+  elif p_value < 0.05:
+    return "*"
+  else:
+    return "n.s."
+
+
 def _add_significance_stars(ax, p_value, x0=0, x1=1):
   """Add significance bracket and stars between two bars.
 
-  Args:
-      ax: matplotlib axis
-      p_value: p-value from statistical test
-      x0, x1: x positions of the two bars
+  Extends the y-axis upward to give the bracket/text breathing room above
+  the existing plot contents.
   """
-  if p_value < 0.001:
-    text = "***"
-  elif p_value < 0.01:
-    text = "**"
-  elif p_value < 0.05:
-    text = "*"
-  else:
-    text = "n.s."
+  text = _p_value_to_text(p_value)
 
   y_min, y_max = ax.get_ylim()
   y_range = y_max - y_min
-  bracket_y = y_max - 0.08 * y_range
+  bracket_y = y_max + 0.04 * y_range
   text_y = bracket_y + 0.02 * y_range
   tick_height = 0.02 * y_range
 
@@ -391,6 +393,33 @@ def _add_significance_stars(ax, p_value, x0=0, x1=1):
     fontsize=14,
     color="black",
   )
+
+  ax.set_ylim(y_min, text_y + 0.12 * y_range)
+
+
+def _add_significance_star_single(ax, p_value, x, y_top):
+  """Draw * / ** / *** / n.s. above a single bar (one-sample vs 0 test).
+
+  Extends the y-axis upward to make room for the marker above ``y_top``
+  (typically the top of the bar's upper error bar).
+  """
+  text = _p_value_to_text(p_value)
+
+  y_min, y_max = ax.get_ylim()
+  y_range = y_max - y_min
+  text_y = max(y_top, y_max) + 0.04 * y_range
+
+  ax.text(
+    x,
+    text_y,
+    text,
+    ha="center",
+    va="bottom",
+    fontsize=14,
+    color="black",
+  )
+
+  ax.set_ylim(y_min, text_y + 0.12 * y_range)
 
 
 def plot_bar_rt_comparison(
@@ -411,6 +440,7 @@ def plot_bar_rt_comparison(
   use_median: bool = True,
   use_box_plot: bool = True,
   show_significance: bool = True,
+  compute_power: bool = True,
 ):
   """Plot comparison of response times between multiple conditions.
 
@@ -473,6 +503,7 @@ def plot_bar_rt_comparison(
         experiment_name=experiment_name,
         n_simulations=n_simulations,
         compute_n_for_desired_power=compute_n_for_desired_power,
+        compute_power=compute_power,
       )
     elif "path_length" in rt_column:
       power_results = power_analysis_path_length_across_groups(
@@ -613,6 +644,7 @@ def plot_rt_differences(
   ylim: Tuple[float, float] = None,
   use_median: bool = False,
   use_box_plot: bool = False,
+  show_significance: bool = True,
 ) -> Tuple[plt.Figure, plt.Axes]:
   """Plot RT differences between conditions.
 
@@ -624,6 +656,7 @@ def plot_rt_differences(
   sems = []
   medians = []
   cis = []
+  p_values = []
   all_diffs = []
   for measure in measures:
     results = power_analysis_rt_differences(
@@ -633,6 +666,7 @@ def plot_rt_differences(
     sems.append(results["se"])
     medians.append(results["median"])
     cis.append(results["median_ci"])
+    p_values.append(results["test"]["p_value"])
 
     # Get user-wide means instead of all individual data points
     user_means = (
@@ -744,6 +778,14 @@ def plot_rt_differences(
   y_range = y_max - y_min
   ax.set_ylim(y_min - 0.1 * y_range, y_max + 0.1 * y_range)
 
+  if show_significance:
+    for i, p_value in enumerate(p_values):
+      if use_median:
+        upper = cis[i][1]
+      else:
+        upper = means[i] + sems[i]
+      _add_significance_star_single(ax, p_value, x_pos[i], upper)
+
   return fig, ax
 
 
@@ -789,9 +831,12 @@ def get_human_success_rate_path_reuse_data(
   cosine_threshold: float = None,
   center: str = "mean",
   mu: float = 0.5,
+  reuse_condition: str = "combined",
 ) -> dict:
   # Add boolean "reuse" column based on overlap threshold
-  df = add_reuse_column(df, reuse_column, overlap_threshold, cosine_threshold)
+  df = add_reuse_column(
+    df, reuse_column, overlap_threshold, cosine_threshold, reuse_condition
+  )
 
   # Calculate human reuse statistics
   human_reuse_stats = compute_binary_measure_statistics(
@@ -846,13 +891,14 @@ def get_model_success_rate_path_reuse_data(
   cosine_threshold: float = None,
   center: str = "mean",
   mu: float = 0.5,
+  reuse_condition: str = "combined",
 ) -> dict:
   if model_df is None:
     return {}
 
   # Add boolean "reuse" column based on overlap threshold
   model_df = add_reuse_column(
-    model_df, reuse_column, overlap_threshold, cosine_threshold
+    model_df, reuse_column, overlap_threshold, cosine_threshold, reuse_condition
   )
 
   model_data = {}
@@ -1580,6 +1626,7 @@ def power_analysis_rt_across_groups(
   n_simulations=500,
   power_levels=[0.8],
   compute_n_for_desired_power: bool = False,
+  compute_power: bool = True,
 ):
   """Perform power analysis for between-groups comparison using linear mixed effects model.
 
@@ -1711,15 +1758,18 @@ def power_analysis_rt_across_groups(
       n_required[target_power] = n
 
   # Calculate actual power with current sample size
-  current_power = mixed_effects_compute_power(
-    num_subjects=len(data["user_id"].unique()),
-    trials_per_subject=len(data) // len(data["user_id"].unique()),
-    B0=result.params["Intercept"],
-    B1=result.params[param_name],
-    random_effect_var=result.cov_re.iloc[0, 0],
-    residual_var=result.scale,
-    n_simulations=n_simulations,
-  )
+  if compute_power:
+    current_power = mixed_effects_compute_power(
+      num_subjects=len(data["user_id"].unique()),
+      trials_per_subject=len(data) // len(data["user_id"].unique()),
+      B0=result.params["Intercept"],
+      B1=result.params[param_name],
+      random_effect_var=result.cov_re.iloc[0, 0],
+      residual_var=result.scale,
+      n_simulations=n_simulations,
+    )
+  else:
+    current_power = None
 
   results = {
     "effect_size": {"name": "Standardized coefficient", "value": effect_size},

@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import polars as pl
 
-from data_processing import process_user_data
+import data_configs
 from analysis.jaxmaze_analysis import filter_users_by_success
 from analysis import analysis_utils
 
@@ -60,7 +60,7 @@ def get_max_rt_position_stats(condition_df, thresholds=(1, 5, 10, 20)):
 
 def main():
   # ---- Load data ----
-  global_df = process_user_data.get_jaxmaze_human_data(load_df_only=True)
+  global_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
 
   # ---- Define conditions (merged) ----
   conditions = {}
@@ -89,7 +89,7 @@ def main():
 
   # 3. Juncture (merged - all settings/tell_reuse/conditions combined)
   print("Filtering: Juncture")
-  juncture_df, _ = analysis_utils.filter_users_by_success_by_tell_reuse(
+  juncture_df, _ = analysis_utils.filter_users_by_success_and_tell_reuse(
     global_df.filter(manipulation="juncture"),
     analysis_name="juncture_results",
   )

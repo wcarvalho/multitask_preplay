@@ -117,7 +117,7 @@ def best_path_overlap(maps: np.ndarray, test_maps: np.ndarray):
   return best_idx, best_map, best_overlap
 
 
-def compute_average_vector_from_end(positions):
+def compute_average_vector_from_end(positions, divisor=3):
   """Compute the average vector from the last half of the trajectory.
 
   Args:
@@ -140,7 +140,7 @@ def compute_average_vector_from_end(positions):
   # Get the last half of vectors
   vectors = np.array(vectors)
 
-  last_n = min(10, len(vectors) // 3)
+  last_n = min(10, len(vectors) // divisor)
   vector_end = vectors[-last_n:]
 
   # Calculate average vector

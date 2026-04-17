@@ -1,6 +1,6 @@
 import os
 
-from data_processing import process_user_data
+import data_configs
 from analysis import analysis_utils
 from analysis.jaxmaze_analysis import filter_users_by_success
 import numpy as np
@@ -11,9 +11,7 @@ import polars as pl
 from tqdm import tqdm
 # Configuration
 
-global_df = process_user_data.get_jaxmaze_human_data(
-  load_df_only=True,
-)
+global_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
 
 df, _ = filter_users_by_success(
   global_df.filter(

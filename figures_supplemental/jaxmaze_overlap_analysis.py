@@ -230,8 +230,9 @@ def visualize_examples_by_reuse(
 
 if __name__ == "__main__":
   import argparse
-  from data_processing import process_model_data
-  from data_processing import process_user_data
+  import polars as pl
+
+  import data_configs
 
   # Parse command line arguments
   parser = argparse.ArgumentParser(
@@ -299,10 +300,7 @@ if __name__ == "__main__":
   # Load and process model data if any models were requested
   if requested_models:
     print("Loading model data...")
-    model_df = process_model_data.get_jaxmaze_model_data(
-      load_df_only=True,
-      models=requested_models,
-    )
+    model_df = data_configs.load_dataframes("jaxmaze", models=requested_models)
 
     # Process model data for each manipulation, threshold, and model
     for manipulation in manipulations:
@@ -331,9 +329,7 @@ if __name__ == "__main__":
   # Load and process human data if requested
   if "human" in args.models:
     print("Loading human data...")
-    user_df = process_user_data.get_jaxmaze_human_data(
-      load_df_only=True,
-    )
+    user_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
 
     # Process human data for each manipulation and threshold
     for manipulation in manipulations:

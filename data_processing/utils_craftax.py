@@ -34,6 +34,8 @@ from data_processing.utils import (
 
 _OPTIMAL_TEST_PATHS = None
 _OPTIMAL_TEST_LENGTHS = None
+_OPTIMAL_TRAIN_PATHS = None
+_OPTIMAL_TRAIN_LENGTHS = None
 _world_seed_to_idx = None
 
 
@@ -82,6 +84,34 @@ def _compute_optimal_test_paths():
   _OPTIMAL_TEST_LENGTHS = {k: len(v) - 1 for k, v in _OPTIMAL_TEST_PATHS.items()}
 
 
+def _compute_optimal_train_paths():
+  global _OPTIMAL_TRAIN_PATHS, _OPTIMAL_TRAIN_LENGTHS
+  if _OPTIMAL_TRAIN_PATHS is not None:
+    return
+  from simulations import craftax_experiment_configs
+
+  cache_dir = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    "simulations",
+    "craftax_cache",
+    "training_paths",
+  )
+  _OPTIMAL_TRAIN_PATHS = {}
+  for config in craftax_experiment_configs.PATHS_CONFIGS:
+    world_seed = config.world_seed
+    for start_pos in config.start_train_positions:
+      for train_obj in config.train_objects:
+        cache_file = os.path.join(
+          cache_dir, f"path_{world_seed}_{start_pos}_{train_obj}.npy"
+        )
+        if os.path.exists(cache_file):
+          path = np.load(cache_file)
+          _OPTIMAL_TRAIN_PATHS[(world_seed, start_pos, train_obj)] = path
+        else:
+          print(f"Warning: missing cached train path {cache_file}")
+  _OPTIMAL_TRAIN_LENGTHS = {k: len(v) - 1 for k, v in _OPTIMAL_TRAIN_PATHS.items()}
+
+
 def _compute_world_seed_to_idx():
   global _world_seed_to_idx
   if _world_seed_to_idx is not None:
@@ -101,6 +131,12 @@ def __getattr__(name):
   if name == "OPTIMAL_TEST_LENGTHS":
     _compute_optimal_test_paths()
     return _OPTIMAL_TEST_LENGTHS
+  if name == "OPTIMAL_TRAIN_PATHS":
+    _compute_optimal_train_paths()
+    return _OPTIMAL_TRAIN_PATHS
+  if name == "OPTIMAL_TRAIN_LENGTHS":
+    _compute_optimal_train_paths()
+    return _OPTIMAL_TRAIN_LENGTHS
   if name == "world_seed_to_idx":
     _compute_world_seed_to_idx()
     return _world_seed_to_idx

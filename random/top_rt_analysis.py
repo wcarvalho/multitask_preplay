@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import polars as pl
 
-from data_processing import process_user_data
+import data_configs
 from analysis.jaxmaze_analysis import filter_users_by_success
 from analysis import analysis_utils
 
@@ -120,7 +120,7 @@ def get_top10_relative(condition_df):
 
 
 # ---- Load data ----
-global_df = process_user_data.get_jaxmaze_human_data(load_df_only=True)
+global_df = pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human"))
 
 # ---- Define conditions ----
 conditions = {}
@@ -151,7 +151,7 @@ conditions["Start\ncond 2"] = start_df.filter(condition=2)
 
 # 4-9. Juncture conditions × condition 1 & 2
 print("Filtering: Juncture")
-juncture_df, _ = analysis_utils.filter_users_by_success_by_tell_reuse(
+juncture_df, _ = analysis_utils.filter_users_by_success_and_tell_reuse(
   global_df.filter(manipulation="juncture"),
   analysis_name="juncture_results",
 )

@@ -4,9 +4,11 @@ Mirrors the exact preprocessing from jaxmaze_analysis.py and craftax_analysis.py
 so that downstream scripts get identically filtered DataFrames.
 """
 
+import polars as pl
+
+import data_configs
 from analysis.jaxmaze_analysis import filter_users_by_success
 from analysis import analysis_utils
-from data_processing import process_model_data, process_user_data
 
 
 # ---------------------------------------------------------------------------
@@ -79,17 +81,22 @@ EXPERIMENT_CONFIGS = {
   ),
 }
 
+
 # ---------------------------------------------------------------------------
 # Data loaders by environment
 # ---------------------------------------------------------------------------
 _LOADERS = {
   "jaxmaze": {
-    "user": lambda: process_user_data.get_jaxmaze_human_data(load_df_only=True),
-    "model": lambda: process_model_data.get_jaxmaze_model_data(),
+    "user": lambda: pl.read_parquet(
+      data_configs.get_dataframe_path("jaxmaze", "human")
+    ),
+    "model": lambda: data_configs.load_dataframes("jaxmaze"),
   },
   "craftax": {
-    "user": lambda: process_user_data.get_craftax_human_data(load_df_only=True),
-    "model": lambda: process_model_data.get_craftax_model_data(),
+    "user": lambda: pl.read_parquet(
+      data_configs.get_dataframe_path("craftax", "human")
+    ),
+    "model": lambda: data_configs.load_dataframes("craftax"),
   },
 }
 
@@ -141,7 +148,7 @@ def get_experiment_data(
     kwargs = {}
     if cfg["analysis_name"] is not None:
       kwargs["analysis_name"] = cfg["analysis_name"]
-    filtered_user_df, user_ids = analysis_utils.filter_users_by_success_by_tell_reuse(
+    filtered_user_df, user_ids = analysis_utils.filter_users_by_success_and_tell_reuse(
       filtered_user_df, **kwargs
     )
   else:

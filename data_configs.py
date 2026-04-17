@@ -13,6 +13,35 @@ CRAFTAX_HUMAN_DATA_PATTERN = "*final*v2*debug=0*.json"
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 PROJECTS_ROOT = PROJECT_ROOT.parent
+DATAFRAMES_DIR = str(PROJECT_ROOT / "dataframes")
+
+
+def get_dataframe_path(domain: str, model: str) -> str:
+  return os.path.join(DATAFRAMES_DIR, f"{domain}_{model}.parquet")
+
+
+def load_dataframes(domain: str, models: list[str] | None = None):
+  """Load and concatenate model parquets for a domain.
+
+  If *models* is None, loads all non-human parquets in ``dataframes/``.
+  """
+  import glob
+
+  import polars as pl
+
+  if models is not None:
+    dfs = [pl.read_parquet(get_dataframe_path(domain, m)) for m in models]
+  else:
+    pattern = os.path.join(DATAFRAMES_DIR, f"{domain}_*.parquet")
+    dfs = []
+    for path in sorted(glob.glob(pattern)):
+      name = os.path.basename(path).replace(f"{domain}_", "").replace(".parquet", "")
+      if name == "human":
+        continue
+      dfs.append(pl.read_parquet(path))
+  return pl.concat(dfs)
+
+
 HOSTNAME = socket.getfqdn().lower()
 IS_SERVER = str(PROJECT_ROOT).startswith("/n/") or "rc.fas.harvard.edu" in HOSTNAME
 
@@ -58,6 +87,7 @@ def _result_candidates() -> tuple[list[Path], Path]:
   ]
   return candidates, candidates[0]
 
+
 def _raw_data_candidates() -> tuple[list[Path], Path]:
   if IS_SERVER:
     candidates = [
@@ -100,16 +130,22 @@ ANALYSIS_CACHE_DIR = os.path.join(current_directory, "analysis", "paper_results_
 # Raw data directories
 JAXMAZE_MODEL_RAW_DATA_DIR = os.path.join(DATA_DIRECTORY, "data", "jaxmaze")
 CRAFTAX_MODEL_RAW_DATA_DIR = os.path.join(DATA_DIRECTORY, "data", "craftax")
-JAXMAZE_HUMAN_RAW_DATA_DIR = os.path.join(DATA_DIRECTORY, "data", "jaxmaze", "human_data")
-CRAFTAX_HUMAN_RAW_DATA_DIR = os.path.join(DATA_DIRECTORY, "data", "craftax", "human_data")
+JAXMAZE_HUMAN_RAW_DATA_DIR = os.path.join(
+  DATA_DIRECTORY, "data", "jaxmaze", "human_data"
+)
+CRAFTAX_HUMAN_RAW_DATA_DIR = os.path.join(
+  DATA_DIRECTORY, "data", "craftax", "human_data"
+)
 
 # Processed data directories
 JAXMAZE_MODEL_DATA_DIR = os.path.join(RESULTS_DIRECTORY, "data", "jaxmaze")
 CRAFTAX_MODEL_DATA_DIR = os.path.join(RESULTS_DIRECTORY, "data", "craftax")
 JAXMAZE_HUMAN_DATA_DIR = os.path.join(
-    RESULTS_DIRECTORY, "data", "jaxmaze", "human_data")
+  RESULTS_DIRECTORY, "data", "jaxmaze", "human_data"
+)
 CRAFTAX_HUMAN_DATA_DIR = os.path.join(
-    RESULTS_DIRECTORY, "data", "craftax", "human_data")
+  RESULTS_DIRECTORY, "data", "craftax", "human_data"
+)
 
 
 # Results directories

@@ -142,32 +142,45 @@ def craftax_place_arrows_on_image(
       weight="bold",
     )
 
-  for (y, x), action in zip(positions, actions):
-    center_y = offset_y + (y + 0.5) * scale_y
-    center_x = offset_x + (x + 0.5) * scale_x
+  # Draw path as a line through cell centers
+  path_xs = [offset_x + (x + 0.5) * scale_x for (y, x) in positions]
+  path_ys = [offset_y + (y + 0.5) * scale_y for (y, x) in positions]
+  ax.plot(
+    path_xs,
+    path_ys,
+    color=arrow_color,
+    linewidth=line_thickness * 2,
+    solid_capstyle="round",
+  )
 
-    if action == _ACTION_UP:
+  # Arrow on last step only
+  if len(actions) > 0:
+    last_action = actions[-1]
+    last_y, last_x = positions[-1]
+    center_y = offset_y + (last_y + 0.5) * scale_y
+    center_x = offset_x + (last_x + 0.5) * scale_x
+    if last_action == _ACTION_UP:
       dx, dy = 0, -scale_y / 2
-    elif action == _ACTION_DOWN:
+    elif last_action == _ACTION_DOWN:
       dx, dy = 0, scale_y / 2
-    elif action == _ACTION_LEFT:
+    elif last_action == _ACTION_LEFT:
       dx, dy = -scale_x / 2, 0
-    elif action == _ACTION_RIGHT:
+    elif last_action == _ACTION_RIGHT:
       dx, dy = scale_x / 2, 0
     else:
-      continue
-
-    ax.arrow(
-      center_x,
-      center_y,
-      dx,
-      dy,
-      head_width=scale_x / (arrow_scale * 0.7),
-      head_length=scale_y / (arrow_scale * 0.7),
-      width=scale_x / (arrow_scale * 2) * line_thickness,
-      fc=arrow_color,
-      ec=arrow_color,
-    )
+      dx, dy = 0, 0
+    if dx != 0 or dy != 0:
+      ax.arrow(
+        center_x,
+        center_y,
+        dx,
+        dy,
+        head_width=scale_x / (arrow_scale * 0.5) * line_thickness,
+        head_length=scale_y / (arrow_scale * 0.5) * line_thickness,
+        width=scale_x / (arrow_scale * 2) * line_thickness,
+        fc=arrow_color,
+        ec=arrow_color,
+      )
 
   ax.set_xticks([])
   ax.set_yticks([])
@@ -520,9 +533,7 @@ if __name__ == "__main__":
   os.makedirs(SAVE_DIR, exist_ok=True)
 
   # --- JaxMaze ---
-  jm_human_path = os.path.join(
-    data_configs.JAXMAZE_MODEL_DATA_DIR, "final", "human_data_episode_df.parquet"
-  )
+  jm_human_path = data_configs.get_dataframe_path("jaxmaze", "human")
   if os.path.exists(jm_human_path):
     df = pl.read_parquet(jm_human_path)
     # Human sample: pick an eval success row
@@ -537,9 +548,7 @@ if __name__ == "__main__":
 
   # JaxMaze model
   for model in ["preplay"]:
-    mpath = os.path.join(
-      data_configs.JAXMAZE_MODEL_DATA_DIR, "final", f"{model}_episode_df.parquet"
-    )
+    mpath = data_configs.get_dataframe_path("jaxmaze", model)
     if not os.path.exists(mpath):
       continue
     mdf = pl.read_parquet(mpath)
@@ -561,9 +570,7 @@ if __name__ == "__main__":
       break
 
   # --- Craftax ---
-  cx_human_path = os.path.join(
-    data_configs.CRAFTAX_MODEL_DATA_DIR, "final", "human_data_episode_df.parquet"
-  )
+  cx_human_path = data_configs.get_dataframe_path("craftax", "human")
   if os.path.exists(cx_human_path):
     df = pl.read_parquet(cx_human_path)
     sample = df.filter(pl.col("eval") & (pl.col("success") == 1))
@@ -582,9 +589,7 @@ if __name__ == "__main__":
 
   # Craftax model
   for model in ["preplay"]:
-    mpath = os.path.join(
-      data_configs.CRAFTAX_MODEL_DATA_DIR, "final", f"{model}_episode_df.parquet"
-    )
+    mpath = data_configs.get_dataframe_path("craftax", model)
     if not os.path.exists(mpath):
       continue
     mdf = pl.read_parquet(mpath)

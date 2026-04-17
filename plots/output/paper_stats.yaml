@@ -1,0 +1,302 @@
+1.two_paths_stats:
+  1.human data:
+    first_log_rt_no_reuse_median_RT: 'Median = 7.60 [95% CI: 7.34, 7.77]'
+    first_log_rt_reuse_median_RT: 'Median = 7.21 [95% CI: 7.06, 7.49]'
+    first_log_rt_rt_difference: beta = -0.21, SE = 0.00, t(133) = -2.81, p = 0.005,
+      95% CI [7.37, 7.68]
+    max_log_rt_no_reuse_median_RT: 'Median = 7.74 [95% CI: 7.51, 7.92]'
+    max_log_rt_reuse_median_RT: 'Median = 7.31 [95% CI: 7.10, 7.60]'
+    max_log_rt_rt_difference: beta = -0.32, SE = 0.00, t(133) = -3.64, p = 0.00027,
+      95% CI [7.55, 7.88]
+    reuse_: 'Mean=62.39%, Median=66.67% [95% CI: 54.17%, 69.10%], Z=-0.15, r=-0.01,
+      p=0.0049, is_normal=False'
+    success_: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(95)=inf,
+      p=0, is_normal=True'
+  bfs:
+    reuse: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(49)=-inf, p=1, is_normal=True'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dfs:
+    reuse: 'Mean=41.50%, Median=50.00% [95% CI: 35.00%, 47.50%], Z=-5.11, r=-0.72,
+      p=0.99, is_normal=False'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dyna:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=0.50%, Median=0.00% [95% CI: 0.00%, 1.50%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  her:
+    reuse: 'Mean=99.43%, Median=100.00% [95% CI: 98.50%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=0.29%, Median=0.00% [95% CI: 0.00%, 1.00%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  preplay:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=91.50%, Median=97.50% [95% CI: 84.75%, 97.25%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+  qlearning:
+    reuse: 'Mean=95.13%, Median=97.14% [95% CI: 90.93%, 98.53%], Z=2.80, r=0.89, p=0.00098,
+      is_normal=False'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  usfa:
+    reuse: 'Mean=98.94%, Median=100.00% [95% CI: 96.76%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=4.77%, Median=2.70% [95% CI: 2.91%, 7.16%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+robustness_path_reuse_t0.3:
+  1.human data:
+    first_log_rt_no_reuse_median_RT: 'Median = 7.66 [95% CI: 7.36, 7.86]'
+    first_log_rt_reuse_median_RT: 'Median = 7.31 [95% CI: 7.14, 7.55]'
+    first_log_rt_rt_difference: beta = -0.17, SE = 0.00, t(148) = -2.38, p = 0.017,
+      95% CI [7.41, 7.72]
+    max_log_rt_no_reuse_median_RT: 'Median = 7.84 [95% CI: 7.67, 7.96]'
+    max_log_rt_reuse_median_RT: 'Median = 7.40 [95% CI: 7.28, 7.60]'
+    max_log_rt_rt_difference: beta = -0.29, SE = 0.00, t(148) = -3.80, p = 0.00015,
+      95% CI [7.65, 7.99]
+    reuse_: 'Mean=64.22%, Median=66.67% [95% CI: 55.56%, 70.57%], Z=0.10, r=0.01,
+      p=0.0018, is_normal=False'
+    success_: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(95)=inf,
+      p=0, is_normal=True'
+  bfs:
+    reuse: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(49)=-inf, p=1, is_normal=True'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dfs:
+    reuse: 'Mean=41.50%, Median=50.00% [95% CI: 35.00%, 47.50%], Z=-5.11, r=-0.72,
+      p=0.99, is_normal=False'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dyna:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=0.50%, Median=0.00% [95% CI: 0.00%, 1.50%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  her:
+    reuse: 'Mean=99.43%, Median=100.00% [95% CI: 98.50%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=0.29%, Median=0.00% [95% CI: 0.00%, 1.00%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  preplay:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=91.50%, Median=97.50% [95% CI: 84.75%, 97.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+  qlearning:
+    reuse: 'Mean=98.21%, Median=97.50% [95% CI: 97.14%, 99.18%], Z=2.80, r=0.89, p=0.00098,
+      is_normal=False'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  usfa:
+    reuse: 'Mean=98.94%, Median=100.00% [95% CI: 96.76%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=4.77%, Median=2.70% [95% CI: 2.92%, 7.18%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+robustness_path_reuse_t0.5:
+  1.human data:
+    first_log_rt_no_reuse_median_RT: 'Median = 7.60 [95% CI: 7.34, 7.77]'
+    first_log_rt_reuse_median_RT: 'Median = 7.21 [95% CI: 7.06, 7.49]'
+    first_log_rt_rt_difference: beta = -0.21, SE = 0.00, t(133) = -2.81, p = 0.005,
+      95% CI [7.37, 7.68]
+    max_log_rt_no_reuse_median_RT: 'Median = 7.74 [95% CI: 7.51, 7.92]'
+    max_log_rt_reuse_median_RT: 'Median = 7.31 [95% CI: 7.10, 7.60]'
+    max_log_rt_rt_difference: beta = -0.32, SE = 0.00, t(133) = -3.64, p = 0.00027,
+      95% CI [7.55, 7.88]
+    reuse_: 'Mean=62.39%, Median=66.67% [95% CI: 53.73%, 69.10%], Z=-0.15, r=-0.01,
+      p=0.0049, is_normal=False'
+    success_: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(95)=inf,
+      p=0, is_normal=True'
+  bfs:
+    reuse: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(49)=-inf, p=1, is_normal=True'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dfs:
+    reuse: 'Mean=41.50%, Median=50.00% [95% CI: 35.00%, 47.50%], Z=-5.11, r=-0.72,
+      p=0.99, is_normal=False'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dyna:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=0.50%, Median=0.00% [95% CI: 0.00%, 1.50%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  her:
+    reuse: 'Mean=99.43%, Median=100.00% [95% CI: 98.50%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=0.29%, Median=0.00% [95% CI: 0.00%, 1.00%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  preplay:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=91.50%, Median=97.50% [95% CI: 84.75%, 97.25%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+  qlearning:
+    reuse: 'Mean=95.13%, Median=97.14% [95% CI: 90.96%, 98.59%], Z=2.80, r=0.89, p=0.00098,
+      is_normal=False'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  usfa:
+    reuse: 'Mean=98.94%, Median=100.00% [95% CI: 96.76%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=4.77%, Median=2.70% [95% CI: 2.90%, 7.18%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+robustness_path_reuse_t0.7:
+  1.human data:
+    first_log_rt_no_reuse_median_RT: 'Median = 7.60 [95% CI: 7.34, 7.77]'
+    first_log_rt_reuse_median_RT: 'Median = 7.21 [95% CI: 7.08, 7.49]'
+    first_log_rt_rt_difference: beta = -0.21, SE = 0.00, t(133) = -2.81, p = 0.005,
+      95% CI [7.37, 7.68]
+    max_log_rt_no_reuse_median_RT: 'Median = 7.74 [95% CI: 7.53, 7.92]'
+    max_log_rt_reuse_median_RT: 'Median = 7.31 [95% CI: 7.10, 7.57]'
+    max_log_rt_rt_difference: beta = -0.32, SE = 0.00, t(133) = -3.64, p = 0.00027,
+      95% CI [7.55, 7.88]
+    reuse_: 'Mean=62.39%, Median=66.67% [95% CI: 54.08%, 69.36%], Z=-0.15, r=-0.01,
+      p=0.0049, is_normal=False'
+    success_: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(95)=inf,
+      p=0, is_normal=True'
+  bfs:
+    reuse: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(49)=-inf, p=1, is_normal=True'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dfs:
+    reuse: 'Mean=41.50%, Median=50.00% [95% CI: 35.00%, 47.50%], Z=-5.11, r=-0.72,
+      p=0.99, is_normal=False'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dyna:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=0.50%, Median=0.00% [95% CI: 0.00%, 1.50%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  her:
+    reuse: 'Mean=99.14%, Median=100.00% [95% CI: 97.75%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=0.29%, Median=0.00% [95% CI: 0.00%, 1.00%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  preplay:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=91.50%, Median=97.50% [95% CI: 84.50%, 97.25%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+  qlearning:
+    reuse: 'Mean=91.03%, Median=91.41% [95% CI: 88.19%, 93.86%], t(9)=19.39, p=6e-09,
+      is_normal=True'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  usfa:
+    reuse: 'Mean=98.94%, Median=100.00% [95% CI: 96.76%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=4.77%, Median=2.70% [95% CI: 2.92%, 7.09%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+robustness_shortcut_t0.3:
+  1.human data:
+    reuse_: 'Mean=70.00%, Median=100.00% [95% CI: 66.16%, 79.38%], Z=2.69, r=0.27,
+      p=5.7e-08, is_normal=False'
+    success_: 'Mean=98.80%, Median=100.00% [95% CI: 97.47%, 100.00%], Z=8.63, r=0.87,
+      p=3.4e-23, is_normal=False'
+  bfs:
+    reuse: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(49)=-inf, p=1, is_normal=True'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dfs:
+    reuse: 'Mean=92.50%, Median=100.00% [95% CI: 89.00%, 95.50%], Z=6.15, r=0.87,
+      p=8.9e-16, is_normal=False'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dyna:
+    reuse: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(9)=inf, p=0,
+      is_normal=True'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  her:
+    reuse: 'Mean=98.74%, Median=100.00% [95% CI: 97.00%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=2.27%, Median=0.00% [95% CI: 0.00%, 5.13%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  preplay:
+    reuse: 'Mean=99.50%, Median=100.00% [95% CI: 98.74%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=97.74%, Median=97.50% [95% CI: 96.71%, 98.75%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+  qlearning:
+    reuse: 'Mean=87.97%, Median=89.94% [95% CI: 81.24%, 94.71%], Z=2.80, r=0.89, p=0.00098,
+      is_normal=False'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  usfa:
+    reuse: 'Mean=99.47%, Median=100.00% [95% CI: 98.69%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=7.65%, Median=6.76% [95% CI: 4.98%, 10.33%], t(9)=-28.22, p=1,
+      is_normal=True'
+robustness_shortcut_t0.5:
+  1.human data:
+    reuse_: 'Mean=67.20%, Median=75.00% [95% CI: 63.55%, 77.19%], Z=1.80, r=0.18,
+      p=1e-06, is_normal=False'
+    success_: 'Mean=98.80%, Median=100.00% [95% CI: 97.47%, 100.00%], Z=8.63, r=0.87,
+      p=3.4e-23, is_normal=False'
+  bfs:
+    reuse: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(49)=-inf, p=1, is_normal=True'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dfs:
+    reuse: 'Mean=60.00%, Median=62.50% [95% CI: 52.50%, 67.00%], Z=-2.45, r=-0.35,
+      p=0.0098, is_normal=False'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dyna:
+    reuse: 'Mean=99.75%, Median=100.00% [95% CI: 99.25%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  her:
+    reuse: 'Mean=95.96%, Median=98.75% [95% CI: 89.99%, 99.50%], Z=2.80, r=0.89, p=0.00098,
+      is_normal=False'
+    success: 'Mean=2.27%, Median=0.00% [95% CI: 0.00%, 5.11%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  preplay:
+    reuse: 'Mean=99.50%, Median=100.00% [95% CI: 98.74%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=97.74%, Median=97.50% [95% CI: 96.71%, 98.75%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+  qlearning:
+    reuse: 'Mean=83.96%, Median=79.78% [95% CI: 80.36%, 87.56%], t(9)=7.58, p=1.7e-05,
+      is_normal=True'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  usfa:
+    reuse: 'Mean=98.42%, Median=100.00% [95% CI: 97.13%, 99.73%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=7.65%, Median=6.76% [95% CI: 4.98%, 10.33%], t(9)=-28.22, p=1,
+      is_normal=True'
+robustness_shortcut_t0.7:
+  1.human data:
+    reuse_: 'Mean=62.00%, Median=66.67% [95% CI: 58.00%, 72.81%], Z=0.61, r=0.06,
+      p=0.00022, is_normal=False'
+    success_: 'Mean=98.80%, Median=100.00% [95% CI: 97.47%, 100.00%], Z=8.63, r=0.87,
+      p=3.4e-23, is_normal=False'
+  bfs:
+    reuse: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(49)=-inf, p=1, is_normal=True'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dfs:
+    reuse: 'Mean=24.00%, Median=25.00% [95% CI: 18.00%, 30.50%], Z=-5.63, r=-0.80,
+      p=1, is_normal=False'
+    success: 'Mean=100.00%, Median=100.00% [95% CI: 100.00%, 100.00%], t(49)=inf,
+      p=0, is_normal=True'
+  dyna:
+    reuse: 'Mean=99.00%, Median=100.00% [95% CI: 97.50%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  her:
+    reuse: 'Mean=93.94%, Median=96.25% [95% CI: 88.20%, 97.72%], Z=2.80, r=0.89, p=0.00098,
+      is_normal=False'
+    success: 'Mean=2.27%, Median=0.00% [95% CI: 0.00%, 5.13%], Z=-2.80, r=-0.89, p=1,
+      is_normal=False'
+  preplay:
+    reuse: 'Mean=99.50%, Median=100.00% [95% CI: 98.74%, 100.00%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+    success: 'Mean=97.74%, Median=97.50% [95% CI: 96.71%, 98.75%], Z=2.80, r=0.89,
+      p=0.00098, is_normal=False'
+  qlearning:
+    reuse: 'Mean=81.45%, Median=75.96% [95% CI: 72.00%, 90.94%], Z=2.80, r=0.89, p=0.00098,
+      is_normal=False'
+    success: 'Mean=0.00%, Median=0.00% [95% CI: 0.00%, 0.00%], t(9)=-inf, p=1, is_normal=True'
+  usfa:
+    reuse: 'Mean=95.51%, Median=94.80% [95% CI: 93.43%, 97.60%], t(9)=39.60, p=1e-11,
+      is_normal=True'
+    success: 'Mean=7.65%, Median=6.76% [95% CI: 4.98%, 10.33%], t(9)=-28.22, p=1,
+      is_normal=True'

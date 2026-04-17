@@ -65,7 +65,7 @@ model_order = [
   "dyna",
   "qlearning",
   "usfa",
-  "her"
+  "her",
   # "dynaq_shared",
 ]
 
@@ -120,7 +120,7 @@ measure_to_ylabel = {
 
 
 experiment_to_name = {
-  "paths" : "Two Paths",
+  "paths": "Two Paths",
   "shortcut": "Shortcut",
   "shortcut": "Shortcut",
 }

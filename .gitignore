@@ -1,4 +1,5 @@
 *data
+dataframes/
 .vscode
 archive
 **/huggingface_token.txt
