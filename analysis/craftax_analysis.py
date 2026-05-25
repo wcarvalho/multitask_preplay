@@ -280,7 +280,7 @@ def plot_success_rate_path_reuse_metrics(
   }
 
   # Plot data points with error bars
-  marker_size = 100  # Default size for all scatter points
+  marker_size = plot_configs.SCATTER_POINT_SIZE
 
   # Then plot model data points
   if model_df is not None:
@@ -301,9 +301,9 @@ def plot_success_rate_path_reuse_metrics(
         yerr=yerr,
         fmt="none",
         color=color,
-        capsize=5,
-        capthick=2,
-        elinewidth=2,
+        capsize=plot_configs.SCATTER_ERR_CAPSIZE,
+        capthick=plot_configs.SCATTER_ERR_CAPTHICK,
+        elinewidth=plot_configs.SCATTER_ERR_LINEWIDTH,
         zorder=2,
       )
 
@@ -331,9 +331,9 @@ def plot_success_rate_path_reuse_metrics(
       yerr=yerr,
       fmt="none",
       color=color,
-      capsize=5,
-      capthick=2,
-      elinewidth=2,
+      capsize=plot_configs.SCATTER_ERR_CAPSIZE,
+      capthick=plot_configs.SCATTER_ERR_CAPTHICK,
+      elinewidth=plot_configs.SCATTER_ERR_LINEWIDTH,
       zorder=2,
     )
 
@@ -499,7 +499,7 @@ def plot_success_rate_path_reuse_metrics_efficiency(
     all_data.update(model_data)
 
   # Plot data points with error bars
-  marker_size = 100  # Default size for all scatter points
+  marker_size = plot_configs.SCATTER_POINT_SIZE
 
   # First plot model data points if available
   if model_df is not None:
@@ -520,9 +520,9 @@ def plot_success_rate_path_reuse_metrics_efficiency(
         yerr=yerr,
         fmt="none",
         color=color,
-        capsize=5,
-        capthick=2,
-        elinewidth=2,
+        capsize=plot_configs.SCATTER_ERR_CAPSIZE,
+        capthick=plot_configs.SCATTER_ERR_CAPTHICK,
+        elinewidth=plot_configs.SCATTER_ERR_LINEWIDTH,
         zorder=2,
       )
 
@@ -550,9 +550,9 @@ def plot_success_rate_path_reuse_metrics_efficiency(
       yerr=yerr,
       fmt="none",
       color=color,
-      capsize=5,
-      capthick=2,
-      elinewidth=2,
+      capsize=plot_configs.SCATTER_ERR_CAPSIZE,
+      capthick=plot_configs.SCATTER_ERR_CAPTHICK,
+      elinewidth=plot_configs.SCATTER_ERR_LINEWIDTH,
       zorder=2,
     )
 
@@ -742,7 +742,6 @@ def path_reuse_manipulation_analysis(
   legend_loc="upper left",
   overlap_threshold: float = 0.15,
   cosine_threshold: float = None,
-  center: str = None,
 ):
   ############################################################
   # Create stats file
@@ -772,23 +771,26 @@ def path_reuse_manipulation_analysis(
   )
 
   experiment_name = "5.craftax_path_reuse_stats"
-  fig, ax, all_data = plot_success_rate_path_reuse_metrics(
-    df=user_df,
-    model_df=model_df,
-    experiment_name=experiment_name,
-    title=title,
-    reuse_column=reuse_column,
-    figsize=(6, 4),
-    legend_loc=legend_loc,
-    overlap_threshold=overlap_threshold,
-    cosine_threshold=cosine_threshold,
-    center=center,
-  )
-
-  if save_figs:
-    fig.savefig(
-      os.path.join(save_dir, "success_path_reuse.pdf"), bbox_inches="tight", dpi=300
+  for center in ["median", "mean"]:
+    fig, ax, all_data = plot_success_rate_path_reuse_metrics(
+      df=user_df,
+      model_df=model_df,
+      experiment_name=experiment_name if center == "mean" else None,
+      title=title,
+      reuse_column=reuse_column,
+      figsize=(6, 4),
+      legend_loc=legend_loc,
+      overlap_threshold=overlap_threshold,
+      cosine_threshold=cosine_threshold,
+      center=center,
     )
+
+    if save_figs:
+      fig.savefig(
+        os.path.join(save_dir, f"success_path_reuse_{center}.pdf"),
+        bbox_inches="tight",
+        dpi=300,
+      )
 
   # Plot path reuse rate histograms (2-column: known vs unknown eval goal)
   known_label = "Human (known eval goal)"

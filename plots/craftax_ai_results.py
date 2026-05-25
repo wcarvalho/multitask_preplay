@@ -27,12 +27,14 @@ from data_configs import CRAFTAX_AI_DIR
 from plot_configs import default_colors, model_colors
 
 DIRECTORY = os.path.join(CRAFTAX_AI_DIR, "main")
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+OUTPUT_DIR = os.path.join(
+  os.path.dirname(os.path.abspath(__file__)), "output", "craftax_ai_results"
+)
 
 DEFAULT_TITLE_SIZE = 16
 DEFAULT_XLABEL_SIZE = 12
 DEFAULT_YLABEL_SIZE = 14
-DEFAULT_LEGEND_SIZE = 12
+DEFAULT_LEGEND_SIZE = 10
 
 model_colors = {
   # "ql": default_colors["purple"],
@@ -40,6 +42,7 @@ model_colors = {
   "ql": model_colors["qlearning"],
   "ql_sf": model_colors["usfa"],
   "dyna": model_colors["dyna"],
+  "her": model_colors["her"],
   "preplay": model_colors["preplay"],
 }
 
@@ -61,16 +64,21 @@ extra_baseline_colors = {
 model_names = {
   "ql": "QL + 1-step (10M)",
   "ql_sf": "QL + SF (10M)",
+  "her": "HER (10M)",
   "dyna": "Dyna (1M)",
   "preplay": "Multitask preplay (1M)",
 }
 
-model_order = [
-  "qlearning",
-  "usfa",
-  "dyna",
-  "preplay",
-]
+MODEL_ORDER = ["ql", "ql-sf", "her", "dyna", "preplay"]
+
+
+def _ordered_models(df):
+  present = set(df["model"].unique())
+  ordered = [m for m in MODEL_ORDER if m in present]
+  # Append any df models not in MODEL_ORDER (stable, at the end)
+  ordered += [m for m in df["model"].unique() if m not in set(ordered)]
+  return ordered
+
 
 crafter_achievements_names = [
   "Collect Coal",
@@ -147,8 +155,13 @@ def get_metric_data_by_group(model_to_group=None, overwrite=False, debug=False):
     else:
       cache_file = os.path.join(DIRECTORY, f"{model}_{group}_raw.json")
 
+    if isinstance(overwrite, bool):
+      model_overwrite = overwrite
+    else:
+      model_overwrite = model in set(overwrite)
+
     # Try to load cached data
-    if os.path.exists(cache_file) and not overwrite:
+    if os.path.exists(cache_file) and not model_overwrite:
       with open(cache_file, "r") as f:
         print(f"Loaded {cache_file}")
         data.extend(json.load(f))
@@ -221,7 +234,7 @@ def plot_achievement_bars(
   df = df[df["setting"] == setting]
 
   # Get unique models and achievements
-  models = df["model"].unique()
+  models = _ordered_models(df)
   n_models = len(models)
   n_achievements = len(crafter_achievement_metrics)
 
@@ -329,6 +342,7 @@ def plot_training_envs_score(
   ylim=None,
   extra_baselines=None,
   extra_baseline_colors=None,
+  legend_loc: str = "lower right",
 ):
   # Create figure and axis if not provided
   if ax is None:
@@ -338,7 +352,7 @@ def plot_training_envs_score(
 
   key = "evaluator" if evaluation else "actor"
   # Get unique models
-  models = df["model"].unique()
+  models = _ordered_models(df)
 
   # Plot lines and points for each model
   for model in models:
@@ -424,7 +438,7 @@ def plot_training_envs_score(
 
   # Add legend if both types of data are shown
   if show_legend:
-    ax.legend(fontsize=DEFAULT_LEGEND_SIZE)
+    ax.legend(fontsize=DEFAULT_LEGEND_SIZE, loc=legend_loc)
 
   # Set ylims if provided
   if ylim is not None:
@@ -476,7 +490,7 @@ def plot_training_envs_geometric_score(
 
   key = "evaluator" if evaluation else "actor"
   # Get unique models
-  models = df["model"].unique()
+  models = _ordered_models(df)
 
   # Plot lines and points for each model
   for model in models:
@@ -843,20 +857,39 @@ def save_figure(fig, filename, directory=OUTPUT_DIR):
 def main():
   parser = argparse.ArgumentParser(description="Craftax AI main results plots")
   parser.add_argument(
-    "--refresh", action="store_true", help="Clear cached data and re-fetch"
+    "--refresh",
+    nargs="*",
+    default=None,
+    metavar="MODEL",
+    help="Refresh cache. No args = all models. With args = only those models (e.g. --refresh her dyna).",
   )
-  args = parser.parse_args()
 
   model_to_group = {
     "ql": "ql-final-5",
     "ql-sf": "ql-sf-final-5",
     "dyna": "dyna-final-5",
-    "preplay": "preplay-final-5",
+    "her": "her-pnas-2",
+    "preplay": "preplay-pnas-revision-3",
   }
+
+  args = parser.parse_args()
+
+  if args.refresh is None:
+    refresh_models = set()
+  elif len(args.refresh) == 0:
+    refresh_models = set(model_to_group.keys())
+  else:
+    unknown = set(args.refresh) - set(model_to_group.keys())
+    if unknown:
+      parser.error(
+        f"Unknown model(s) for --refresh: {sorted(unknown)}. Valid: {sorted(model_to_group.keys())}"
+      )
+    refresh_models = set(args.refresh)
+
   df = get_metric_data_by_group(
     model_to_group=model_to_group,
     debug=False,
-    overwrite=args.refresh,
+    overwrite=refresh_models,
   )
 
   # Save seed counts at the beginning
@@ -898,7 +931,7 @@ def main():
     show_legend=False,
     evaluation=False,
     ax=ax[0],
-    ylim=(1.5, 7),
+    ylim=(1.5, 7.5),
   )
   plot_training_envs_score(
     df,
@@ -906,7 +939,7 @@ def main():
     show_legend=True,
     evaluation=True,
     ax=ax[1],
-    ylim=(1.5, 7),
+    ylim=(1.5, 7.5),
   )
   save_figure(fig, "craftax_ai_results_train_eval")
 
@@ -916,13 +949,17 @@ def main():
     ntraining_envs=[8, 16, 32, 64, 128, 256, 512],
     show_legend=True,
     evaluation=True,
-    ylim=(1.5, 7),
+    ylim=(1.5, 7.5),
   )
   save_figure(fig, "craftax_ai_results_eval")
 
   # then plot per achievement for 512 (in main paper)
   fig, ax = plot_achievement_bars(df, n=512, figsize=(12, 5), show_legend=True)
   save_figure(fig, "craftax_ai_results_achievement_bars_512")
+
+  # no-legend version for figure composition
+  fig, ax = plot_achievement_bars(df, n=512, figsize=(12, 5), show_legend=False)
+  save_figure(fig, "craftax_ai_results_achievement_bars_512_no_legend")
 
   # then plot per achievement for all
   nrows = (len(options) + 1) // 2  # Ceiling division to handle odd number of plots

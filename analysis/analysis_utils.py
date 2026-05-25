@@ -34,6 +34,7 @@ from scipy import stats
 
 from nicewebrl.dataframe import DataFrame
 import data_configs
+import plot_configs
 from plot_configs import (
   default_colors,
   model_colors,
@@ -1065,7 +1066,7 @@ def plot_success_rate_path_reuse_metrics(
   legend_loc: str = "lower right",
   legend_ncol: int = 1,
   overlap_threshold: float = 0.7,
-  point_size=25,
+  point_size=None,
   center: str = "mean",
   mu: float = 0.5,
 ) -> Tuple[plt.Figure, plt.Axes]:
@@ -1116,7 +1117,9 @@ def plot_success_rate_path_reuse_metrics(
 
   # Plot data points with error bars
   ordered_keys = [k for k in model_order if k in all_data]
-  marker_size = point_size  # Default size of the main scatter points
+  marker_size = (
+    point_size if point_size is not None else plot_configs.SCATTER_POINT_SIZE
+  )
 
   # Plot each model/human data point with error bars
   for key in ordered_keys:
@@ -1132,9 +1135,9 @@ def plot_success_rate_path_reuse_metrics(
       yerr=yerr,
       fmt="none",
       color=model_colors.get(key, "#333333"),
-      capsize=5,
-      capthick=2,
-      elinewidth=2,
+      capsize=plot_configs.SCATTER_ERR_CAPSIZE,
+      capthick=plot_configs.SCATTER_ERR_CAPTHICK,
+      elinewidth=plot_configs.SCATTER_ERR_LINEWIDTH,
       zorder=2,
     )
 
@@ -1416,54 +1419,59 @@ def compute_binary_measure_statistics(
   se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
 
   alpha = 0.05
-  # Select center value based on center parameter
-  if center == "mean":
-    center_value = p_obs
-  elif center == "median":
-    center_value = p_median
-  else:
+  if center not in ("mean", "median"):
     raise NotImplementedError(center)
+  center_value = p_obs if center == "mean" else p_median
 
+  # Compute CIs for BOTH mean and median so the yaml record carries both,
+  # regardless of which one the caller selected for plotting.
   if is_normal:
-    # For normal data: use parametric approach with mean
     se = np.sqrt(p_obs * (1 - p_obs) / total_trials)
-    ci_low = p_obs - stats.norm.ppf(1 - alpha / 2) * se
-    ci_high = p_obs + stats.norm.ppf(1 - alpha / 2) * se
+    z = stats.norm.ppf(1 - alpha / 2)
+    mean_ci_low = p_obs - z * se
+    mean_ci_high = p_obs + z * se
+    # No bootstrap path under normality assumption — use the same parametric CI
+    # as a placeholder for the median (callers asking for center=median while
+    # is_normal=True will get the parametric mean CI; this matches prior behavior).
+    median_ci_low = mean_ci_low
+    median_ci_high = mean_ci_high
   else:
-    # For non-normal data: use bootstrap CI for the selected center statistic
     bootstrap_samples = 10000
-    bootstrap_stats = []
-    n_trials = group_means["n_trials"].to_numpy()
-    stat_fn = np.mean if center == "mean" else np.median
-    for _ in range(bootstrap_samples):
-      # Sample indices with replacement
+    boot_means = np.empty(bootstrap_samples)
+    boot_medians = np.empty(bootstrap_samples)
+    for i in range(bootstrap_samples):
       idx = np.random.choice(n_groups, size=n_groups, replace=True)
-      bootstrap_stats.append(stat_fn(rates[idx]))
+      sample = rates[idx]
+      boot_means[i] = np.mean(sample)
+      boot_medians[i] = np.median(sample)
 
-    bootstrap_stats = np.asarray(bootstrap_stats)
+    mean_ci_low = np.percentile(boot_means, alpha / 2 * 100)
+    mean_ci_high = np.percentile(boot_means, (1 - alpha / 2) * 100)
+    median_ci_low = np.percentile(boot_medians, alpha / 2 * 100)
+    median_ci_high = np.percentile(boot_medians, (1 - alpha / 2) * 100)
 
-    # Percentile method for confidence intervals
-    ci_low = np.percentile(bootstrap_stats, alpha / 2 * 100)
-    ci_high = np.percentile(bootstrap_stats, (1 - alpha / 2) * 100)
+    # Clamp each CI to contain its own point estimate
+    mean_ci_high = max(mean_ci_high, p_obs)
+    mean_ci_low = min(mean_ci_low, p_obs)
+    median_ci_high = max(median_ci_high, p_median)
+    median_ci_low = min(median_ci_low, p_median)
 
-    # Clamp CI to contain the selected center value
-    if ci_high < center_value:
-      print(f"ci_high: {ci_high} -> center_value")
-      ci_high = center_value
-    if ci_low > center_value:
-      print(f"ci_low: {ci_low} -> center_value")
-      ci_low = center_value
+  # Bound to [0, 1]
+  mean_ci_low = max(0.0, mean_ci_low)
+  mean_ci_high = min(1.0, mean_ci_high)
+  median_ci_low = max(0.0, median_ci_low)
+  median_ci_high = min(1.0, median_ci_high)
 
-  ci_low = max(0.0, ci_low)  # Lower bound can't be below 0%
-  ci_high = min(1.0, ci_high)  # Upper bound can't exceed 100%
+  # Selected CI for downstream plotting (error bars use this)
+  if center == "mean":
+    ci_low, ci_high = mean_ci_low, mean_ci_high
+  else:
+    ci_low, ci_high = median_ci_low, median_ci_high
 
   if is_normal:
-    # One-sided t-test
     t_stat, p_value = stats.ttest_1samp(rates, mu)
-    # Convert to one-sided p-value if t-statistic is in predicted direction
     p_value = p_value / 2 if t_stat > 0 else 1 - p_value / 2
 
-    # Calculate Cohen's d effect size
     d = (p_obs - mu) / (1e-5 + np.std(rates, ddof=1))
     effect_size = {"name": "Cohen's d", "value": d}
 
@@ -1471,11 +1479,13 @@ def compute_binary_measure_statistics(
     w_stat = 0
     test_name = "One-sample t-test"
     test_stat = t_stat
-    df = n_groups - 1  # Degrees of freedom for one-sample t-test
-    # Prepare paper result text
-    paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], t({df})={test_stat:.2f}, p={p_value:.2g}, is_normal={is_normal}"
+    df = n_groups - 1
+    paper_result = (
+      f"Mean={100 * p_obs:.2f}% [95% CI: {100 * mean_ci_low:.2f}%, {100 * mean_ci_high:.2f}%], "
+      f"Median={100 * p_median:.2f}% [95% CI: {100 * median_ci_low:.2f}%, {100 * median_ci_high:.2f}%], "
+      f"t({df})={test_stat:.2f}, p={p_value:.2g}, is_normal={is_normal}"
+    )
   else:
-    # One-sided Wilcoxon signed-rank test
     w_stat, p_value = stats.wilcoxon(rates - mu, alternative="greater")
 
     n = len(rates)
@@ -1483,15 +1493,17 @@ def compute_binary_measure_statistics(
     variance_w = n * (n + 1) * (2 * n + 1) / 24
     z_stat = (w_stat - expected_w) / np.sqrt(variance_w)
 
-    # Calculate r effect size (correlation coefficient) for Wilcoxon test
     r = z_stat / np.sqrt(n)
     effect_size = {"name": "r", "value": r}
 
     test_name = "Wilcoxon signed-rank test"
     test_stat = w_stat
-    df = n_groups - 1  # Using n-1 for consistency, though Wilcoxon doesn't use df
-    # Prepare paper result text
-    paper_result = f"Mean={100 * p_obs:.2f}%, Median={100 * p_median:.2f}% [95% CI: {100 * ci_low:.2f}%, {100 * ci_high:.2f}%], Z={z_stat:.2f}, r={r:.2f}, p={p_value:.2g}, is_normal={is_normal}"
+    df = n_groups - 1
+    paper_result = (
+      f"Mean={100 * p_obs:.2f}% [95% CI: {100 * mean_ci_low:.2f}%, {100 * mean_ci_high:.2f}%], "
+      f"Median={100 * p_median:.2f}% [95% CI: {100 * median_ci_low:.2f}%, {100 * median_ci_high:.2f}%], "
+      f"Z={z_stat:.2f}, r={r:.2f}, p={p_value:.2g}, is_normal={is_normal}"
+    )
 
   return {
     "n_groups": n_groups,
@@ -1499,7 +1511,8 @@ def compute_binary_measure_statistics(
     "median": p_median,
     "center_value": center_value,
     "ci": (ci_low, ci_high),
-    "median_ci": (ci_low, ci_high),  # backward compat
+    "mean_ci": (mean_ci_low, mean_ci_high),
+    "median_ci": (median_ci_low, median_ci_high),
     "se": se,
     "sd": sd,
     "rates": rates,

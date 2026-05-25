@@ -22,7 +22,9 @@ sys.path.append(
 
 import plot_configs  # noqa: F401
 
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+OUTPUT_DIR = os.path.join(
+  os.path.dirname(os.path.abspath(__file__)), "output", "craftax_multi_results"
+)
 
 
 def main():
@@ -38,7 +40,7 @@ def main():
   user_df = pl.read_parquet(data_configs.get_dataframe_path("craftax", "human"))
   model_df = data_configs.load_dataframes("craftax")
 
-  # Path reuse analysis (median)
+  # Path reuse analysis (produces both median and mean plots)
   craftax_analysis.path_reuse_manipulation_analysis(
     user_df=user_df,
     model_df=model_df,
@@ -46,26 +48,6 @@ def main():
     overlap_threshold=0.25,
     cosine_threshold=0.5,
     legend_loc="center left",
-    center="median",
-  )
-
-  # Path reuse analysis (mean)
-  craftax_analysis.path_reuse_manipulation_analysis(
-    user_df=user_df,
-    model_df=model_df,
-    save_dir=OUTPUT_DIR,
-    overlap_threshold=0.25,
-    cosine_threshold=0.5,
-    legend_loc="center left",
-    center="mean",
-  )
-
-  # Non-reuse frequency by world seed
-  craftax_analysis.plot_non_reuse_frequency_by_world_seed(
-    user_df=user_df,
-    model_df=model_df,
-    tell_reuse=0,
-    save_dir=OUTPUT_DIR,
   )
 
 

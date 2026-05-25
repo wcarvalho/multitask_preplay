@@ -303,7 +303,7 @@ def path_reuse_results(
     fig, ax, human_data = analysis_utils.plot_success_rate_path_reuse_metrics(
       df=sub_df,
       model_df=mdf,
-      experiment_name=experiment_name,
+      experiment_name=experiment_name if center == "mean" else None,
       title="Generalization Success & Path Reuse",
       figsize=(6, 4),
       legend_loc="center left",
@@ -383,6 +383,8 @@ def shortcut_results(
   save_dir = os.path.join(save_dir, f"4.shortcut_tell_reuse={tell_reuse}")
   os.makedirs(save_dir, exist_ok=True)
 
+  experiment_name = "4.shortcut_stats"
+
   mdf = model_df.filter(world="big_m1_maze3_shortcut", eval=True)
   sub_df = get_shortcut_eval_data(
     user_df,
@@ -402,6 +404,7 @@ def shortcut_results(
       overlap_threshold=overlap_threshold,
       center=center,
       mu=mu,
+      experiment_name=experiment_name if center == "mean" else None,
     )
 
     if save_figs:
@@ -502,6 +505,7 @@ def start_results(
     ax=ax,
     ylim=ylim,
     use_median=median,
+    experiment_name="3.start_stats",
   )
 
   if save_figs:
@@ -617,6 +621,7 @@ def juncture_results(
     results = analysis_utils.power_analysis_rt_differences(
       difference_df,
       measure,
+      experiment_name="2.juncture_stats",
       setting=str((idx, setting, tell_reuse)),
     )
 

@@ -28,6 +28,8 @@ EVAL2_COLOR = "yellow"
 model_colors = {
   #'human_success': '#0072B2',
   "human": default_colors["orange"],
+  "human_known": default_colors["orange"],
+  "human_unknown": default_colors["google blue"],
   #'human_terminate': '#D55E00',
   "usfa": default_colors["nice purple"],
   "qlearning": default_colors["light gray"],
@@ -44,6 +46,8 @@ model_colors = {
 
 model_names = {
   "human": "Human",
+  "human_known": "Human (know eval goal)",
+  "human_unknown": "Human (don't know eval goal)",
   "qlearning": "Universal Value Function",
   "usfa": "Universal Landmark Successor Features",
   "dyna": "Dyna",
@@ -57,6 +61,8 @@ model_names = {
 
 model_order = [
   "human",
+  "human_known",
+  "human_unknown",
   "human_success",
   "human_terminate",
   "bfs",
@@ -117,6 +123,19 @@ measure_to_ylabel = {
   "max_end_rt": "seconds",
   "max_final_rt": "seconds",
 }
+
+
+# Scatter marker size for success-rate vs path-reuse plots
+# (analysis_utils.plot_success_rate_path_reuse_metrics and siblings)
+SCATTER_POINT_SIZE = 30
+
+# Error-bar styling for success-rate vs path-reuse scatter plots.
+#   SCATTER_ERR_CAPSIZE   — length of the perpendicular cap at each end (points)
+#   SCATTER_ERR_CAPTHICK  — thickness of the cap line
+#   SCATTER_ERR_LINEWIDTH — thickness of the error line itself
+SCATTER_ERR_CAPSIZE = 5
+SCATTER_ERR_CAPTHICK = 2
+SCATTER_ERR_LINEWIDTH = 2
 
 
 experiment_to_name = {

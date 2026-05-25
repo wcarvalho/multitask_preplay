@@ -24,7 +24,9 @@ sys.path.append(
 
 import plot_configs  # noqa: F401
 
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+OUTPUT_DIR = os.path.join(
+  os.path.dirname(os.path.abspath(__file__)), "output", "jaxmaze_results"
+)
 
 
 def main():
