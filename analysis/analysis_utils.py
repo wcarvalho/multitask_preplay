@@ -94,6 +94,7 @@ def add_to_file(experiment_name, algo, label, text):
   algo_data[label] = text
 
   # Write back to YAML file
+  os.makedirs(os.path.dirname(yaml_file), exist_ok=True)
   with open(yaml_file, "w") as f:
     yaml.dump(data, f, default_flow_style=False)
 

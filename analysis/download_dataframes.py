@@ -8,43 +8,68 @@ Usage:
 
 import argparse
 import os
+import re
+import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from datasets import load_dataset
+from huggingface_hub import HfApi, hf_hub_download
 
 import data_configs
 
+# One parquet per split, named data/{split}-00000-of-00001.parquet.
+_SPLIT_FILE_RE = re.compile(r"data/(\w+)-\d{5}-of-\d{5}\.parquet")
 
-def _has_local_data(domain: str) -> bool:
-  """Return True if at least one parquet already exists for this domain."""
+
+def _has_local_data(domain: str, human: bool) -> bool:
+  """Return True if local parquets already exist for this portion of the data.
+
+  The human and model parquets come from separate HuggingFace repos, so check
+  them separately: the human repo provides ``{domain}_human.parquet``; the
+  models repo provides every other ``{domain}_*.parquet``.
+  """
   import glob
 
   pattern = os.path.join(data_configs.DATAFRAMES_DIR, f"{domain}_*.parquet")
-  return len(glob.glob(pattern)) > 0
+  files = glob.glob(pattern)
+  human_file = data_configs.get_dataframe_path(domain, "human")
+  if human:
+    return human_file in files
+  return any(f != human_file for f in files)
 
 
 def download_data(
   dataset_name: str,
   domain: str,
 ):
-  if _has_local_data(domain):
+  human = dataset_name.endswith("_human")
+  if _has_local_data(domain, human=human):
     print(f"Local data found for {domain}, skipping download.")
     return
 
-  dataset = load_dataset(f"wcarvalho/{dataset_name}")
+  # Copy the split parquets byte-for-byte. (Avoid `datasets.load_dataset`: its
+  # pandas round-trip silently converts nulls to NaN, which polars treats
+  # differently in filters and aggregations.)
+  repo_id = f"wcarvalho/{dataset_name}"
+  repo_files = HfApi().list_repo_files(repo_id, repo_type="dataset")
 
   os.makedirs(data_configs.DATAFRAMES_DIR, exist_ok=True)
 
-  for split_name, split_data in dataset.items():
+  for path_in_repo in repo_files:
+    match = _SPLIT_FILE_RE.fullmatch(path_in_repo)
+    if match is None:
+      continue
     # Map HuggingFace split names to our naming convention
-    model_name = split_name.replace("human_data", "human")
+    model_name = match.group(1).replace("human_data", "human")
     filename = data_configs.get_dataframe_path(domain, model_name)
     if os.path.exists(filename):
       print(f"Skipping {domain}_{model_name} because it already exists")
       continue
-    split_data.to_pandas().to_parquet(filename)
+    cached = hf_hub_download(
+      repo_id=repo_id, filename=path_in_repo, repo_type="dataset"
+    )
+    shutil.copyfile(cached, filename)
     print(f"Saved {domain}_{model_name} to {filename}")
 
 

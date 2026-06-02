@@ -85,7 +85,9 @@ def _result_candidates() -> tuple[list[Path], Path]:
     PROJECT_ROOT / "preplay_results",
     PROJECT_ROOT / "plots" / "output",
   ]
-  return candidates, candidates[0]
+  # Fall back to a repo-local directory so fresh clones (e.g. reviewers) work
+  # on machines without the external drive.
+  return candidates, PROJECT_ROOT / "preplay_results"
 
 
 def _raw_data_candidates() -> tuple[list[Path], Path]:
@@ -102,7 +104,8 @@ def _raw_data_candidates() -> tuple[list[Path], Path]:
     PROJECTS_ROOT / "raw_preplay_data",
     PROJECT_ROOT / "preplay_results",
   ]
-  return candidates, candidates[0]
+  # Same repo-local fallback as _result_candidates.
+  return candidates, PROJECT_ROOT / "preplay_results"
 
 
 _RESULT_CANDIDATES, _RESULT_FALLBACK = _result_candidates()
