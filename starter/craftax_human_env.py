@@ -1,35 +1,12 @@
-"""Starter / onboarding script for the Craftax human experiment environment.
+"""Load Craftax human conditions, replay them in the real env, and render the views.
 
-What this does
---------------
-The human Craftax experiment presents people with two kinds of episodes per
-world: a *train* condition (``eval=False``) and a *test* condition
-(``eval=True``). This script:
+Loads a train (``eval=False``) and test (``eval=True``) condition from the human
+dataframe, instantiates the experiment's Craftax env in each, steps it under the
+chosen policy, and saves a 2x5 figure of the first/last 5 rollout states.
 
-  1. Loads BOTH a train and a test condition from the human dataframe
-     (``dataframes/craftax_human.parquet``).
-  2. Instantiates the real Craftax environment (the same
-     ``CraftaxSymbolicWebEnvNoAutoReset`` the experiment used) in each
-     condition, with the condition's world seed and start position.
-  3. Steps the environment under a chosen policy.
-  4. Renders a 2x5 figure per condition (top row = first 5 rollout states, bottom
-     row = last 5) as the FIRST-PERSON Craftax view the human saw, saves it to
-     ``starter/output/`` and opens it -- a visual check that the world loaded
-     correctly and the agent stepped through it.
-
-Two policies are supported:
-
-  * ``--policy=random`` : take uniformly-random *movement* actions for up to
-    ``--max-steps`` steps (or until the episode terminates), then print a
-    summary of rewards / positions.
-
-  * ``--policy=human``  : pick a RANDOM human episode for the condition, derive
-    the human's action sequence from their recorded ``positions`` (via
-    ``simulations.craftax_utils.actions_from_path``), replay those actions in
-    the env, and VERIFY that the env's rolled-out agent positions match the
-    human's recorded positions step-for-step. A successful match proves the env
-    was correctly instantiated in the human's condition. This is the script's
-    reason to exist.
+  * ``--policy=random`` : take random movement actions for up to ``--max-steps``.
+  * ``--policy=human``  : replay a recorded human episode and check that the env
+    positions match the recording step-for-step.
 
 Run from the repo root::
 
@@ -37,20 +14,6 @@ Run from the repo root::
     python starter/craftax_human_env.py --policy=human
 
 The first env build compiles JAX kernels and may take ~30s.
-
-Verified facts this script relies on (file:line confirmed)
----------------------------------------------------------
-  * ``CraftaxSymbolicWebEnvNoAutoReset.reset(key, params) -> (obs, state)``
-        simulations/craftax_web_env.py:597-600
-  * ``...step(key, state, action, params) -> (obs, state, reward, done, info)``
-        simulations/craftax_web_env.py:538-548
-  * Deterministic start position via ``state.replace(player_position=...)``
-        simulations/craftax_utils.py:721
-  * Action enum: NOOP=0, LEFT=1, RIGHT=2, UP=3, DOWN=4, DO=5
-        craftax.craftax.constants.Action
-  * ``actions_from_path(path)`` returns one action per recorded position:
-    (N-1) movement actions + 1 trailing NOOP -> length N for N positions.
-        simulations/craftax_utils.py:314-338
 """
 
 import argparse
@@ -58,9 +21,7 @@ import os
 import subprocess
 import sys
 
-# Put repo root (and simulations/) on sys.path so this runs as
-# `python starter/craftax_human_env.py` from the repo root.
-# (mirrors analysis/craftax_analysis.py lines 7-14)
+# Put repo root and simulations/ on sys.path so this runs from the repo root.
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(_project_root)
 sys.path.append(os.path.join(_project_root, "simulations"))
@@ -71,24 +32,19 @@ import numpy as np
 import polars as pl
 import matplotlib
 
-matplotlib.use("Agg")  # render figures to PNG; no display needed
+matplotlib.use("Agg")  # save PNG, no display
 import matplotlib.pyplot as plt
 
 import data_configs
+from analysis.download_dataframes import download_craftax_data
 
-# Import the SINGLE canonical env builder (the exact env used to collect the
-# human data) plus the position-string parser. make_human_experiment_env loads
-# the frozen JAX-0.4.22 world-state cache, so reset() restores the cached world
-# instead of regenerating it from the JAX PRNG -- this is what makes replay
-# reproducible across JAX versions. It is the same builder the experiment uses.
+# make_human_experiment_env loads the frozen world-state cache, so reset()
+# restores the cached world instead of regenerating it from the JAX PRNG.
 from simulations.craftax_web_env import make_human_experiment_env
 from analysis.vis_utils import parse_positions_string, parse_jax_array_string
 from simulations import craftax_utils
 from craftax.craftax.constants import Action
 
-# Movement action indices (craftax.craftax.constants.Action). These are the
-# only indices `actions_from_path` ever emits, so sampling from them for the
-# random policy keeps the agent on the grid and comparable to a human path.
 ACTION_NOOP = 0
 ACTION_LEFT = 1
 ACTION_RIGHT = 2
@@ -96,16 +52,8 @@ ACTION_UP = 3
 ACTION_DOWN = 4
 MOVEMENT_ACTIONS = np.array([ACTION_LEFT, ACTION_RIGHT, ACTION_UP, ACTION_DOWN])
 
-# The recorded `actions` column stores WEB-experiment action indices, NOT raw
-# Craftax `Action` enum values. The web app exposed only five actions, in this
-# order, and stepped the env via `action_array[action_idx]`
-# (experiments/craftax/craftax_experiment_structure.py:320-321,406):
-#   web 0 -> RIGHT, 1 -> DOWN, 2 -> LEFT, 3 -> UP, 4 -> DO
-# So a recorded `action_idx` must be mapped through this table before being
-# passed to `env.step`, which expects raw enum values. Verified empirically:
-# this remap reproduces every recorded position delta (13375/13375); passing the
-# raw indices instead matches only ~12% and collects nothing.
-# = [2, 4, 1, 3, 5].
+# Recorded `actions` are web-app indices; remap to raw Craftax enum values
+# before env.step. web idx -> enum: [RIGHT, DOWN, LEFT, UP, DO] = [2, 4, 1, 3, 5].
 WEB_TO_ENV_ACTION = np.array(
   [
     Action.RIGHT.value,
@@ -124,18 +72,14 @@ OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 # Conditions
 # --------------------------------------------------------------------------- #
 def load_conditions(df: pl.DataFrame, seed: int):
-  """Pick one random episode for each of the train (eval=False) and test
-  (eval=True) conditions.
+  """Pick one random episode for each of the train and test conditions.
 
   Returns a list of (eval_flag, row_dict) in train-then-test order. Prefers
-  SUCCESSFUL episodes (so a recorded-action replay actually collects the goal),
-  and only rows whose recorded ``positions`` parse to length >= 2.
+  successful episodes with parseable ``positions`` of length >= 2.
   """
   rng = np.random.default_rng(seed)
   conditions = []
   for eval_flag in (False, True):
-    # Polars keyword-arg filtering (see CLAUDE.md): df.filter(eval=...) ==
-    # df.filter(pl.col("eval") == ...). Prefer successful episodes first.
     success_first = df.filter(eval=eval_flag, success=1.0)
     fallback = df.filter(eval=eval_flag)
     chosen = None
@@ -160,12 +104,7 @@ def load_conditions(df: pl.DataFrame, seed: int):
 # Env instantiation
 # --------------------------------------------------------------------------- #
 def make_env_state(env, default_params, world_seed: int, start_pos, key):
-  """Reset the env in the given world and override the start position.
-
-  Mirrors the canonical reset pattern in vis_utils.get_craftax_env_image:
-  reset returns ``(obs, state)`` with state second; we then replace
-  ``player_position`` deterministically (craftax_utils.py:721).
-  """
+  """Reset the env in the given world and override the start position."""
   params = default_params.replace(world_seeds=(int(world_seed),))
   _, state = env.reset(key, params)
   state = state.replace(player_position=jnp.asarray(start_pos, dtype=jnp.int32))
@@ -183,7 +122,7 @@ def run_random(env_step, state, params, key, max_steps: int):
   """
   rng = np.random.default_rng(int(jax.random.randint(key, (), 0, 2**30)))
   positions = [np.asarray(state.player_position)]
-  states = [state]  # full env states, for the visual sanity-check figure
+  states = [state]
   total_reward = 0.0
   goal_reached = False
   steps = 0
@@ -213,29 +152,19 @@ def run_random(env_step, state, params, key, max_steps: int):
 def run_human(env_step, state, params, recorded_positions, recorded_actions=None):
   """Replay a human episode and check object collection.
 
-  Two action sources:
-    * ``recorded_actions`` given (the REAL per-step action indices from the
-      ``actions`` column, incl. DO/interact): replay THOSE -> the human's full
-      behaviour, so the goal object actually gets mined/collected.
-    * else: derive movement-only actions from ``positions`` via
-      ``actions_from_path`` (DO collapses to NOOP -> object is never collected).
-
-  Records the world map before/after to report which blocks the agent removed
-  (collected), and a step-wise position match against the recording.
+  Uses ``recorded_actions`` (full behaviour incl. DO, so objects get collected)
+  when given, else derives movement-only actions from ``positions``.
   """
   if recorded_actions is not None:
-    # Recorded indices are in WEB action space; remap to raw env enum values
-    # before stepping (see WEB_TO_ENV_ACTION). The movement-only `actions_from_path`
-    # branch below already emits raw enum actions, so it needs no remap.
     actions = WEB_TO_ENV_ACTION[np.asarray(recorded_actions, dtype=np.int32)]
     action_source = "recorded"
   else:
     actions = np.asarray(craftax_utils.actions_from_path(recorded_positions))
     action_source = "positions"
 
-  map_before = np.asarray(state.map[0])  # goal objects are baked into the cached map
+  map_before = np.asarray(state.map[0])
   rolled_out = [np.asarray(state.player_position)]
-  states = [state]  # full env states, for the visual sanity-check figure
+  states = [state]
   total_reward = 0.0
   goal_reached = False
   step_key = jax.random.PRNGKey(0)
@@ -251,13 +180,12 @@ def run_human(env_step, state, params, recorded_positions, recorded_actions=None
     if bool(done):
       break
 
-  # Position match: env positions vs the recording, aligned by index.
   rolled = np.asarray(rolled_out)
   rec = np.asarray(recorded_positions)
   k = min(len(rolled), len(rec))
   pos_matches = int(np.all(rolled[:k] == rec[:k], axis=1).sum())
 
-  # Object removal: cells whose block changed (the agent mined/collected them).
+  # cells whose block changed (collected by the agent)
   map_after = np.asarray(state.map[0])
   yx = np.argwhere(map_before != map_after)
   removed = [
@@ -311,17 +239,10 @@ def _summarize(eval_flag, row, policy, result):
 # Visual verification
 # --------------------------------------------------------------------------- #
 def save_states_figure(states, title, out_path):
-  """Render the first 5 and last 5 rollout states into a 2x5 figure.
+  """Render the first 5 and last 5 rollout states as the egocentric Craftax view.
 
-  Top row = first 5 states, bottom row = last 5 states, each rendered as the
-  FIRST-PERSON (egocentric) Craftax view -- exactly what the human participant
-  saw on screen (player centered). Watching this local view change is a quick
-  visual confirmation that the env loaded the correct world and stepped through
-  it as expected. Returns ``out_path``.
+  Top row = first 5 states, bottom row = last 5. Returns ``out_path``.
   """
-  # The egocentric renderer the experiment displayed to humans
-  # (craftax_experiment_structure.py render_fn). The player is centered, so no
-  # agent marker is needed.
   from craftax.craftax.renderer import render_craftax_pixels
   from craftax.craftax.constants import BLOCK_PIXEL_SIZE_IMG
 
@@ -373,6 +294,7 @@ def main():
   )
   args = parser.parse_args()
 
+  download_craftax_data()  # download parquets from HF if not already local
   df_path = args.data
   print(f"Loading conditions from: {df_path}")
   df = pl.read_parquet(df_path)
@@ -392,12 +314,9 @@ def main():
   conditions = load_conditions(df, seed=args.seed)
 
   print("Building Craftax env with cached world states (first build ~30s)...")
-  # The single canonical builder (same env the experiment + data collection use).
   env, default_params = make_human_experiment_env()
-  # Seeds whose WORLD is restored from cache on reset (vs regenerated). Read off
-  # the env itself so the guard can't drift from what was actually loaded.
+  # seeds whose world is restored from cache on reset (vs regenerated)
   cached_seeds = {int(s) for s in (env.static_env_params.cached_world_states or {})}
-  # jit step once so per-step replay is fast after a single compile.
   env_step = jax.jit(env.step)
 
   key = jax.random.PRNGKey(args.seed)
@@ -406,8 +325,7 @@ def main():
   for eval_flag, row in conditions:
     key, reset_key, run_key = jax.random.split(key, 3)
     world_seed = int(row["world"])
-    # Guard against a silent fall-back to JAX-version-sensitive regeneration:
-    # reset_env only uses the cache when the seed is present (web_env.py:618).
+    # reset() only uses the cache when the seed is present, else it regenerates
     if world_seed not in cached_seeds:
       raise RuntimeError(
         f"World seed {world_seed} is not in the cache {sorted(cached_seeds)}; "
@@ -431,7 +349,6 @@ def main():
 
     _summarize(eval_flag, row, args.policy, result)
 
-    # Visual sanity check: render the first 5 + last 5 states of this rollout.
     cond = "test" if eval_flag else "train"
     fig_path = save_states_figure(
       result["states"],
@@ -455,7 +372,6 @@ def main():
         "--data dataframes/craftax_human_with_actions.parquet to replay real actions."
       )
 
-  # Open the rendered figures so the loaded data can be eyeballed.
   for path in figure_paths:
     subprocess.run(["open", path])
 
