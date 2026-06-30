@@ -3,7 +3,7 @@ dataframes/
 .vscode
 archive
 **/huggingface_token.txt
-plots/output*
+output/
 .cursor/
 .claude/
 

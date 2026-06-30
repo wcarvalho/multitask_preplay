@@ -361,29 +361,15 @@ else:
 # Define Craftax environment
 ########################################
 
-static_env_params = CraftaxSymbolicWebEnvNoAutoReset.default_static_params()
-static_env_params = static_env_params.replace(
-  max_melee_mobs=MONSTERS,
-  max_ranged_mobs=MONSTERS,
-  max_passive_mobs=10,  # cows
-  initial_crafting_tables=True,
-  initial_strength=20,
-  map_size=(48, 48),
-  num_levels=1,
-)
+# Build the data-collection env with the frozen world-state cache loaded (for
+# JAX-version reproducibility). make_human_experiment_env is the single source of
+# truth for this env's static params + cache wiring; the starter scripts import
+# the same builder. `env_class` preserves the DUMMY_ENV branch above.
+from simulations.craftax_web_env import make_human_experiment_env
 
-# Load pre-generated world states for JAX version reproducibility
-from simulations.craftax_world_cache import load_all_cached_states, get_cache_dir
-
-_cached_states = load_all_cached_states(get_cache_dir(), static_env_params)
-if _cached_states is not None:
-  static_env_params = static_env_params.replace(
-    cached_world_states=_cached_states,
-  )
-  print(f"Loaded {len(_cached_states)} cached world states")
-
-jax_env = CraftaxSymbolicWebEnvNoAutoReset(
-  static_env_params=static_env_params,
+jax_env, _ = make_human_experiment_env(
+  monsters=MONSTERS,
+  env_class=CraftaxSymbolicWebEnvNoAutoReset,
 )
 
 

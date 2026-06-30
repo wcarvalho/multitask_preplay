@@ -30,6 +30,7 @@ from simulations.craftax_experiment_configs import (
   PRACTICE_BLOCK_CONFIG,
   PATHS_CONFIGS,
   JUNCTURE_CONFIGS,
+  make_block_env_params,
 )
 from simulations.craftax_world_cache import (
   save_base_world_state,
@@ -41,25 +42,35 @@ from simulations.craftax_world_cache import (
 )
 
 
+def _build_seed_to_config():
+  """Map each world seed to its (unique) experiment BlockConfig."""
+  mapping = {}
+  for config in [PRACTICE_BLOCK_CONFIG, *PATHS_CONFIGS, *JUNCTURE_CONFIGS]:
+    mapping[config.world_seed] = config
+  return mapping
+
+
+SEED_TO_CONFIG = _build_seed_to_config()
+
+
 def collect_all_seeds():
   """Collect all unique world seeds from experiment configs."""
-  seeds = set()
-  seeds.add(PRACTICE_BLOCK_CONFIG.world_seed)
-  for config in PATHS_CONFIGS:
-    seeds.add(config.world_seed)
-  for config in JUNCTURE_CONFIGS:
-    seeds.add(config.world_seed)
-  return sorted(seeds)
+  return sorted(SEED_TO_CONFIG.keys())
 
 
 def generate_base_state(seed, static_params):
-  """Generate a base world state for a given seed (no goals placed)."""
-  params = EnvParams(
-    world_seeds=(seed,),
-    goal_locations=((-1, -1),),
-    placed_goals=(-1,),
-    placed_achievements=(-1,),
-  )
+  """Generate a world state for a seed WITH its goal objects placed.
+
+  Uses the seed's (unique) experiment BlockConfig via make_block_env_params so
+  the cached world is a complete, self-contained snapshot of what the human saw:
+  terrain PLUS the placed goal objects (ruby/sapphire/diamond/tree). Goal
+  placement is deterministic (fixed config coords, no RNG) and the terrain still
+  comes from PRNGKey(seed), so only the goal cells change versus a goal-free
+  base. (current_goal / start_positions stay at defaults -- both are per-episode
+  and overridden at reset; only the placed goal blocks on map[0] matter here.)
+  """
+  config = SEED_TO_CONFIG[seed]
+  params = make_block_env_params(config, EnvParams())
   rng = jax.random.PRNGKey(seed)
   rng_select = jax.random.PRNGKey(0)
   return generate_world(rng, rng_select, params, static_params)
