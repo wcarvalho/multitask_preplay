@@ -362,3 +362,14 @@ JaxMaze and Craftax log different metric names:
 **Output format:** All figures are PDF (for PNAS paper). Save to `plots/output/`.
 
 **After adding/modifying plot scripts**, run `/update-plots-readme` to keep `plots/README.md` current.
+
+## Updating the paper's OmniGraffle composite figures programmatically
+
+The PNAS paper's main-text Figures 3/4 are OmniGraffle composites (`~/Library/CloudStorage/Dropbox/personal/omni/2024-preplay-v2/preplay-figure-{3-jaxmaze,4-crafter-cogsci}.{graffle,pdf}`) that embed scatter panels generated from `plots/output/` (e.g. `jaxmaze_results/1.path_reuse_tell_reuse=1/success_rate_path_reuse_mean.pdf`, `4.shortcut_tell_reuse=1/success_rate_path_reuse_mean.pdf`, `craftax_multi_results/5.craftax_path_reuse_manipulation/success_path_reuse_mean.pdf` — the paper uses the `_mean` variants). OmniGraffle AppleScript export is Pro-gated on this machine, so after regenerating a panel, update the composites without the app:
+
+1. Back up the `.graffle` + exported `.pdf`.
+2. The `.graffle` is a flat zip: replace the matching embedded `imageN.pdf` (identify by rendering each) with the new panel under the same internal name, same page size (393.794×288.738 pt for these scatters), and re-zip.
+3. Patch the exported composite `.pdf` with PyMuPDF: locate the panel rect via OpenCV template match of the old panel (cross-check against `data.plist` bounds), stamp white underlay + new panel via `show_pdf_page` at that rect, and re-overlay any OmniGraffle panel labels ("(B)", "(C)") clipped from the original if they sat on the panel corner.
+4. Verify by pixel-diffing old vs new (changes confined to the panel rects) and visual PNG inspection; then copy into the paper repo via its `move_figures.sh` and rebuild.
+
+Full step-by-step recipe with caveats lives in `~/git/papers/preplay-writing/CLAUDE.md` ("Updating OmniGraffle composite figures programmatically").

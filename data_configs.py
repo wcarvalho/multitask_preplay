@@ -180,6 +180,7 @@ PAPER_STATS_FILE = os.path.join(RESULTS_DIRECTORY, "paper_stats.yaml")
 # Huggingface dataset names
 HUGGINGFACE_JAXMAZE_DATASET_NAME = "Multitask_Preplay_JaxMaze"
 HUGGINGFACE_CRAFTAX_DATASET_NAME = "Multitask_Preplay_Craftax"
+HUGGINGFACE_EUCLIDEAN_DATASET_NAME = "Multitask_Preplay_Euclidean_Heuristics"
 
 
 # Overlap thresholds

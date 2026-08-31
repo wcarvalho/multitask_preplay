@@ -6,7 +6,7 @@ default_colors = {
   "sky blue": (86 / 255, 180 / 255, 233 / 255),  # dfs, EVAL_COLOR
   "bluish green": (0.0, 158 / 255, 115 / 255),  # reuse
   "blue": (0.0, 114 / 255, 178 / 255),  # unused
-  "black": "#2f2f2e",  # unused
+  "black": "#2f2f2e",  # memory_based_euclidean, greedy_euclidean
   "dark gray": "#666666",  # dynaq_shared, dyna
   "light gray": "#999999",  # unused
   "purple": "#CC79A7",  # qlearning
@@ -40,6 +40,8 @@ model_colors = {
   "preplay": default_colors["vermillion"],
   "bfs": default_colors["pretty blue"],
   "dfs": default_colors["sky blue"],
+  "memory_based_euclidean": default_colors["black"],
+  "greedy_euclidean": default_colors["black"],  # never appears in main plots
   "new_path": default_colors["new_path"],
   "reuse": default_colors["reuse"],
 }
@@ -56,6 +58,8 @@ model_names = {
   "preplay": "Multitask Preplay",
   "bfs": "Breadth-first search",
   "dfs": "Depth-first search",
+  "memory_based_euclidean": "Memory-based Euclidean Heuristic",
+  "greedy_euclidean": "Greedy Euclidean Heuristic",
 }
 
 
@@ -67,6 +71,7 @@ model_order = [
   "human_terminate",
   "bfs",
   "dfs",
+  "memory_based_euclidean",
   "preplay",
   "dyna",
   "qlearning",

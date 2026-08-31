@@ -101,36 +101,49 @@ def save_df(human_df, models, domain, dataset_name):
   )
 
 
-#######################
-# JaxMaze
-#######################
-jaxmaze_models = ["qlearning", "usfa", "dyna", "preplay", "her", "bfs", "dfs"]
+if __name__ == "__main__":
+  #######################
+  # JaxMaze
+  #######################
+  jaxmaze_models = [
+    "qlearning",
+    "usfa",
+    "dyna",
+    "preplay",
+    "her",
+    "bfs",
+    "dfs",
+    "greedy_euclidean",
+    "memory_based_euclidean",
+  ]
 
-print("Uploading JaxMaze data...")
-save_df(
-  human_df=pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human")),
-  models=jaxmaze_models,
-  domain="jaxmaze",
-  dataset_name=data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME,
-)
+  print("Uploading JaxMaze data...")
+  save_df(
+    human_df=pl.read_parquet(data_configs.get_dataframe_path("jaxmaze", "human")),
+    models=jaxmaze_models,
+    domain="jaxmaze",
+    dataset_name=data_configs.HUGGINGFACE_JAXMAZE_DATASET_NAME,
+  )
 
-#######################
-# Craftax
-#######################
-craftax_models = [
-  "qlearning",
-  "usfa",
-  "dyna",
-  "preplay",
-  "her",
-]
+  #######################
+  # Craftax
+  #######################
+  craftax_models = [
+    "qlearning",
+    "usfa",
+    "dyna",
+    "preplay",
+    "her",
+    "greedy_euclidean",
+    "memory_based_euclidean",
+  ]
 
-print("Uploading Craftax data...")
-save_df(
-  human_df=pl.read_parquet(data_configs.get_dataframe_path("craftax", "human")),
-  models=craftax_models,
-  domain="craftax",
-  dataset_name=data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME,
-)
+  print("Uploading Craftax data...")
+  save_df(
+    human_df=pl.read_parquet(data_configs.get_dataframe_path("craftax", "human")),
+    models=craftax_models,
+    domain="craftax",
+    dataset_name=data_configs.HUGGINGFACE_CRAFTAX_DATASET_NAME,
+  )
 
-print("Done!")
+  print("Done!")
